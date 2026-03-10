@@ -69,4 +69,50 @@ public record VcsProviderConfig(
         String token = architectToken();
         return token != null && !token.isBlank();
     }
+
+    public void validate() {
+        validateProvider(resolvedProvider(), "vcs.provider");
+        String issueP = resolvedIssueProvider();
+        if (!issueP.equals(resolvedProvider())) {
+            validateProvider(issueP, "vcs.issue-provider");
+        }
+    }
+
+    private void validateProvider(String providerName, String configKey) {
+        switch (providerName) {
+            case "gitlab" -> {
+                if (gitlab == null) {
+                    throw new IllegalStateException(
+                        configKey + " is 'gitlab' but vcs.gitlab section is missing in orchestrator.yml"
+                    );
+                }
+                requireNonBlank(gitlab.url(), "vcs.gitlab.url");
+                requireNonBlank(gitlab.smithyToken(), "vcs.gitlab.smithy-token");
+                if (hasArchitect()) {
+                    requireNonBlank(gitlab.architectToken(), "vcs.gitlab.architect-token");
+                }
+            }
+            case "forgejo" -> {
+                if (forgejo == null) {
+                    throw new IllegalStateException(
+                        configKey + " is 'forgejo' but vcs.forgejo section is missing in orchestrator.yml"
+                    );
+                }
+                requireNonBlank(forgejo.url(), "vcs.forgejo.url");
+                requireNonBlank(forgejo.smithyToken(), "vcs.forgejo.smithy-token");
+                if (hasArchitect()) {
+                    requireNonBlank(forgejo.architectToken(), "vcs.forgejo.architect-token");
+                }
+            }
+            default -> throw new IllegalStateException(
+                configKey + " is '" + providerName + "' but only 'forgejo' and 'gitlab' are supported"
+            );
+        }
+    }
+
+    private static void requireNonBlank(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(field + " is required but missing or blank in orchestrator.yml");
+        }
+    }
 }

@@ -24,6 +24,7 @@ public class ConfigLoader {
         try {
             var mapper = YAMLMapper.builder().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
             this.config = mapper.readValue(resolved, SmithyConfig.class);
+            config.vcs().validate();
             log.info("Loaded orchestrator config (provider={})", config.vcs().resolvedProvider());
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to parse orchestrator config", e);
@@ -89,5 +90,4 @@ public class ConfigLoader {
             throw new UncheckedIOException("Failed to read classpath:orchestrator.yml", e);
         }
     }
-
 }
