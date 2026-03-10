@@ -4,9 +4,11 @@ import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.forgejo.ForgejoClient;
 import dev.smithyai.orchestrator.service.vcs.gitlab.GitLabClient;
+import dev.smithyai.orchestrator.web.GitLabEventMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.lang.Nullable;
 
 @Configuration
 public class VcsAndIssuesConfig {
@@ -56,6 +58,19 @@ public class VcsAndIssuesConfig {
             return itc;
         }
         return createIssueTrackerClient(vcs, issueProvider, true);
+    }
+
+    @Bean
+    @Nullable
+    public GitLabEventMapper gitLabEventMapper(
+        VcsProviderConfig vcs,
+        BotConfig botConfig,
+        @Qualifier("smithyVcs") VcsClient smithyVcs
+    ) {
+        if (!"gitlab".equals(vcs.resolvedProvider())) {
+            return null;
+        }
+        return new GitLabEventMapper(botConfig, vcs, smithyVcs);
     }
 
     private VcsClient createVcsClient(VcsProviderConfig vcs, String provider, boolean architect) {

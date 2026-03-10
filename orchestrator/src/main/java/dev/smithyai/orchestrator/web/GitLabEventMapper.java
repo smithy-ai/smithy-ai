@@ -10,13 +10,8 @@ import dev.smithyai.orchestrator.service.vcs.dto.PrData;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component
-@ConditionalOnExpression("@vcsProviderConfig.resolvedProvider() == 'gitlab'")
 public class GitLabEventMapper {
 
     private final BotConfig botConfig;
@@ -24,11 +19,7 @@ public class GitLabEventMapper {
     private final VcsClient smithyClient;
     private final String botUser;
 
-    public GitLabEventMapper(
-        BotConfig botConfig,
-        VcsProviderConfig vcsConfig,
-        @Qualifier("smithyVcs") VcsClient smithyClient
-    ) {
+    public GitLabEventMapper(BotConfig botConfig, VcsProviderConfig vcsConfig, VcsClient smithyClient) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
