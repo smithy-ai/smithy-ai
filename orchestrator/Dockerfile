@@ -6,7 +6,10 @@ COPY orchestrator/gradle/ gradle/
 COPY orchestrator/gradlew .
 RUN chmod +x gradlew && ./gradlew --version --no-daemon
 
-# Layer 2: Dependencies (changes when build scripts change)
+# Layer 2: Local Maven artifacts not available in remote repos
+COPY orchestrator/libs/ /root/.m2/repository/
+
+# Layer 3: Dependencies (changes when build scripts change)
 COPY orchestrator/build.gradle.kts orchestrator/settings.gradle.kts ./
 RUN ./gradlew dependencies --no-daemon
 
