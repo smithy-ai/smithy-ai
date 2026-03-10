@@ -3,7 +3,9 @@ package dev.smithyai.orchestrator.service.docker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.ClaudeConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
@@ -25,17 +27,22 @@ public class ContainerService {
     private final DockerCli docker;
     private final String network;
     private final String taskImage;
-    private final String forgejoUrl;
-    private final String forgejoToken;
+    private final String vcsUrl;
+    private final String vcsToken;
     private final String claudeOauthToken;
 
-    public ContainerService(OrchestratorConfig config, DockerCli docker) {
+    public ContainerService(
+        DockerConfig dockerConfig,
+        ClaudeConfig claudeConfig,
+        VcsProviderConfig vcsConfig,
+        DockerCli docker
+    ) {
         this.docker = docker;
-        this.network = config.dockerNetwork();
-        this.taskImage = config.taskImage();
-        this.forgejoUrl = config.forgejoUrl();
-        this.forgejoToken = config.smithyForgejoToken();
-        this.claudeOauthToken = config.claudeCodeOauthToken();
+        this.network = dockerConfig.network();
+        this.taskImage = dockerConfig.taskImage();
+        this.vcsUrl = vcsConfig.resolvedUrl();
+        this.vcsToken = vcsConfig.smithyToken();
+        this.claudeOauthToken = claudeConfig.oauthToken();
     }
 
     // ── Public API ───────────────────────────────────────────
@@ -105,9 +112,9 @@ public class ContainerService {
         args.add("-e");
         args.add("CLAUDE_CODE_OAUTH_TOKEN=" + claudeOauthToken);
         args.add("-e");
-        args.add("FORGEJO_URL=" + forgejoUrl);
+        args.add("VCS_URL=" + vcsUrl);
         args.add("-e");
-        args.add("FORGEJO_TOKEN=" + forgejoToken);
+        args.add("VCS_TOKEN=" + vcsToken);
         args.add("-e");
         args.add("CLONE_URL=" + init.cloneUrl());
         args.add("-e");

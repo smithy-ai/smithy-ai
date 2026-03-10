@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.smithy;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
@@ -24,19 +25,22 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     public static final List<String> BUILD_TOOLS = List.of("Read", "Edit", "Write", "Bash");
 
     private final ContainerService containerService;
-    private final OrchestratorConfig config;
+    private final DockerConfig dockerConfig;
+    private final VcsProviderConfig vcsConfig;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
 
     public SmithyWorkflowFactory(
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         ContainerService containerService,
         PromptRenderer renderer,
         @Qualifier("smithyVcs") VcsClient vcsClient,
         @Qualifier("smithyIssueTracker") IssueTrackerClient issueTracker
     ) {
-        this.config = config;
+        this.dockerConfig = dockerConfig;
+        this.vcsConfig = vcsConfig;
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
@@ -68,8 +72,15 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     @Override
     protected SmithyWorkflowInstance createInstance(String key, WorkflowEvent event) {
         var session = containerService.createSession(key);
-        return new SmithyWorkflowInstance(session, vcsClient, issueTracker, renderer, config, REFINE_TOOLS, () ->
-            removeInstance(key)
+        return new SmithyWorkflowInstance(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            REFINE_TOOLS,
+            () -> removeInstance(key)
         );
     }
 
@@ -92,7 +103,8 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             vcsClient,
             issueTracker,
             renderer,
-            config,
+            dockerConfig,
+            vcsConfig,
             tools,
             () -> removeInstance(containerName),
             stage,

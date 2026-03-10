@@ -1,7 +1,8 @@
 package dev.smithyai.orchestrator.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.BotConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
@@ -18,14 +19,20 @@ public class EventMapper {
 
     private static final String SMITHY_EMAIL = "smithy@localhost";
 
-    private final OrchestratorConfig config;
+    private final BotConfig botConfig;
+    private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
 
-    public EventMapper(OrchestratorConfig config, @Qualifier("smithyVcs") VcsClient smithyClient) {
-        this.config = config;
+    public EventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        @Qualifier("smithyVcs") VcsClient smithyClient
+    ) {
+        this.botConfig = botConfig;
+        this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
-        this.botUser = config.resolvedSmithyBotUser();
+        this.botUser = botConfig.resolvedSmithyUser();
     }
 
     // ── Issue events ─────────────────────────────
@@ -102,7 +109,7 @@ public class EventMapper {
 
         // Context repo: route to architect
         String repoFull = payload.path("repository").path("full_name").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(config.architectBotUser())) {
+        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             var prc = extractPr(info, payload.path("issue"));
             return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
         }
@@ -172,7 +179,7 @@ public class EventMapper {
 
     private WorkflowEvent mapReviewRequested(JsonNode payload) {
         String reviewer = payload.path("requested_reviewer").path("login").asText("");
-        if (!reviewer.equals(config.architectBotUser())) return null;
+        if (!reviewer.equals(botConfig.resolvedArchitectUser())) return null;
 
         var info = repoInfo(payload);
         var prc = extractPr(info, payload.path("pull_request"));
@@ -251,7 +258,7 @@ public class EventMapper {
 
         // Context repo PR comments → route to architect
         String repoFull = payload.path("repository").path("full_name").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(config.architectBotUser())) {
+        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             var prc = extractPr(info, pr);
             var cd = commentFromPayload(payload);
             return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body());
@@ -320,7 +327,7 @@ public class EventMapper {
     // ── Shared extraction helpers ────────────────
 
     private RepoInfo repoInfo(JsonNode payload) {
-        return Naming.repoInfo(payload, config.forgejoUrl());
+        return Naming.repoInfo(payload, vcsConfig.resolvedUrl());
     }
 
     private IssueContext extractIssue(JsonNode payload) {

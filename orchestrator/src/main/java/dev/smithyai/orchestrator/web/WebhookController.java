@@ -2,7 +2,7 @@ package dev.smithyai.orchestrator.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.workflow.WorkflowService;
 import java.nio.charset.StandardCharsets;
@@ -21,20 +21,20 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class WebhookController {
 
-    private final OrchestratorConfig config;
+    private final VcsProviderConfig vcsConfig;
     private final WorkflowService workflowService;
     private final ObjectMapper mapper;
     private final EventMapper eventMapper;
     private final GitLabEventMapper gitLabEventMapper;
 
     public WebhookController(
-        OrchestratorConfig config,
+        VcsProviderConfig vcsConfig,
         WorkflowService workflowService,
         ObjectMapper mapper,
         EventMapper eventMapper,
         @Nullable GitLabEventMapper gitLabEventMapper
     ) {
-        this.config = config;
+        this.vcsConfig = vcsConfig;
         this.workflowService = workflowService;
         this.mapper = mapper;
         this.eventMapper = eventMapper;
@@ -48,7 +48,8 @@ public class WebhookController {
         @RequestHeader(value = "X-Forgejo-Event", required = false) String forgejoEvent,
         @RequestHeader(value = "X-Gitea-Event", required = false) String giteaEvent
     ) {
-        if (!verifySignature(body, signature, config.webhookSecret())) {
+        String secret = vcsConfig.forgejo() != null ? vcsConfig.forgejo().webhookSecret() : "";
+        if (!verifySignature(body, signature, secret)) {
             log.warn("Webhook rejected: invalid HMAC signature");
             return ResponseEntity.status(403).body("Invalid signature");
         }
@@ -88,7 +89,7 @@ public class WebhookController {
             return ResponseEntity.status(404).body("GitLab integration not enabled");
         }
 
-        String secret = config.gitlabWebhookSecret();
+        String secret = vcsConfig.gitlab() != null ? vcsConfig.gitlab().webhookSecret() : null;
         if (
             secret == null ||
             secret.isBlank() ||

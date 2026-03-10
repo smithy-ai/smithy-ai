@@ -1,4 +1,4 @@
-package dev.smithyai.orchestrator.service.gitlab;
+package dev.smithyai.orchestrator.service.vcs.gitlab;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -322,6 +322,11 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public String prUrl(String externalBaseUrl, String owner, String repo, int number) {
         return externalBaseUrl + "/" + owner + "/" + repo + "/-/merge_requests/" + number;
+    }
+
+    @Override
+    public String cloneUrl(String owner, String repo) {
+        return baseUrl + "/" + owner + "/" + repo + ".git";
     }
 
     @Override

@@ -1,7 +1,8 @@
 package dev.smithyai.orchestrator.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.BotConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
@@ -10,22 +11,28 @@ import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "orchestrator.vcs-provider", havingValue = "gitlab")
+@ConditionalOnExpression("@vcsProviderConfig.resolvedProvider() == 'gitlab'")
 public class GitLabEventMapper {
 
-    private final OrchestratorConfig config;
+    private final BotConfig botConfig;
+    private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
 
-    public GitLabEventMapper(OrchestratorConfig config, @Qualifier("smithyVcs") VcsClient smithyClient) {
-        this.config = config;
+    public GitLabEventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        @Qualifier("smithyVcs") VcsClient smithyClient
+    ) {
+        this.botConfig = botConfig;
+        this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
-        this.botUser = config.resolvedSmithyBotUser();
+        this.botUser = botConfig.resolvedSmithyUser();
     }
 
     public WorkflowEvent map(String eventType, JsonNode payload) {
@@ -155,7 +162,7 @@ public class GitLabEventMapper {
 
         // Regular note → conversation comment
         String repoFull = payload.path("project").path("path_with_namespace").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(config.architectBotUser())) {
+        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
         }
 
@@ -215,7 +222,7 @@ public class GitLabEventMapper {
             var currentReviewers = attrs.path("reviewers");
             if (currentReviewers.isArray()) {
                 for (var r : currentReviewers) {
-                    if (config.architectBotUser().equals(r.path("username").asText(""))) {
+                    if (botConfig.resolvedArchitectUser().equals(r.path("username").asText(""))) {
                         var prc = extractPrFromMr(info, attrs);
                         return new WorkflowEvent.ReviewRequested(prc);
                     }
@@ -335,10 +342,11 @@ public class GitLabEventMapper {
         }
         String gitUrl = project.path("git_http_url").asText("");
         // Rewrite to internal URL if needed
-        if (config.gitlabUrl() != null && !config.gitlabUrl().isBlank() && !gitUrl.isBlank()) {
+        String gitlabUrl = vcsConfig.gitlab() != null ? vcsConfig.gitlab().url() : null;
+        if (gitlabUrl != null && !gitlabUrl.isBlank() && !gitUrl.isBlank()) {
             try {
                 var publicUri = java.net.URI.create(gitUrl);
-                var internalUri = java.net.URI.create(config.gitlabUrl());
+                var internalUri = java.net.URI.create(gitlabUrl);
                 gitUrl = gitUrl.replaceFirst(
                     java.util.regex.Pattern.quote(publicUri.getScheme() + "://" + publicUri.getAuthority()),
                     internalUri.getScheme() + "://" + internalUri.getAuthority()

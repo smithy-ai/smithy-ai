@@ -52,5 +52,7 @@ public interface VcsClient {
 
     String prUrl(String externalBaseUrl, String owner, String repo, int number);
 
+    String cloneUrl(String owner, String repo);
+
     String baseUrl();
 }

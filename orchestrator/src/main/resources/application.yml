@@ -8,29 +8,3 @@ spring:
       enabled: true
   main:
     banner-mode: off
-
-orchestrator:
-  # Provider selection ("forgejo" or "gitlab")
-  vcs-provider: ${VCS_PROVIDER:forgejo}
-  issue-provider: ${ISSUE_PROVIDER:${VCS_PROVIDER:forgejo}}
-  # Bot user names
-  smithy-bot-user: ${SMITHY_BOT_USER:smithy}
-  architect-bot-user: ${ARCHITECT_BOT_USER:architect}
-  # Forgejo settings
-  forgejo-url: ${FORGEJO_URL:http://forgejo:3000}
-  forgejo-external-url: ${FORGEJO_EXTERNAL_URL:http://localhost:3000}
-  smithy-forgejo-token: ${SMITHY_FORGEJO_TOKEN:}
-  architect-forgejo-token: ${ARCHITECT_FORGEJO_TOKEN:}
-  webhook-secret: ${WEBHOOK_SECRET:}
-  # GitLab settings
-  gitlab-url: ${GITLAB_URL:}
-  gitlab-external-url: ${GITLAB_EXTERNAL_URL:}
-  smithy-gitlab-token: ${SMITHY_GITLAB_TOKEN:}
-  architect-gitlab-token: ${ARCHITECT_GITLAB_TOKEN:}
-  gitlab-webhook-secret: ${GITLAB_WEBHOOK_SECRET:}
-  # Common settings
-  claude-code-oauth-token: ${CLAUDE_CODE_OAUTH_TOKEN:}
-  docker-network: ${DOCKER_NETWORK:forgejo-net}
-  task-image: ${TASK_IMAGE:claude-task:latest}
-  cache-volumes: ${CACHE_VOLUMES:pnpm,npm}
-  docker-command: ${DOCKER_COMMAND:docker}

@@ -1,4 +1,4 @@
-package dev.smithyai.orchestrator.service.forgejo;
+package dev.smithyai.orchestrator.service.vcs.forgejo;
 
 import dev.smithyai.forgejoclient.ApiClient;
 import dev.smithyai.forgejoclient.ApiException;
@@ -272,6 +272,11 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     @Override
     public String prUrl(String externalBaseUrl, String owner, String repo, int number) {
         return externalBaseUrl + "/" + owner + "/" + repo + "/pulls/" + number;
+    }
+
+    @Override
+    public String cloneUrl(String owner, String repo) {
+        return baseUrl + "/" + owner + "/" + repo + ".git";
     }
 
     @Override

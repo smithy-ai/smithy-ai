@@ -1,0 +1,32 @@
+docker:
+  command: ${DOCKER_COMMAND:docker}
+  network: ${DOCKER_NETWORK:forgejo-net}
+  task-image: ${TASK_IMAGE:claude-task:latest}
+  cache-volumes: ${CACHE_VOLUMES:pnpm,npm}
+
+claude:
+  oauth-token: ${CLAUDE_CODE_OAUTH_TOKEN:}
+
+vcs:
+  provider: ${VCS_PROVIDER:forgejo}
+  issue-provider: ${ISSUE_PROVIDER:}
+
+  forgejo:
+    url: ${FORGEJO_URL:http://forgejo:3000}
+    external-url: ${FORGEJO_EXTERNAL_URL:http://localhost:3000}
+    webhook-secret: ${WEBHOOK_SECRET:}
+    smithy-token: ${SMITHY_FORGEJO_TOKEN:}
+    architect-token: ${ARCHITECT_FORGEJO_TOKEN:}
+
+  gitlab:
+    url: ${GITLAB_URL:}
+    external-url: ${GITLAB_EXTERNAL_URL:}
+    webhook-secret: ${GITLAB_WEBHOOK_SECRET:}
+    smithy-token: ${SMITHY_GITLAB_TOKEN:}
+    architect-token: ${ARCHITECT_GITLAB_TOKEN:}
+
+bots:
+  smithy:
+    user: ${SMITHY_BOT_USER:smithy}
+  architect:
+    user: ${ARCHITECT_BOT_USER:architect}

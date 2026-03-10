@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.smithy;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.ClaudeSession;
@@ -33,11 +34,12 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, Stage.NEW);
+        this(session, vcsClient, issueTracker, renderer, dockerConfig, vcsConfig, tools, destroyCallback, Stage.NEW);
     }
 
     public SmithyWorkflowInstance(
@@ -45,12 +47,24 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         Stage initialStage
     ) {
-        this(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, initialStage, null);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            initialStage,
+            null
+        );
     }
 
     public SmithyWorkflowInstance(
@@ -58,13 +72,24 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         Stage initialStage,
         String existingSessionId
     ) {
-        super(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, existingSessionId);
+        super(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            existingSessionId
+        );
         // @formatter:off
         this.stateMachine = StateMachine.builder(Stage.class, initialStage)
             .in(Stage.NEW)
@@ -119,7 +144,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 .cloneUrl(info.cloneUrl())
                 .branch(branch)
                 .sourceBranch(ctx.baseBranch())
-                .cacheVolumes(config.getCacheVolumeMap())
+                .cacheVolumes(dockerConfig.getCacheVolumeMap())
                 .workflowType(WorkflowType.SMITHY)
                 .build();
 

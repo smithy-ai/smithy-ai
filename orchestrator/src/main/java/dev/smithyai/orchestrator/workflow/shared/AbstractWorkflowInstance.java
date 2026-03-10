@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.shared;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.ClaudeSession;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
@@ -21,7 +22,8 @@ public abstract class AbstractWorkflowInstance {
     protected final VcsClient vcsClient;
     protected final IssueTrackerClient issueTracker;
     protected final PromptRenderer renderer;
-    protected final OrchestratorConfig config;
+    protected final DockerConfig dockerConfig;
+    protected final VcsProviderConfig vcsConfig;
     private final Runnable destroyCallback;
     private final ExecutorService eventThread;
 
@@ -30,11 +32,12 @@ public abstract class AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, null);
+        this(session, vcsClient, issueTracker, renderer, dockerConfig, vcsConfig, tools, destroyCallback, null);
     }
 
     protected AbstractWorkflowInstance(
@@ -42,7 +45,8 @@ public abstract class AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         String existingSessionId
@@ -55,7 +59,8 @@ public abstract class AbstractWorkflowInstance {
         this.vcsClient = vcsClient;
         this.issueTracker = issueTracker;
         this.renderer = renderer;
-        this.config = config;
+        this.dockerConfig = dockerConfig;
+        this.vcsConfig = vcsConfig;
         this.destroyCallback = destroyCallback;
         this.eventThread = Executors.newSingleThreadExecutor(
             Thread.ofVirtual().name("wf-" + session.getContainerName() + "-", 0).factory()

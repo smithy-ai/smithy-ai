@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.RepoInfo;
@@ -33,11 +34,22 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, LearnStage.NEW);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            LearnStage.NEW
+        );
     }
 
     public ArchitectLearnInstance(
@@ -45,12 +57,24 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         LearnStage initialStage
     ) {
-        this(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, initialStage, null);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            initialStage,
+            null
+        );
     }
 
     public ArchitectLearnInstance(
@@ -58,13 +82,24 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         LearnStage initialStage,
         String existingSessionId
     ) {
-        super(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, existingSessionId);
+        super(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            existingSessionId
+        );
         // @formatter:off
         this.stateMachine = StateMachine.builder(LearnStage.class, initialStage)
             .in(LearnStage.NEW)
@@ -106,7 +141,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private ContainerConfig buildInit(PrContext prc, String learnBranch) {
         String contextRepo = Naming.contextRepoName(prc.info().repo());
-        String contextCloneUrl = vcsClient.baseUrl() + "/" + prc.info().owner() + "/" + contextRepo + ".git";
+        String contextCloneUrl = vcsClient.cloneUrl(prc.info().owner(), contextRepo);
         return ContainerConfig.builder()
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())
@@ -175,7 +210,12 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     throw new RuntimeException("Failed to push context repo: " + pushResult.stderr());
                 }
 
-                String prLink = vcsClient.prUrl(config.resolvedExternalUrl(), info.owner(), info.repo(), prc.number());
+                String prLink = vcsClient.prUrl(
+                    vcsConfig.resolvedExternalUrl(),
+                    info.owner(),
+                    info.repo(),
+                    prc.number()
+                );
                 var contextPr = vcsClient.createPullRequest(
                     info.owner(),
                     contextRepo,

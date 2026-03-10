@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
@@ -30,11 +31,22 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, ReviewStage.NEW);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            ReviewStage.NEW
+        );
     }
 
     public ArchitectReviewInstance(
@@ -42,12 +54,24 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         ReviewStage initialStage
     ) {
-        this(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, initialStage, null);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            initialStage,
+            null
+        );
     }
 
     public ArchitectReviewInstance(
@@ -55,13 +79,24 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         VcsClient vcsClient,
         IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         ReviewStage initialStage,
         String existingSessionId
     ) {
-        super(session, vcsClient, issueTracker, renderer, config, tools, destroyCallback, existingSessionId);
+        super(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            existingSessionId
+        );
         // @formatter:off
         this.stateMachine = StateMachine.builder(ReviewStage.class, initialStage)
             .in(ReviewStage.NEW)
@@ -101,7 +136,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
 
     private ContainerConfig buildInit(PrContext prc) {
         String contextRepo = Naming.contextRepoName(prc.info().repo());
-        String contextCloneUrl = vcsClient.baseUrl() + "/" + prc.info().owner() + "/" + contextRepo + ".git";
+        String contextCloneUrl = vcsClient.cloneUrl(prc.info().owner(), contextRepo);
         return ContainerConfig.builder()
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())

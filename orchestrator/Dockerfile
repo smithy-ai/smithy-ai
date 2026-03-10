@@ -18,5 +18,7 @@ FROM eclipse-temurin:25-jre
 RUN apt-get update && apt-get install -y --no-install-recommends docker.io && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /build/build/libs/*.jar app.jar
+COPY orchestrator/src/main/resources/orchestrator.yml /config/orchestrator.yml
+VOLUME /config
 EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]

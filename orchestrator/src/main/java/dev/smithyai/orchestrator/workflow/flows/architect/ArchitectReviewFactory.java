@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
@@ -23,19 +24,22 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     public static final List<String> TOOLS = List.of("Read", "Glob", "Grep", "Bash");
 
     private final ContainerService containerService;
-    private final OrchestratorConfig config;
+    private final DockerConfig dockerConfig;
+    private final VcsProviderConfig vcsConfig;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
 
     public ArchitectReviewFactory(
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         ContainerService containerService,
         PromptRenderer renderer,
         @Qualifier("architectVcs") VcsClient vcsClient,
         @Qualifier("architectIssueTracker") IssueTrackerClient issueTracker
     ) {
-        this.config = config;
+        this.dockerConfig = dockerConfig;
+        this.vcsConfig = vcsConfig;
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
@@ -68,8 +72,15 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     @Override
     protected ArchitectReviewInstance createInstance(String key, WorkflowEvent event) {
         var session = containerService.createSession(key);
-        return new ArchitectReviewInstance(session, vcsClient, issueTracker, renderer, config, TOOLS, () ->
-            removeInstance(key)
+        return new ArchitectReviewInstance(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            TOOLS,
+            () -> removeInstance(key)
         );
     }
 
@@ -92,7 +103,8 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
             vcsClient,
             issueTracker,
             renderer,
-            config,
+            dockerConfig,
+            vcsConfig,
             TOOLS,
             () -> removeInstance(containerName),
             stage,

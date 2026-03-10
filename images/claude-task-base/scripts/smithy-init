@@ -4,7 +4,7 @@
 # clones extra repos, and stays running via exec sleep infinity.
 #
 # Environment variables:
-#   FORGEJO_TOKEN   — Token for git credential helper
+#   VCS_TOKEN       — Token for git credential helper
 #   GIT_EMAIL       — Git author email
 #   GIT_USERNAME    — Git author name
 #   CLONE_URL       — Repository clone URL
@@ -15,7 +15,7 @@ set -e
 
 echo "[smithy] Configuring git credentials"
 git config --global credential.helper \
-  '!f() { echo username=token; echo "password=$FORGEJO_TOKEN"; }; f'
+  '!f() { echo username=token; echo "password=$VCS_TOKEN"; }; f'
 git config --global user.email "$GIT_EMAIL"
 git config --global user.name "$GIT_USERNAME"
 git config --global push.autoSetupRemote true
