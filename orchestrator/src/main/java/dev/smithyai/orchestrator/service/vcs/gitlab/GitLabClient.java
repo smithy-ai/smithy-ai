@@ -264,19 +264,56 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
 
     @Override
     public LatestReviewResult getLatestReviewComments(String owner, String repo, int prNumber, String reviewer) {
-        var nodes = getList("/projects/%s/merge_requests/%d/notes?sort=desc", projectId(owner, repo), prNumber);
+        String pid = projectId(owner, repo);
+        var notes = getList("/projects/%s/merge_requests/%d/notes?sort=desc", pid, prNumber);
 
-        // Find the latest note by this reviewer
-        for (var n : nodes) {
+        // Find the latest regular note by this reviewer (review summary body)
+        String reviewBody = "";
+        OffsetDateTime reviewNoteDate = null;
+        for (var n : notes) {
             if (n.path("system").asBoolean(false)) continue;
             String author = n.path("author").path("username").asText("");
             if (reviewer.equals(author)) {
-                String body = n.path("body").asText("");
-                return new LatestReviewResult(List.of(), body);
+                reviewBody = n.path("body").asText("");
+                reviewNoteDate = parseDateTime(n.path("created_at").asText(""));
+                break;
             }
         }
 
-        return new LatestReviewResult(List.of(), "");
+        // Fetch MR discussions to find inline comments by the reviewer
+        var discussions = getList("/projects/%s/merge_requests/%d/discussions", pid, prNumber);
+        var comments = new ArrayList<ReviewCommentEntry>();
+        for (var discussion : discussions) {
+            var discussionNotes = discussion.path("notes");
+            if (!discussionNotes.isArray() || discussionNotes.isEmpty()) continue;
+
+            // Check first note in discussion — it determines authorship and position
+            var firstNote = discussionNotes.get(0);
+            if (firstNote.path("system").asBoolean(false)) continue;
+            String noteAuthor = firstNote.path("author").path("username").asText("");
+            if (!reviewer.equals(noteAuthor)) continue;
+
+            // Skip notes without a position (regular discussion notes, not inline)
+            var position = firstNote.path("position");
+            if (position.isMissingNode() || position.isNull()) continue;
+
+            // Date filter: only include discussions created on or after the review summary note
+            OffsetDateTime noteDate = parseDateTime(firstNote.path("created_at").asText(""));
+            if (reviewNoteDate != null && noteDate != null && noteDate.isBefore(reviewNoteDate)) continue;
+
+            String path = position.path("new_path").asText("");
+            if (path.isEmpty()) {
+                path = position.path("old_path").asText("");
+            }
+            int line = position.path("new_line").asInt(0);
+            if (line == 0) {
+                line = position.path("old_line").asInt(0);
+            }
+
+            comments.add(new ReviewCommentEntry(noteAuthor, firstNote.path("body").asText(""), path, line, noteDate));
+        }
+
+        return new LatestReviewResult(comments, reviewBody);
     }
 
     // ── VcsClient: Assignees & Reviewers ─────────────────────
