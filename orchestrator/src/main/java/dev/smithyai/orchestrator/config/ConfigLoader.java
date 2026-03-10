@@ -7,8 +7,6 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,13 +16,11 @@ import org.springframework.core.env.Environment;
 @Configuration
 public class ConfigLoader {
 
-    private static final Pattern ENV_PATTERN = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]*))?}");
-
     private final SmithyConfig config;
 
     public ConfigLoader(Environment env) {
         String raw = loadRawYaml(env);
-        String resolved = resolveEnvPlaceholders(raw);
+        String resolved = env.resolveRequiredPlaceholders(raw);
         try {
             var mapper = YAMLMapper.builder().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
             this.config = mapper.readValue(resolved, SmithyConfig.class);
@@ -94,17 +90,4 @@ public class ConfigLoader {
         }
     }
 
-    static String resolveEnvPlaceholders(String input) {
-        Matcher m = ENV_PATTERN.matcher(input);
-        var sb = new StringBuilder();
-        while (m.find()) {
-            String varName = m.group(1);
-            String defaultValue = m.group(2);
-            String envValue = System.getenv(varName);
-            String replacement = envValue != null ? envValue : (defaultValue != null ? defaultValue : "");
-            m.appendReplacement(sb, Matcher.quoteReplacement(replacement));
-        }
-        m.appendTail(sb);
-        return sb.toString();
-    }
 }
