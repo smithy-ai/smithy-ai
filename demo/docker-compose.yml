@@ -16,13 +16,12 @@ services:
 
   orchestrator:
     build:
-      context: .
+      context: ..
       dockerfile: orchestrator/Dockerfile
     ports:
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./prompts:/prompts:ro
     environment:
       - FORGEJO_URL=${FORGEJO_URL:-http://forgejo:3000}
       - FORGEJO_EXTERNAL_URL=${FORGEJO_EXTERNAL_URL:-http://localhost:3000}
