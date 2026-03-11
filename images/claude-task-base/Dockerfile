@@ -17,7 +17,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 RUN npm install -g @anthropic-ai/claude-code
 
 # Install Forgejo CLI (tea)
-RUN curl -sL https://dl.gitea.io/tea/latest/tea-linux-amd64 -o /usr/local/bin/tea \
+ARG TARGETARCH
+RUN curl -sL "https://dl.gitea.io/tea/latest/tea-linux-${TARGETARCH}" -o /usr/local/bin/tea \
     && chmod +x /usr/local/bin/tea
 
 # Install smithy helper scripts
