@@ -8,16 +8,3 @@ spring:
       enabled: true
   main:
     banner-mode: off
-
-orchestrator:
-  forgejo-url: ${FORGEJO_URL:http://forgejo:3000}
-  forgejo-external-url: ${FORGEJO_EXTERNAL_URL:http://localhost:3000}
-  smithy-forgejo-token: ${SMITHY_FORGEJO_TOKEN:}
-  claude-code-oauth-token: ${CLAUDE_CODE_OAUTH_TOKEN:}
-  docker-network: ${DOCKER_NETWORK:forgejo-net}
-  task-image: ${TASK_IMAGE:claude-task:latest}
-  webhook-secret: ${WEBHOOK_SECRET:}
-  cache-volumes: ${CACHE_VOLUMES:pnpm,npm}
-  architect-forgejo-token: ${ARCHITECT_FORGEJO_TOKEN:}
-  architect-bot-user: ${ARCHITECT_BOT_USER:architect}
-  docker-command: ${DOCKER_COMMAND:docker}

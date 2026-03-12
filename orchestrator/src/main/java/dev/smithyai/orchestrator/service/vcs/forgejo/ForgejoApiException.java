@@ -1,4 +1,4 @@
-package dev.smithyai.orchestrator.service.forgejo;
+package dev.smithyai.orchestrator.service.vcs.forgejo;
 
 public class ForgejoApiException extends RuntimeException {
 

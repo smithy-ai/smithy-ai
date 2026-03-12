@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
@@ -11,7 +12,9 @@ import dev.smithyai.orchestrator.service.docker.*;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
-import dev.smithyai.orchestrator.service.forgejo.ForgejoClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClient;
+import dev.smithyai.orchestrator.service.vcs.dto.InlineComment;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
 import dev.smithyai.orchestrator.workflow.shared.StateMachine;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
@@ -25,38 +28,75 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
 
     public ArchitectReviewInstance(
         ContainerSession session,
-        ForgejoClient forgejoClient,
+        VcsClient vcsClient,
+        IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, forgejoClient, renderer, config, tools, destroyCallback, ReviewStage.NEW);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            ReviewStage.NEW
+        );
     }
 
     public ArchitectReviewInstance(
         ContainerSession session,
-        ForgejoClient forgejoClient,
+        VcsClient vcsClient,
+        IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         ReviewStage initialStage
     ) {
-        this(session, forgejoClient, renderer, config, tools, destroyCallback, initialStage, null);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            initialStage,
+            null
+        );
     }
 
     public ArchitectReviewInstance(
         ContainerSession session,
-        ForgejoClient forgejoClient,
+        VcsClient vcsClient,
+        IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         ReviewStage initialStage,
         String existingSessionId
     ) {
-        super(session, forgejoClient, renderer, config, tools, destroyCallback, existingSessionId);
+        super(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            existingSessionId
+        );
         // @formatter:off
         this.stateMachine = StateMachine.builder(ReviewStage.class, initialStage)
             .in(ReviewStage.NEW)
@@ -96,7 +136,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
 
     private ContainerConfig buildInit(PrContext prc) {
         String contextRepo = Naming.contextRepoName(prc.info().repo());
-        String contextCloneUrl = config.forgejoUrl() + "/" + prc.info().owner() + "/" + contextRepo + ".git";
+        String contextCloneUrl = vcsClient.cloneUrl(prc.info().owner(), contextRepo);
         return ContainerConfig.builder()
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())
@@ -145,7 +185,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             } catch (ClaudeParseException e) {
                 log.error("Failed to parse architect review output for PR #{}", prc.number(), e);
                 if (e.getRawContent() != null && !e.getRawContent().isBlank()) {
-                    forgejoClient.createIssueComment(info.owner(), info.repo(), prc.number(), e.getRawContent());
+                    vcsClient.createPrComment(info.owner(), info.repo(), prc.number(), e.getRawContent());
                 }
             }
 
@@ -182,7 +222,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
                 postReview(info.owner(), info.repo(), prNumber, responseData);
             } catch (ClaudeParseException e) {
                 if (e.getRawContent() != null && !e.getRawContent().isBlank()) {
-                    forgejoClient.createIssueComment(info.owner(), info.repo(), prNumber, e.getRawContent());
+                    vcsClient.createPrComment(info.owner(), info.repo(), prNumber, e.getRawContent());
                 }
             }
         } catch (Exception e) {
@@ -194,18 +234,16 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
 
     private void postReview(String owner, String repo, int prNumber, ReviewResult reviewData) {
         String summary = reviewData.summary() != null ? reviewData.summary() : "";
-        var reviewComments = new ArrayList<Map<String, Object>>();
+        var reviewComments = new ArrayList<InlineComment>();
         if (reviewData.comments() != null) {
             for (var c : reviewData.comments()) {
                 if (c.path() != null && !c.path().isBlank()) {
-                    reviewComments.add(
-                        Map.of("path", c.path(), "new_position", c.line(), "body", c.body() != null ? c.body() : "")
-                    );
+                    reviewComments.add(new InlineComment(c.path(), c.body() != null ? c.body() : "", c.line()));
                 }
             }
         }
         if (!summary.isBlank() || !reviewComments.isEmpty()) {
-            forgejoClient.createPullReview(
+            vcsClient.createPullReview(
                 owner,
                 repo,
                 prNumber,

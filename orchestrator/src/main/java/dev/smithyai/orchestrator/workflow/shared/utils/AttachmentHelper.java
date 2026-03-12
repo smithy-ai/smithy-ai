@@ -1,8 +1,8 @@
 package dev.smithyai.orchestrator.workflow.shared.utils;
 
-import dev.smithyai.forgejoclient.model.Attachment;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
-import dev.smithyai.orchestrator.service.forgejo.ForgejoClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.dto.AttachmentInfo;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -15,13 +15,13 @@ public final class AttachmentHelper {
     private AttachmentHelper() {}
 
     public static List<String> fetchAndInject(
-        ForgejoClient client,
+        IssueTrackerClient client,
         ContainerSession session,
         String owner,
         String repo,
         int issueNumber
     ) {
-        var allAttachments = new ArrayList<Attachment>();
+        var allAttachments = new ArrayList<AttachmentInfo>();
 
         // Issue-level attachments
         try {
@@ -35,9 +35,9 @@ public final class AttachmentHelper {
             var comments = client.getIssueComments(owner, repo, issueNumber);
             for (var comment : comments) {
                 try {
-                    allAttachments.addAll(client.getCommentAttachments(owner, repo, comment.getId()));
+                    allAttachments.addAll(client.getCommentAttachments(owner, repo, comment.id()));
                 } catch (Exception e) {
-                    log.warn("Failed to fetch attachments for comment {}", comment.getId(), e);
+                    log.warn("Failed to fetch attachments for comment {}", comment.id(), e);
                 }
             }
         } catch (Exception e) {
@@ -64,15 +64,15 @@ public final class AttachmentHelper {
 
         var paths = new ArrayList<String>();
         for (var attachment : allAttachments) {
-            String filename = attachment.getId() + "-" + attachment.getName();
+            String filename = attachment.id() + "-" + attachment.name();
             String containerPath = ATTACHMENTS_DIR + "/" + filename;
             try {
-                byte[] data = client.downloadAttachment(attachment.getBrowserDownloadUrl());
+                byte[] data = client.downloadAttachment(attachment.downloadUrl());
                 session.copyToContainer(ATTACHMENTS_DIR, data, filename);
                 paths.add(containerPath);
                 log.debug("Injected attachment {} into {}", filename, session.getContainerName());
             } catch (Exception e) {
-                log.warn("Failed to download/inject attachment {} for issue #{}", attachment.getName(), issueNumber, e);
+                log.warn("Failed to download/inject attachment {} for issue #{}", attachment.name(), issueNumber, e);
             }
         }
 

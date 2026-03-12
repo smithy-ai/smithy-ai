@@ -2,7 +2,7 @@ package dev.smithyai.orchestrator.workflow.shared.utils;
 
 import dev.smithyai.orchestrator.service.claude.ClaudeSession;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
-import dev.smithyai.orchestrator.service.forgejo.ForgejoClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -19,7 +19,7 @@ public final class PushHelper {
     public static void pushWithRetry(
         ContainerSession session,
         ClaudeSession claude,
-        ForgejoClient client,
+        VcsClient client,
         String owner,
         String repo,
         Integer prNumber
@@ -51,7 +51,7 @@ public final class PushHelper {
         // Give up — comment on PR if we have one
         if (prNumber != null) {
             try {
-                client.createIssueComment(owner, repo, prNumber, "Can't push to branch.");
+                client.createPrComment(owner, repo, prNumber, "Can't push to branch.");
             } catch (Exception e) {
                 log.error("Failed to comment on PR #{} about push failure", prNumber, e);
             }

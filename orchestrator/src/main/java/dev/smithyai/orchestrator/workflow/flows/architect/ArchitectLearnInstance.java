@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.RepoInfo;
@@ -12,7 +13,11 @@ import dev.smithyai.orchestrator.service.docker.*;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
-import dev.smithyai.orchestrator.service.forgejo.ForgejoClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClient;
+import dev.smithyai.orchestrator.service.vcs.dto.CommentEntry;
+import dev.smithyai.orchestrator.service.vcs.dto.ReviewCommentEntry;
+import dev.smithyai.orchestrator.service.vcs.dto.ReviewEntry;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
 import dev.smithyai.orchestrator.workflow.shared.StateMachine;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
@@ -26,38 +31,75 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     public ArchitectLearnInstance(
         ContainerSession session,
-        ForgejoClient forgejoClient,
+        VcsClient vcsClient,
+        IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, forgejoClient, renderer, config, tools, destroyCallback, LearnStage.NEW);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            LearnStage.NEW
+        );
     }
 
     public ArchitectLearnInstance(
         ContainerSession session,
-        ForgejoClient forgejoClient,
+        VcsClient vcsClient,
+        IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         LearnStage initialStage
     ) {
-        this(session, forgejoClient, renderer, config, tools, destroyCallback, initialStage, null);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            initialStage,
+            null
+        );
     }
 
     public ArchitectLearnInstance(
         ContainerSession session,
-        ForgejoClient forgejoClient,
+        VcsClient vcsClient,
+        IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         LearnStage initialStage,
         String existingSessionId
     ) {
-        super(session, forgejoClient, renderer, config, tools, destroyCallback, existingSessionId);
+        super(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            tools,
+            destroyCallback,
+            existingSessionId
+        );
         // @formatter:off
         this.stateMachine = StateMachine.builder(LearnStage.class, initialStage)
             .in(LearnStage.NEW)
@@ -99,7 +141,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private ContainerConfig buildInit(PrContext prc, String learnBranch) {
         String contextRepo = Naming.contextRepoName(prc.info().repo());
-        String contextCloneUrl = config.forgejoUrl() + "/" + prc.info().owner() + "/" + contextRepo + ".git";
+        String contextCloneUrl = vcsClient.cloneUrl(prc.info().owner(), contextRepo);
         return ContainerConfig.builder()
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())
@@ -168,26 +210,29 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     throw new RuntimeException("Failed to push context repo: " + pushResult.stderr());
                 }
 
-                var contextPr = forgejoClient.createPullRequest(
+                String prLink = vcsClient.prUrl(
+                    vcsConfig.resolvedExternalUrl(),
+                    info.owner(),
+                    info.repo(),
+                    prc.number()
+                );
+                var contextPr = vcsClient.createPullRequest(
                     info.owner(),
                     contextRepo,
                     title,
                     learnBranch,
                     "main",
-                    "Learned from [%s/%s#%d](%s/%s/%s/pulls/%d): %s\n\n%s".formatted(
+                    "Learned from [%s/%s#%d](%s): %s\n\n%s".formatted(
                         info.owner(),
                         info.repo(),
                         prc.number(),
-                        config.forgejoExternalUrl(),
-                        info.owner(),
-                        info.repo(),
-                        prc.number(),
+                        prLink,
                         prc.title(),
                         description
                     ),
                     false
                 );
-                log.info("Created context repo PR #{} from learning on PR #{}", contextPr.getNumber(), prc.number());
+                log.info("Created context repo PR #{} from learning on PR #{}", contextPr.number(), prc.number());
             } else {
                 log.info("Architect found no context updates needed for PR #{}", prc.number());
                 destroy();
@@ -223,7 +268,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             }
 
             if (result != null && !result.strip().isBlank()) {
-                forgejoClient.createIssueComment(info.owner(), info.repo(), prNumber, result);
+                vcsClient.createPrComment(info.owner(), info.repo(), prNumber, result);
             }
         } catch (Exception e) {
             log.error("Resume architect learn session failed for PR #{}", prNumber, e);
@@ -242,18 +287,18 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private void addIssueComments(List<Map<String, Object>> entries, String owner, String repo, int prNumber) {
         try {
-            var comments = forgejoClient.getIssueComments(owner, repo, prNumber);
-            for (var c : comments) {
+            var comments = issueTracker.getIssueComments(owner, repo, prNumber);
+            for (CommentEntry c : comments) {
                 entries.add(
                     Map.of(
                         "user",
-                        c.getUser().getLogin(),
+                        c.userLogin(),
                         "body",
-                        c.getBody(),
+                        c.body(),
                         "type",
                         "comment",
                         "created_at",
-                        c.getCreatedAt().toString()
+                        c.createdAt().toString()
                     )
                 );
             }
@@ -264,11 +309,11 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private void addReviewComments(List<Map<String, Object>> entries, String owner, String repo, int prNumber) {
         try {
-            var reviews = forgejoClient.getPrReviews(owner, repo, prNumber);
-            for (var review : reviews) {
-                String reviewUser = review.getUser() != null ? review.getUser().getLogin() : "unknown";
-                String reviewBody = review.getBody() != null ? review.getBody() : "";
-                String commitId = review.getCommitId() != null ? review.getCommitId() : "";
+            var reviews = vcsClient.getPrReviews(owner, repo, prNumber);
+            for (ReviewEntry review : reviews) {
+                String reviewUser = review.userLogin();
+                String reviewBody = review.body() != null ? review.body() : "";
+                String commitId = review.commitId() != null ? review.commitId() : "";
 
                 if (!reviewBody.strip().isBlank()) {
                     var entry = new LinkedHashMap<String, Object>();
@@ -276,23 +321,23 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     entry.put("body", reviewBody);
                     entry.put("type", "review");
                     entry.put("commit_id", commitId);
-                    entry.put("created_at", review.getSubmittedAt() != null ? review.getSubmittedAt().toString() : "");
+                    entry.put("created_at", review.submittedAt() != null ? review.submittedAt().toString() : "");
                     entries.add(entry);
                 }
 
-                long reviewId = review.getId();
+                long reviewId = review.id();
                 if (reviewId > 0) {
                     try {
-                        var inline = forgejoClient.getReviewComments(owner, repo, prNumber, reviewId);
-                        for (var ic : inline) {
+                        var inline = vcsClient.getReviewComments(owner, repo, prNumber, reviewId);
+                        for (ReviewCommentEntry ic : inline) {
                             var entry = new LinkedHashMap<String, Object>();
-                            entry.put("user", ic.getUser().getLogin());
-                            entry.put("body", ic.getBody());
+                            entry.put("user", ic.userLogin());
+                            entry.put("body", ic.body());
                             entry.put("type", "review_comment");
-                            entry.put("path", ic.getPath() != null ? ic.getPath() : "");
-                            entry.put("line", ic.getPosition() != null ? ic.getPosition() : 0);
+                            entry.put("path", ic.path() != null ? ic.path() : "");
+                            entry.put("line", ic.position());
                             entry.put("commit_id", commitId);
-                            entry.put("created_at", ic.getCreatedAt().toString());
+                            entry.put("created_at", ic.createdAt().toString());
                             entries.add(entry);
                         }
                     } catch (Exception e) {

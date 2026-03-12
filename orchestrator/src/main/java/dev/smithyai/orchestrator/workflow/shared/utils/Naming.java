@@ -52,13 +52,13 @@ public final class Naming {
         return "architect/" + sourcePr + "-" + role;
     }
 
-    public static RepoInfo repoInfo(JsonNode payload, String forgejoUrl) {
+    public static RepoInfo repoInfo(JsonNode payload, String internalVcsUrl) {
         var repoNode = payload.get("repository");
         String fullName = repoNode.get("full_name").asText();
         String[] parts = fullName.split("/", 2);
         String cloneUrl = repoNode.get("clone_url").asText();
         URI publicUri = URI.create(cloneUrl);
-        URI internalUri = URI.create(forgejoUrl);
+        URI internalUri = URI.create(internalVcsUrl);
         cloneUrl = cloneUrl.replaceFirst(
             Pattern.quote(publicUri.getScheme() + "://" + publicUri.getAuthority()),
             internalUri.getScheme() + "://" + internalUri.getAuthority()
