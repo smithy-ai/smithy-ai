@@ -65,6 +65,13 @@ public record VcsProviderConfig(
         };
     }
 
+    public String gitAuthUser() {
+        return switch (resolvedProvider()) {
+            case "gitlab" -> "oauth2";
+            default -> "token";
+        };
+    }
+
     public boolean hasArchitect() {
         String token = architectToken();
         return token != null && !token.isBlank();

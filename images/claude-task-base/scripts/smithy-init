@@ -12,16 +12,19 @@
 #   SOURCE_BRANCH   — Base branch (for new branches)
 #   EXTRA_REPOS     — JSON array of [url, dir, branch] tuples (optional)
 set -e
+trap 'echo "[smithy] FAILED: $BASH_COMMAND" >&2; echo "$BASH_COMMAND" > /tmp/smithy-init-failed; exit 1' ERR
 
-echo "[smithy] Configuring git credentials"
+: "${GIT_AUTH_USER:=token}"
+
+echo "[smithy] Configuring git credentials (user: $GIT_AUTH_USER)"
 git config --global credential.helper \
-  '!f() { echo username=token; echo "password=$VCS_TOKEN"; }; f'
+  '!f() { echo "username=$GIT_AUTH_USER"; echo "password=$VCS_TOKEN"; }; f'
 git config --global user.email "$GIT_EMAIL"
 git config --global user.name "$GIT_USERNAME"
 git config --global push.autoSetupRemote true
 
 echo "[smithy] Cloning $CLONE_URL (branch: $BRANCH)"
-if git clone --filter=blob:none --single-branch --branch "$BRANCH" "$CLONE_URL" /workspace 2>/dev/null; then
+if git clone --filter=blob:none --single-branch --branch "$BRANCH" "$CLONE_URL" /workspace; then
   cd /workspace
   git remote set-branches --add origin "$SOURCE_BRANCH"
   echo "[smithy] Checked out existing branch $BRANCH"
@@ -52,5 +55,6 @@ if [ -n "$EXTRA_REPOS" ] && [ "$EXTRA_REPOS" != "null" ]; then
 fi
 
 mkdir -p /tmp/smithy-labels
+touch /tmp/smithy-init-done
 echo "[smithy] Initialization complete"
 exec sleep infinity
