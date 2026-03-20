@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.workflow.flows.smithy;
 
+import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
@@ -27,6 +28,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final ContainerService containerService;
     private final DockerConfig dockerConfig;
     private final VcsProviderConfig vcsConfig;
+    private final BotConfig botConfig;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
@@ -34,6 +36,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     public SmithyWorkflowFactory(
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        BotConfig botConfig,
         ContainerService containerService,
         PromptRenderer renderer,
         @Qualifier("smithyVcs") VcsClient vcsClient,
@@ -41,6 +44,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     ) {
         this.dockerConfig = dockerConfig;
         this.vcsConfig = vcsConfig;
+        this.botConfig = botConfig;
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
@@ -79,6 +83,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             renderer,
             dockerConfig,
             vcsConfig,
+            botConfig,
             REFINE_TOOLS,
             () -> removeInstance(key)
         );
@@ -105,6 +110,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             renderer,
             dockerConfig,
             vcsConfig,
+            botConfig,
             tools,
             () -> removeInstance(containerName),
             stage,

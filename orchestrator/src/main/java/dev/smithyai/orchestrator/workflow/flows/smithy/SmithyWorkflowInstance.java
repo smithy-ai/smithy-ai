@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.workflow.flows.smithy;
 
+import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.*;
@@ -24,9 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
-    private static final String BOT_USER = "smithy";
     private static final int MAX_CI_RETRIES = 5;
 
+    private final String botUser;
     private final StateMachine<Stage> stateMachine;
 
     public SmithyWorkflowInstance(
@@ -36,10 +37,22 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, vcsClient, issueTracker, renderer, dockerConfig, vcsConfig, tools, destroyCallback, Stage.NEW);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            botConfig,
+            tools,
+            destroyCallback,
+            Stage.NEW
+        );
     }
 
     public SmithyWorkflowInstance(
@@ -49,6 +62,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback,
         Stage initialStage
@@ -60,6 +74,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            botConfig,
             tools,
             destroyCallback,
             initialStage,
@@ -74,6 +89,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback,
         Stage initialStage,
@@ -90,6 +106,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             destroyCallback,
             existingSessionId
         );
+        this.botUser = botConfig.resolvedSmithyUser();
         // @formatter:off
         this.stateMachine = StateMachine.builder(Stage.class, initialStage)
             .in(Stage.NEW)
@@ -302,7 +319,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             );
             log.info("Created draft PR #{} for issue #{}", pr.number(), ctx.number());
 
-            vcsClient.setPrAssignees(info.owner(), info.repo(), pr.number(), List.of("smithy"));
+            vcsClient.setPrAssignees(info.owner(), info.repo(), pr.number(), List.of(botUser));
 
             // Fetch attachments
             var attachments = AttachmentHelper.fetchAndInject(
@@ -450,7 +467,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         try {
             var pr = vcsClient.findPrByHead(e.info().owner(), e.info().repo(), e.branch());
 
-            if (pr != null && (pr.assignees() == null || !pr.assignees().contains(BOT_USER))) {
+            if (pr != null && (pr.assignees() == null || !pr.assignees().contains(botUser))) {
                 log.info("Smithy unassigned from PR #{}, ignoring human push", pr.number());
                 return;
             }
@@ -549,7 +566,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             if (!session.exists()) return;
 
             if (!skipAssignmentCheck && prNumber != null) {
-                if (!vcsClient.isAssigned(info.owner(), info.repo(), prNumber, BOT_USER)) {
+                if (!vcsClient.isAssigned(info.owner(), info.repo(), prNumber, botUser)) {
                     log.info("Smithy unassigned from PR #{}, skipping resume build", prNumber);
                     return;
                 }
