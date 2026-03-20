@@ -140,7 +140,7 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         boolean draft
     ) {
         var params = new LinkedHashMap<String, Object>();
-        params.put("title", title);
+        params.put("title", draft ? "Draft: " + title : title);
         params.put("source_branch", head);
         params.put("target_branch", base);
         params.put("description", body);
