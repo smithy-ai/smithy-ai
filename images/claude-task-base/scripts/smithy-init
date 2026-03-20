@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # smithy-init — Container startup initialization.
 # Configures git credentials, clones the repo (existing or new branch),
 # clones extra repos, and stays running via exec sleep infinity.
