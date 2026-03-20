@@ -221,7 +221,7 @@ public class GitLabEventMapper {
 
         // Reviewer added
         if (changes.has("reviewers")) {
-            var currentReviewers = attrs.path("reviewers");
+            var currentReviewers = payload.path("reviewers");
             if (currentReviewers.isArray()) {
                 for (var r : currentReviewers) {
                     if (botConfig.resolvedArchitectUser().equals(r.path("username").asText(""))) {
