@@ -3,6 +3,10 @@ package dev.smithyai.orchestrator.workflow.shared.utils;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.model.RepoInfo;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,6 +46,35 @@ public final class Naming {
             return Integer.parseInt(m.group(1));
         }
         return null;
+    }
+
+    public static String containerName(String type, String owner, String repo, String identifier) {
+        String sanitizedOwner = owner.replace("/", "--");
+        String sanitizedRepo = repo.replace("/", "--");
+        String candidate = type + "." + sanitizedOwner + "." + sanitizedRepo + "." + identifier;
+        if (candidate.length() <= 63) {
+            return candidate;
+        }
+        String slug = sanitizedOwner + "." + sanitizedRepo;
+        String hash = shortHash(owner + "/" + repo);
+        // Fixed parts: type + "." + "." + "-" + hash + "." + identifier
+        int fixedLen = type.length() + 1 + 1 + 1 + hash.length() + 1 + identifier.length();
+        int available = 63 - fixedLen;
+        if (available < 1) {
+            available = 1;
+        }
+        String truncatedSlug = slug.substring(0, Math.min(slug.length(), available));
+        return type + "." + truncatedSlug + "-" + hash + "." + identifier;
+    }
+
+    private static String shortHash(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash, 0, 4);
+        } catch (NoSuchAlgorithmException e) {
+            throw new AssertionError("SHA-256 not available", e);
+        }
     }
 
     public static String contextRepoName(String repo) {

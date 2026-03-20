@@ -132,6 +132,6 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     }
 
     private static String containerName(String owner, String repo, int issueId) {
-        return "smithy." + owner + "." + repo + "." + issueId;
+        return Naming.containerName("smithy", owner, repo, String.valueOf(issueId));
     }
 }

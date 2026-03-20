@@ -127,6 +127,6 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     }
 
     static String architectContainerName(String owner, String repo, String identifier) {
-        return "architect." + owner + "." + repo + "." + identifier;
+        return Naming.containerName("architect", owner, repo, identifier);
     }
 }
