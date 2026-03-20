@@ -144,9 +144,6 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         params.put("source_branch", head);
         params.put("target_branch", base);
         params.put("description", body);
-        if (draft) {
-            params.put("draft", true);
-        }
         var node = post("/projects/%s/merge_requests", params, projectId(owner, repo));
         return toPrData(node);
     }
@@ -321,13 +318,26 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public void setPrAssignees(String owner, String repo, int prNumber, List<String> assignees) {
         List<Integer> ids = resolveUserIds(assignees);
-        put("/projects/%s/merge_requests/%d", Map.of("assignee_ids", ids), projectId(owner, repo), prNumber);
+        var body = new LinkedHashMap<String, Object>();
+        body.put("assignee_ids", ids);
+        preserveDraft(owner, repo, prNumber, body);
+        put("/projects/%s/merge_requests/%d", body, projectId(owner, repo), prNumber);
     }
 
     @Override
     public void requestReview(String owner, String repo, int prNumber, List<String> reviewers) {
         List<Integer> ids = resolveUserIds(reviewers);
-        put("/projects/%s/merge_requests/%d", Map.of("reviewer_ids", ids), projectId(owner, repo), prNumber);
+        var body = new LinkedHashMap<String, Object>();
+        body.put("reviewer_ids", ids);
+        preserveDraft(owner, repo, prNumber, body);
+        put("/projects/%s/merge_requests/%d", body, projectId(owner, repo), prNumber);
+    }
+
+    private void preserveDraft(String owner, String repo, int prNumber, Map<String, Object> body) {
+        var mr = get("/projects/%s/merge_requests/%d", projectId(owner, repo), prNumber);
+        if (mr.path("draft").asBoolean(false)) {
+            body.put("draft", true);
+        }
     }
 
     @Override
