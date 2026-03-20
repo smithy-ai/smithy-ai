@@ -1,17 +1,21 @@
 package dev.smithyai.orchestrator.workflow.flows.smithy;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.BotConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
-import dev.smithyai.orchestrator.service.forgejo.ForgejoClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.workflow.EventAction;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -22,19 +26,29 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     public static final List<String> BUILD_TOOLS = List.of("Read", "Edit", "Write", "Bash");
 
     private final ContainerService containerService;
-    private final OrchestratorConfig config;
+    private final DockerConfig dockerConfig;
+    private final VcsProviderConfig vcsConfig;
+    private final BotConfig botConfig;
     private final PromptRenderer renderer;
-    private final ForgejoClient forgejoClient;
+    private final VcsClient vcsClient;
+    private final IssueTrackerClient issueTracker;
 
     public SmithyWorkflowFactory(
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
+        BotConfig botConfig,
         ContainerService containerService,
-        PromptRenderer renderer
+        PromptRenderer renderer,
+        @Qualifier("smithyVcs") VcsClient vcsClient,
+        @Qualifier("smithyIssueTracker") IssueTrackerClient issueTracker
     ) {
-        this.config = config;
+        this.dockerConfig = dockerConfig;
+        this.vcsConfig = vcsConfig;
+        this.botConfig = botConfig;
         this.containerService = containerService;
         this.renderer = renderer;
-        this.forgejoClient = new ForgejoClient(config.forgejoUrl(), config.smithyForgejoToken());
+        this.vcsClient = vcsClient;
+        this.issueTracker = issueTracker;
     }
 
     @Override
@@ -62,8 +76,16 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     @Override
     protected SmithyWorkflowInstance createInstance(String key, WorkflowEvent event) {
         var session = containerService.createSession(key);
-        return new SmithyWorkflowInstance(session, forgejoClient, renderer, config, REFINE_TOOLS, () ->
-            removeInstance(key)
+        return new SmithyWorkflowInstance(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            botConfig,
+            REFINE_TOOLS,
+            () -> removeInstance(key)
         );
     }
 
@@ -83,9 +105,12 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         var session = containerService.createSession(containerName);
         return new SmithyWorkflowInstance(
             session,
-            forgejoClient,
+            vcsClient,
+            issueTracker,
             renderer,
-            config,
+            dockerConfig,
+            vcsConfig,
+            botConfig,
             tools,
             () -> removeInstance(containerName),
             stage,
@@ -107,6 +132,6 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     }
 
     private static String containerName(String owner, String repo, int issueId) {
-        return "smithy." + owner + "." + repo + "." + issueId;
+        return Naming.containerName("smithy", owner, repo, String.valueOf(issueId));
     }
 }

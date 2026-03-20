@@ -30,6 +30,7 @@ dependencies {
 implementation("com.hubspot.jinjava:jinjava:2.8.3")
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
     implementation("dev.smithy-ai:forgejo-client:14.0.3")
     implementation("com.github.victools:jsonschema-generator:4.38.0")
     implementation("com.github.victools:jsonschema-module-jackson:4.38.0")

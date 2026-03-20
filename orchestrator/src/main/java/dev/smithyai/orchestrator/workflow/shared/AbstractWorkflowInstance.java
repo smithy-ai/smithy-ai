@@ -1,11 +1,13 @@
 package dev.smithyai.orchestrator.workflow.shared;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.ClaudeSession;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
-import dev.smithyai.orchestrator.service.forgejo.ForgejoClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -17,28 +19,34 @@ public abstract class AbstractWorkflowInstance {
 
     protected final ContainerSession session;
     protected ClaudeSession claude;
-    protected final ForgejoClient forgejoClient;
+    protected final VcsClient vcsClient;
+    protected final IssueTrackerClient issueTracker;
     protected final PromptRenderer renderer;
-    protected final OrchestratorConfig config;
+    protected final DockerConfig dockerConfig;
+    protected final VcsProviderConfig vcsConfig;
     private final Runnable destroyCallback;
     private final ExecutorService eventThread;
 
     protected AbstractWorkflowInstance(
         ContainerSession session,
-        ForgejoClient forgejoClient,
+        VcsClient vcsClient,
+        IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, forgejoClient, renderer, config, tools, destroyCallback, null);
+        this(session, vcsClient, issueTracker, renderer, dockerConfig, vcsConfig, tools, destroyCallback, null);
     }
 
     protected AbstractWorkflowInstance(
         ContainerSession session,
-        ForgejoClient forgejoClient,
+        VcsClient vcsClient,
+        IssueTrackerClient issueTracker,
         PromptRenderer renderer,
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
         String existingSessionId
@@ -48,9 +56,11 @@ public abstract class AbstractWorkflowInstance {
             existingSessionId != null
                 ? new ClaudeSession(session, tools, existingSessionId)
                 : new ClaudeSession(session, tools);
-        this.forgejoClient = forgejoClient;
+        this.vcsClient = vcsClient;
+        this.issueTracker = issueTracker;
         this.renderer = renderer;
-        this.config = config;
+        this.dockerConfig = dockerConfig;
+        this.vcsConfig = vcsConfig;
         this.destroyCallback = destroyCallback;
         this.eventThread = Executors.newSingleThreadExecutor(
             Thread.ofVirtual().name("wf-" + session.getContainerName() + "-", 0).factory()

@@ -1,6 +1,6 @@
 package dev.smithyai.orchestrator.service.docker;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,8 +20,8 @@ public class DockerCli {
 
     private final String dockerCommand;
 
-    public DockerCli(OrchestratorConfig config) {
-        this.dockerCommand = config.dockerCommand() != null ? config.dockerCommand() : "docker";
+    public DockerCli(DockerConfig config) {
+        this.dockerCommand = config.command() != null ? config.command() : "docker";
     }
 
     public ExecResult run(List<String> args, byte[] stdin, Duration timeout) {

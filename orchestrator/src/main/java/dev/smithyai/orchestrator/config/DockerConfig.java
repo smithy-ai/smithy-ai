@@ -1,22 +1,14 @@
 package dev.smithyai.orchestrator.config;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "orchestrator")
-public record OrchestratorConfig(
-    String forgejoUrl,
-    String forgejoExternalUrl,
-    String smithyForgejoToken,
-    String claudeCodeOauthToken,
-    String dockerNetwork,
-    String taskImage,
-    String webhookSecret,
-    String cacheVolumes,
-    String architectForgejoToken,
-    String architectBotUser,
-    String dockerCommand
+public record DockerConfig(
+    String command,
+    String network,
+    @JsonProperty("task-image") String taskImage,
+    @JsonProperty("cache-volumes") String cacheVolumes
 ) {
     private static final Map<String, CacheVolumeEntry> CACHE_VOLUME_MAP = Map.of(
         "pnpm",
@@ -40,10 +32,6 @@ public record OrchestratorConfig(
             }
         }
         return result;
-    }
-
-    public boolean hasArchitect() {
-        return (architectForgejoToken != null && !architectForgejoToken.isBlank());
     }
 
     private record CacheVolumeEntry(String volumeName, String mountPath) {}

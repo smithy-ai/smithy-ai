@@ -3,6 +3,10 @@ package dev.smithyai.orchestrator.workflow.shared.utils;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.model.RepoInfo;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -44,6 +48,35 @@ public final class Naming {
         return null;
     }
 
+    public static String containerName(String type, String owner, String repo, String identifier) {
+        String sanitizedOwner = owner.replace("/", "--");
+        String sanitizedRepo = repo.replace("/", "--");
+        String candidate = type + "." + sanitizedOwner + "." + sanitizedRepo + "." + identifier;
+        if (candidate.length() <= 63) {
+            return candidate;
+        }
+        String slug = sanitizedOwner + "." + sanitizedRepo;
+        String hash = shortHash(owner + "/" + repo);
+        // Fixed parts: type + "." + "." + "-" + hash + "." + identifier
+        int fixedLen = type.length() + 1 + 1 + 1 + hash.length() + 1 + identifier.length();
+        int available = 63 - fixedLen;
+        if (available < 1) {
+            available = 1;
+        }
+        String truncatedSlug = slug.substring(0, Math.min(slug.length(), available));
+        return type + "." + truncatedSlug + "-" + hash + "." + identifier;
+    }
+
+    private static String shortHash(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash, 0, 4);
+        } catch (NoSuchAlgorithmException e) {
+            throw new AssertionError("SHA-256 not available", e);
+        }
+    }
+
     public static String contextRepoName(String repo) {
         return repo + "-context";
     }
@@ -52,13 +85,13 @@ public final class Naming {
         return "architect/" + sourcePr + "-" + role;
     }
 
-    public static RepoInfo repoInfo(JsonNode payload, String forgejoUrl) {
+    public static RepoInfo repoInfo(JsonNode payload, String internalVcsUrl) {
         var repoNode = payload.get("repository");
         String fullName = repoNode.get("full_name").asText();
         String[] parts = fullName.split("/", 2);
         String cloneUrl = repoNode.get("clone_url").asText();
         URI publicUri = URI.create(cloneUrl);
-        URI internalUri = URI.create(forgejoUrl);
+        URI internalUri = URI.create(internalVcsUrl);
         cloneUrl = cloneUrl.replaceFirst(
             Pattern.quote(publicUri.getScheme() + "://" + publicUri.getAuthority()),
             internalUri.getScheme() + "://" + internalUri.getAuthority()

@@ -1,17 +1,20 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
-import dev.smithyai.orchestrator.service.forgejo.ForgejoClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.workflow.EventAction;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -21,20 +24,26 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     public static final List<String> TOOLS = List.of("Read", "Glob", "Grep", "Bash");
 
     private final ContainerService containerService;
-    private final OrchestratorConfig config;
+    private final DockerConfig dockerConfig;
+    private final VcsProviderConfig vcsConfig;
     private final PromptRenderer renderer;
-    private final ForgejoClient forgejoClient;
+    private final VcsClient vcsClient;
+    private final IssueTrackerClient issueTracker;
 
     public ArchitectReviewFactory(
-        OrchestratorConfig config,
+        DockerConfig dockerConfig,
+        VcsProviderConfig vcsConfig,
         ContainerService containerService,
-        PromptRenderer renderer
+        PromptRenderer renderer,
+        @Qualifier("architectVcs") VcsClient vcsClient,
+        @Qualifier("architectIssueTracker") IssueTrackerClient issueTracker
     ) {
-        this.config = config;
+        this.dockerConfig = dockerConfig;
+        this.vcsConfig = vcsConfig;
         this.containerService = containerService;
         this.renderer = renderer;
-        String token = config.hasArchitect() ? config.architectForgejoToken() : config.smithyForgejoToken();
-        this.forgejoClient = new ForgejoClient(config.forgejoUrl(), token);
+        this.vcsClient = vcsClient;
+        this.issueTracker = issueTracker;
     }
 
     @Override
@@ -43,7 +52,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
             case WorkflowEvent.ReviewRequested e -> {
                 var prc = e.prc();
                 String contextRepo = Naming.contextRepoName(prc.info().repo());
-                if (!forgejoClient.repoExists(prc.info().owner(), contextRepo)) {
+                if (!vcsClient.repoExists(prc.info().owner(), contextRepo)) {
                     log.warn("Context repo {}/{} does not exist, skipping review", prc.info().owner(), contextRepo);
                     yield EventAction.IGNORE;
                 }
@@ -63,7 +72,16 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     @Override
     protected ArchitectReviewInstance createInstance(String key, WorkflowEvent event) {
         var session = containerService.createSession(key);
-        return new ArchitectReviewInstance(session, forgejoClient, renderer, config, TOOLS, () -> removeInstance(key));
+        return new ArchitectReviewInstance(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            TOOLS,
+            () -> removeInstance(key)
+        );
     }
 
     @Override
@@ -82,9 +100,11 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
         var session = containerService.createSession(containerName);
         return new ArchitectReviewInstance(
             session,
-            forgejoClient,
+            vcsClient,
+            issueTracker,
             renderer,
-            config,
+            dockerConfig,
+            vcsConfig,
             TOOLS,
             () -> removeInstance(containerName),
             stage,
@@ -107,6 +127,6 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     }
 
     static String architectContainerName(String owner, String repo, String identifier) {
-        return "architect." + owner + "." + repo + "." + identifier;
+        return Naming.containerName("architect", owner, repo, identifier);
     }
 }

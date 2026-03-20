@@ -3,7 +3,9 @@ package dev.smithyai.orchestrator.service.docker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.ClaudeConfig;
+import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
@@ -22,20 +24,30 @@ public class ContainerService {
         .registerModule(new JavaTimeModule())
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
+    private static final int INIT_TIMEOUT_SECONDS = 300;
+    private static final int INIT_POLL_INTERVAL_MS = 1000;
+
     private final DockerCli docker;
     private final String network;
     private final String taskImage;
-    private final String forgejoUrl;
-    private final String forgejoToken;
+    private final String vcsUrl;
+    private final String vcsToken;
     private final String claudeOauthToken;
+    private final String gitAuthUser;
 
-    public ContainerService(OrchestratorConfig config, DockerCli docker) {
+    public ContainerService(
+        DockerConfig dockerConfig,
+        ClaudeConfig claudeConfig,
+        VcsProviderConfig vcsConfig,
+        DockerCli docker
+    ) {
         this.docker = docker;
-        this.network = config.dockerNetwork();
-        this.taskImage = config.taskImage();
-        this.forgejoUrl = config.forgejoUrl();
-        this.forgejoToken = config.smithyForgejoToken();
-        this.claudeOauthToken = config.claudeCodeOauthToken();
+        this.network = dockerConfig.network();
+        this.taskImage = dockerConfig.taskImage();
+        this.vcsUrl = vcsConfig.resolvedUrl();
+        this.vcsToken = vcsConfig.smithyToken();
+        this.claudeOauthToken = claudeConfig.oauthToken();
+        this.gitAuthUser = vcsConfig.gitAuthUser();
     }
 
     // ── Public API ───────────────────────────────────────────
@@ -105,9 +117,9 @@ public class ContainerService {
         args.add("-e");
         args.add("CLAUDE_CODE_OAUTH_TOKEN=" + claudeOauthToken);
         args.add("-e");
-        args.add("FORGEJO_URL=" + forgejoUrl);
+        args.add("VCS_URL=" + vcsUrl);
         args.add("-e");
-        args.add("FORGEJO_TOKEN=" + forgejoToken);
+        args.add("VCS_TOKEN=" + vcsToken);
         args.add("-e");
         args.add("CLONE_URL=" + init.cloneUrl());
         args.add("-e");
@@ -133,6 +145,8 @@ public class ContainerService {
             }
         }
         args.add("-e");
+        args.add("GIT_AUTH_USER=" + gitAuthUser);
+        args.add("-e");
         args.add("EXTRA_REPOS=" + extraReposJson);
 
         // Image and command
@@ -149,7 +163,51 @@ public class ContainerService {
             throw new RuntimeException("Failed to start container " + name + ": " + startResult.stderr());
         }
 
-        log.info("Created container {}", name);
+        log.info("Created container {}, waiting for init...", name);
+        waitForInit(name);
+    }
+
+    private void waitForInit(String name) {
+        long deadline = System.currentTimeMillis() + INIT_TIMEOUT_SECONDS * 1000L;
+        while (System.currentTimeMillis() < deadline) {
+            // Check for success marker
+            var doneCheck = docker.run(List.of("exec", name, "test", "-f", "/tmp/smithy-init-done"));
+            if (doneCheck.exitCode() == 0) {
+                log.info("Container {} init completed successfully", name);
+                return;
+            }
+
+            // Check for failure marker
+            var failCheck = docker.run(List.of("exec", name, "test", "-f", "/tmp/smithy-init-failed"));
+            if (failCheck.exitCode() == 0) {
+                String logs = fetchLogs(name);
+                throw new RuntimeException("Container " + name + " init failed. Logs:\n" + logs);
+            }
+
+            // Check if container is still running
+            var inspectResult = docker.run(List.of("inspect", "--format", "{{.State.Running}}", name));
+            if (inspectResult.exitCode() != 0 || !"true".equals(inspectResult.stdout().strip())) {
+                String logs = fetchLogs(name);
+                throw new RuntimeException("Container " + name + " stopped during init. Logs:\n" + logs);
+            }
+
+            try {
+                Thread.sleep(INIT_POLL_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Interrupted while waiting for container " + name + " init", e);
+            }
+        }
+        log.warn("Container {} init did not complete within {}s — proceeding anyway", name, INIT_TIMEOUT_SECONDS);
+    }
+
+    private String fetchLogs(String name) {
+        var result = docker.run(List.of("logs", "--tail", "50", name));
+        String logs = result.stdout();
+        if (result.stderr() != null && !result.stderr().isBlank()) {
+            logs += "\n" + result.stderr();
+        }
+        return logs;
     }
 
     void destroy(String containerName) {
