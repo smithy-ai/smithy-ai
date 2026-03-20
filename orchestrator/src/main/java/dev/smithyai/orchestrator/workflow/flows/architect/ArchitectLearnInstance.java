@@ -127,7 +127,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private void handlePrMerged(WorkflowEvent.PrMerged e) {
         String learnBranch = Naming.architectBranchName(e.prc().number(), "learn");
-        session.initContainer(buildInit(e.prc(), learnBranch), "learn");
+        session.initContainer(buildInit(e.prc(), learnBranch), LearnStage.NEW.value());
         learnTask(e.prc());
     }
 

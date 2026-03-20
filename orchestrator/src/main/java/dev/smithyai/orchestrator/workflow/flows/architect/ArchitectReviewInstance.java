@@ -123,7 +123,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
     // ── Event handlers ──────────────────────────────────────
 
     private void handleReviewRequested(WorkflowEvent.ReviewRequested e) {
-        session.initContainer(buildInit(e.prc()), "review");
+        session.initContainer(buildInit(e.prc()), ReviewStage.NEW.value());
         reviewTask(e.prc());
     }
 
