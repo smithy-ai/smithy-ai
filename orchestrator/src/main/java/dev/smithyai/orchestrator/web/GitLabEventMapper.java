@@ -47,9 +47,20 @@ public class GitLabEventMapper {
         String action = attrs.path("action").asText("");
 
         return switch (action) {
+            case "open" -> mapIssueOpen(payload, attrs);
             case "update" -> mapIssueUpdate(payload, attrs);
             default -> null;
         };
+    }
+
+    private WorkflowEvent mapIssueOpen(JsonNode payload, JsonNode attrs) {
+        var assignees = payload.path("assignees");
+        if (!isUserInArray(assignees, botUser)) return null;
+
+        var info = repoInfo(payload);
+        var ctx = extractIssueFromAttrs(info, attrs);
+        String repoHtmlUrl = payload.path("project").path("web_url").asText("");
+        return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
     }
 
     private WorkflowEvent mapIssueUpdate(JsonNode payload, JsonNode attrs) {
@@ -231,12 +242,14 @@ public class GitLabEventMapper {
             }
         }
 
-        // Unassigned
+        // Unassigned — only fire if bot was previously assigned
         if (changes.has("assignees")) {
             String headBranch = attrs.path("source_branch").asText("");
             if (Naming.isSmithyBranch(headBranch)) {
+                var previousAssignees = changes.path("assignees").path("previous");
+                boolean previouslyAssigned = isUserInArray(previousAssignees, botUser);
                 var currentAssignees = attrs.path("assignees");
-                if (!isUserInArray(currentAssignees, botUser)) {
+                if (!isUserInArray(currentAssignees, botUser) && previouslyAssigned) {
                     var prc = extractPrFromMr(info, attrs);
                     return new WorkflowEvent.PrUnassigned(prc);
                 }
