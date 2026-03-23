@@ -12,7 +12,7 @@ Smithy-AI coordinates multiple AI agents working alongside human developers thro
 - **The Architect**: reviews pull requests against established best practices and maintains the project's knowledge base in a separate context repository.
 
 
-![Diagram of Smithy workflow](/docs/Smithy-diagram.png)
+![Diagram of Smithy workflow](docs/src/assets/Smithy-diagram.png)
 
 Human actions are in yellow. The project knowledge base is an optional separate repository with markdown files used as input for best practices and preferences of the project.
 
@@ -34,6 +34,13 @@ Human actions are in yellow. The project knowledge base is an optional separate 
 2. If the knowledge base (context) requires updating based on the comments, The Architect opens a PR on the context repository
 3. This PR, just like the build flow, allows you to review and request changes
 
+
+## Documentation
+
+- **Setup**: [Demo](https://smithy-ai.github.io/smithy-ai/setup/demo/) · [Forgejo](https://smithy-ai.github.io/smithy-ai/setup/forgejo/) · [GitLab](https://smithy-ai.github.io/smithy-ai/setup/gitlab/)
+- [Usage & Workflow](https://smithy-ai.github.io/smithy-ai/usage/)
+- [Configuration Reference](https://smithy-ai.github.io/smithy-ai/configuration/)
+- [Custom Task Images](https://smithy-ai.github.io/smithy-ai/advanced/custom-task-images/)
 
 ## Demo setup
 
