@@ -1,0 +1,53 @@
+# Configuration Reference
+
+Smithy-AI is configured through environment variables. These map to settings in `orchestrator.yml`. All variables can be set in your `.env` file or passed directly as environment variables to the orchestrator container.
+
+## Docker settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `DOCKER_COMMAND` | `docker` | Docker CLI command |
+| `DOCKER_NETWORK` | `forgejo-net` | Docker network that task containers attach to |
+| `TASK_IMAGE` | `claude-task:latest` | Docker image used for task containers |
+| `CACHE_VOLUMES` | `pnpm,npm` | Comma-separated cache volume types: `pnpm`, `npm`, `maven`, `gradle` |
+
+## Claude settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `CLAUDE_CODE_OAUTH_TOKEN` | — | OAuth token from `claude setup-token` **(required)** |
+
+## VCS provider
+
+| Variable | Default | Description |
+|---|---|---|
+| `VCS_PROVIDER` | `forgejo` | Git provider: `forgejo` or `gitlab` |
+| `ISSUE_PROVIDER` | — | Override issue provider (defaults to `VCS_PROVIDER` value) |
+
+## Forgejo settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `FORGEJO_URL` | `http://forgejo:3000` | Internal Forgejo URL (reachable from orchestrator) |
+| `FORGEJO_EXTERNAL_URL` | `http://localhost:3000` | Browser-reachable Forgejo URL |
+| `WEBHOOK_SECRET` | — | HMAC secret for verifying Forgejo webhook signatures |
+| `SMITHY_FORGEJO_TOKEN` | — | API token for the smithy bot user |
+| `ARCHITECT_FORGEJO_TOKEN` | — | API token for the architect bot user |
+
+## GitLab settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `GITLAB_URL` | — | Internal GitLab URL (reachable from orchestrator) |
+| `GITLAB_EXTERNAL_URL` | — | Browser-reachable GitLab URL |
+| `GITLAB_WEBHOOK_SECRET` | — | Secret for verifying GitLab webhook signatures |
+| `SMITHY_GITLAB_TOKEN` | — | Access token for the smithy bot user |
+| `ARCHITECT_GITLAB_TOKEN` | — | Access token for the architect bot user |
+
+## Bot settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `SMITHY_BOT_USER` | `smithy` | Username of the smithy bot |
+| `ARCHITECT_BOT_USER` | `architect` | Username of the architect bot |
+
