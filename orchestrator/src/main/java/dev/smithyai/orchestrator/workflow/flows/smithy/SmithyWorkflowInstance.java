@@ -527,7 +527,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                     info.owner(),
                     info.repo(),
                     ciRun.prNumber(),
-                    "Reached maximum 5 CI fix attempts. Continue debugging? Respond with \uD83D\uDC4D for OK"
+                    "Reached maximum 5 CI fix attempts. Continue debugging? Reply with \uD83D\uDC4D for OK"
                 );
             }
             log.info("CI fix attempts exhausted for issue #{}, pausing", issueId);
