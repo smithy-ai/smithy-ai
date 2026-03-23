@@ -143,7 +143,7 @@ def main():
     # Preserve standard config values
     env.set("FORGEJO_URL", "http://forgejo:3000")
     env.set("DOCKER_NETWORK", "forgejo-net")
-    env.set("TASK_IMAGE", "claude-task:latest")
+    env.set("TASK_IMAGE", "claude-task-default:latest")
     env.set("CACHE_VOLUMES", "pnpm,npm")
     env.set("FORGEJO_EXTERNAL_URL", "http://localhost:3000")
 

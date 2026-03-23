@@ -14,8 +14,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 echo "==> Building claude-task-base image..."
 docker build -t claude-task-base:latest "$PROJECT_ROOT/images/claude-task-base"
 
-echo "==> Building claude-task image..."
-docker build -t claude-task:latest "$PROJECT_ROOT/images/claude-task"
+echo "==> Building claude-task-default image..."
+docker build -t claude-task-default:latest "$PROJECT_ROOT/images/claude-task-default"
 
 echo "==> Done. Images built:"
 docker images --filter "reference=claude-task*" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"

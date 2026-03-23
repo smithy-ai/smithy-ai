@@ -29,7 +29,7 @@ services:
       - ARCHITECT_FORGEJO_TOKEN=${ARCHITECT_FORGEJO_TOKEN:-}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-forgejo-net}
-      - TASK_IMAGE=${TASK_IMAGE:-claude-task:latest}
+      - TASK_IMAGE=${TASK_IMAGE:-claude-task-default:latest}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
     networks:
       - forgejo-net
