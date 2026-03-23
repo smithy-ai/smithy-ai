@@ -34,14 +34,6 @@ Human actions are in yellow. The project knowledge base is an optional separate 
 2. If the knowledge base (context) requires updating based on the comments, The Architect opens a PR on the context repository
 3. This PR, just like the build flow, allows you to review and request changes
 
-
-## Documentation
-
-- **Setup**: [Demo](https://smithy-ai.github.io/smithy-ai/setup/demo/) · [Forgejo](https://smithy-ai.github.io/smithy-ai/setup/forgejo/) · [GitLab](https://smithy-ai.github.io/smithy-ai/setup/gitlab/)
-- [Usage & Workflow](https://smithy-ai.github.io/smithy-ai/usage/)
-- [Configuration Reference](https://smithy-ai.github.io/smithy-ai/configuration/)
-- [Custom Task Images](https://smithy-ai.github.io/smithy-ai/advanced/custom-task-images/)
-
 ## Demo setup
 
 The `demo/` directory contains a Docker Compose stack that runs a local Forgejo instance with the orchestrator.
@@ -72,6 +64,13 @@ python3 scripts/setup_instance.py
 # For every repository:
 python3 scripts/setup_repo.py owner/repo
 ```
+
+## Documentation
+
+- **Setup**: [Demo](https://smithy-ai.github.io/smithy-ai/setup/demo/) · [Forgejo](https://smithy-ai.github.io/smithy-ai/setup/forgejo/) · [GitLab](https://smithy-ai.github.io/smithy-ai/setup/gitlab/)
+- [Usage & Workflow](https://smithy-ai.github.io/smithy-ai/usage/)
+- [Configuration Reference](https://smithy-ai.github.io/smithy-ai/configuration/)
+- [Custom Task Images](https://smithy-ai.github.io/smithy-ai/advanced/custom-task-images/)
 
 ## License
 
