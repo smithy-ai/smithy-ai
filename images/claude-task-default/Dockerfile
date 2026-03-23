@@ -1,4 +1,5 @@
-FROM claude-task-base:latest
+ARG BASE_IMAGE=claude-task-base:latest
+FROM ${BASE_IMAGE}
 
 # Node.js is already in the base image; add pnpm
 RUN npm install -g pnpm
