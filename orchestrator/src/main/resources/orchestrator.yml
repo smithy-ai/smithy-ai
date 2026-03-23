@@ -1,7 +1,7 @@
 docker:
   command: ${DOCKER_COMMAND:docker}
   network: ${DOCKER_NETWORK:forgejo-net}
-  task-image: ${TASK_IMAGE:claude-task:latest}
+  task-image: ${TASK_IMAGE:claude-task-default:latest}
   cache-volumes: ${CACHE_VOLUMES:pnpm,npm}
 
 claude:
