@@ -148,6 +148,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             .sourceBranch(prc.baseBranch())
             .gitEmail("architect@localhost")
             .gitUsername("The Architect")
+            .vcsToken(vcsConfig.architectToken())
             .extraRepos(List.of(new ContainerConfig.ExtraRepo(contextCloneUrl, "/context-repo", learnBranch)))
             .workflowType(WorkflowType.ARCHITECT)
             .build();

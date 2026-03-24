@@ -12,6 +12,7 @@ public record ContainerConfig(
     Map<String, String> cacheVolumes,
     String gitEmail,
     String gitUsername,
+    String vcsToken,
     List<ExtraRepo> extraRepos,
     WorkflowType workflowType
 ) {

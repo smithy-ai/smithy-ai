@@ -119,7 +119,7 @@ public class ContainerService {
         args.add("-e");
         args.add("VCS_URL=" + vcsUrl);
         args.add("-e");
-        args.add("VCS_TOKEN=" + vcsToken);
+        args.add("VCS_TOKEN=" + (init.vcsToken() != null ? init.vcsToken() : vcsToken));
         args.add("-e");
         args.add("CLONE_URL=" + init.cloneUrl());
         args.add("-e");
