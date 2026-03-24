@@ -17,12 +17,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class EventMapper {
 
-    private static final String SMITHY_EMAIL = "smithy@localhost";
-
     private final BotConfig botConfig;
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
+    private final String smithyEmail;
 
     public EventMapper(
         BotConfig botConfig,
@@ -33,6 +32,7 @@ public class EventMapper {
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
+        this.smithyEmail = botConfig.resolvedSmithyEmail();
     }
 
     // ── Issue events ─────────────────────────────
@@ -153,7 +153,7 @@ public class EventMapper {
         boolean isHuman = false;
         if (commits != null && commits.isArray()) {
             for (var c : commits) {
-                if (!SMITHY_EMAIL.equals(c.path("committer").path("email").asText(""))) {
+                if (!smithyEmail.equals(c.path("committer").path("email").asText(""))) {
                     isHuman = true;
                     break;
                 }

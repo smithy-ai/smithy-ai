@@ -50,5 +50,7 @@ Smithy-AI is configured through environment variables. These map to settings in 
 | Variable | Default | Description |
 |---|---|---|
 | `SMITHY_BOT_USER` | `smithy` | Username of the smithy bot |
+| `SMITHY_BOT_EMAIL` | `smithy@localhost` | Email address of the smithy bot (used for git commits and push detection) |
 | `ARCHITECT_BOT_USER` | `architect` | Username of the architect bot |
+| `ARCHITECT_BOT_EMAIL` | `architect@localhost` | Email address of the architect bot (used for git commits) |
 

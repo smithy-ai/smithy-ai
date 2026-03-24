@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.service.docker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.ClaudeConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
@@ -34,11 +35,13 @@ public class ContainerService {
     private final String vcsToken;
     private final String claudeOauthToken;
     private final String gitAuthUser;
+    private final String defaultGitEmail;
 
     public ContainerService(
         DockerConfig dockerConfig,
         ClaudeConfig claudeConfig,
         VcsProviderConfig vcsConfig,
+        BotConfig botConfig,
         DockerCli docker
     ) {
         this.docker = docker;
@@ -48,6 +51,7 @@ public class ContainerService {
         this.vcsToken = vcsConfig.smithyToken();
         this.claudeOauthToken = claudeConfig.oauthToken();
         this.gitAuthUser = vcsConfig.gitAuthUser();
+        this.defaultGitEmail = botConfig.resolvedSmithyEmail();
     }
 
     // ── Public API ───────────────────────────────────────────
@@ -127,7 +131,7 @@ public class ContainerService {
         args.add("-e");
         args.add("SOURCE_BRANCH=" + (init.sourceBranch() != null ? init.sourceBranch() : ""));
         args.add("-e");
-        args.add("GIT_EMAIL=" + (init.gitEmail() != null ? init.gitEmail() : "smithy@localhost"));
+        args.add("GIT_EMAIL=" + (init.gitEmail() != null ? init.gitEmail() : defaultGitEmail));
         args.add("-e");
         args.add("GIT_USERNAME=" + (init.gitUsername() != null ? init.gitUsername() : "Agent Smithy"));
 

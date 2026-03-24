@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
+import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
@@ -29,10 +30,12 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
+    private final String architectEmail;
 
     public ArchitectLearnFactory(
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        BotConfig botConfig,
         ContainerService containerService,
         PromptRenderer renderer,
         @Qualifier("architectVcs") VcsClient vcsClient,
@@ -44,6 +47,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
         this.renderer = renderer;
         this.vcsClient = vcsClient;
         this.issueTracker = issueTracker;
+        this.architectEmail = botConfig.resolvedArchitectEmail();
     }
 
     @Override
@@ -95,7 +99,8 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             dockerConfig,
             vcsConfig,
             TOOLS,
-            () -> removeInstance(key)
+            () -> removeInstance(key),
+            architectEmail
         );
     }
 
@@ -123,7 +128,8 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             TOOLS,
             () -> removeInstance(containerName),
             stage,
-            state.sessionId()
+            state.sessionId(),
+            architectEmail
         );
     }
 }

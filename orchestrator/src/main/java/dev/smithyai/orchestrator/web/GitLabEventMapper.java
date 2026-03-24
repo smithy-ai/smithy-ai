@@ -18,12 +18,14 @@ public class GitLabEventMapper {
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
+    private final String smithyEmail;
 
     public GitLabEventMapper(BotConfig botConfig, VcsProviderConfig vcsConfig, VcsClient smithyClient) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
+        this.smithyEmail = botConfig.resolvedSmithyEmail();
     }
 
     public WorkflowEvent map(String eventType, JsonNode payload) {
@@ -188,7 +190,7 @@ public class GitLabEventMapper {
         if (commits.isArray()) {
             for (var c : commits) {
                 String email = c.path("author").path("email").asText("");
-                if (!"smithy@localhost".equals(email)) {
+                if (!smithyEmail.equals(email)) {
                     isHuman = true;
                     break;
                 }
