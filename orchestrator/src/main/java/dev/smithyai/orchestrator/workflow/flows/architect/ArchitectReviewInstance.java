@@ -25,29 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ArchitectReviewInstance extends AbstractWorkflowInstance {
 
     private final StateMachine<ReviewStage> stateMachine;
-
-    public ArchitectReviewInstance(
-        ContainerSession session,
-        VcsClient vcsClient,
-        IssueTrackerClient issueTracker,
-        PromptRenderer renderer,
-        DockerConfig dockerConfig,
-        VcsProviderConfig vcsConfig,
-        List<String> tools,
-        Runnable destroyCallback
-    ) {
-        this(
-            session,
-            vcsClient,
-            issueTracker,
-            renderer,
-            dockerConfig,
-            vcsConfig,
-            tools,
-            destroyCallback,
-            ReviewStage.NEW
-        );
-    }
+    private final String architectEmail;
 
     public ArchitectReviewInstance(
         ContainerSession session,
@@ -58,7 +36,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
-        ReviewStage initialStage
+        String architectEmail
     ) {
         this(
             session,
@@ -69,8 +47,9 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             vcsConfig,
             tools,
             destroyCallback,
-            initialStage,
-            null
+            ReviewStage.NEW,
+            null,
+            architectEmail
         );
     }
 
@@ -84,7 +63,8 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         List<String> tools,
         Runnable destroyCallback,
         ReviewStage initialStage,
-        String existingSessionId
+        String existingSessionId,
+        String architectEmail
     ) {
         super(
             session,
@@ -97,6 +77,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             destroyCallback,
             existingSessionId
         );
+        this.architectEmail = architectEmail;
         // @formatter:off
         this.stateMachine = StateMachine.builder(ReviewStage.class, initialStage)
             .in(ReviewStage.NEW)
@@ -141,7 +122,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())
             .sourceBranch(prc.baseBranch())
-            .gitEmail("architect@localhost")
+            .gitEmail(architectEmail)
             .gitUsername("The Architect")
             .extraRepos(List.of(new ContainerConfig.ExtraRepo(contextCloneUrl, "/context-repo", "main")))
             .workflowType(WorkflowType.ARCHITECT)

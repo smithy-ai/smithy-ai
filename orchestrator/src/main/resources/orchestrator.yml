@@ -29,5 +29,7 @@ vcs:
 bots:
   smithy:
     user: ${SMITHY_BOT_USER:smithy}
+    email: ${SMITHY_BOT_EMAIL:}
   architect:
     user: ${ARCHITECT_BOT_USER:architect}
+    email: ${ARCHITECT_BOT_EMAIL:}

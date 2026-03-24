@@ -28,29 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private final StateMachine<LearnStage> stateMachine;
-
-    public ArchitectLearnInstance(
-        ContainerSession session,
-        VcsClient vcsClient,
-        IssueTrackerClient issueTracker,
-        PromptRenderer renderer,
-        DockerConfig dockerConfig,
-        VcsProviderConfig vcsConfig,
-        List<String> tools,
-        Runnable destroyCallback
-    ) {
-        this(
-            session,
-            vcsClient,
-            issueTracker,
-            renderer,
-            dockerConfig,
-            vcsConfig,
-            tools,
-            destroyCallback,
-            LearnStage.NEW
-        );
-    }
+    private final String architectEmail;
 
     public ArchitectLearnInstance(
         ContainerSession session,
@@ -61,7 +39,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
-        LearnStage initialStage
+        String architectEmail
     ) {
         this(
             session,
@@ -72,8 +50,9 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             vcsConfig,
             tools,
             destroyCallback,
-            initialStage,
-            null
+            LearnStage.NEW,
+            null,
+            architectEmail
         );
     }
 
@@ -87,7 +66,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         List<String> tools,
         Runnable destroyCallback,
         LearnStage initialStage,
-        String existingSessionId
+        String existingSessionId,
+        String architectEmail
     ) {
         super(
             session,
@@ -100,6 +80,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             destroyCallback,
             existingSessionId
         );
+        this.architectEmail = architectEmail;
         // @formatter:off
         this.stateMachine = StateMachine.builder(LearnStage.class, initialStage)
             .in(LearnStage.NEW)
@@ -146,7 +127,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())
             .sourceBranch(prc.baseBranch())
-            .gitEmail("architect@localhost")
+            .gitEmail(architectEmail)
             .gitUsername("The Architect")
             .extraRepos(List.of(new ContainerConfig.ExtraRepo(contextCloneUrl, "/context-repo", learnBranch)))
             .workflowType(WorkflowType.ARCHITECT)
