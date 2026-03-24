@@ -7,6 +7,7 @@ import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.ClaudeSession;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
+import dev.smithyai.orchestrator.service.claude.dto.PlanResult;
 import dev.smithyai.orchestrator.service.docker.*;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
@@ -217,19 +218,39 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 throw new RuntimeException("Failed to copy plan file: " + copyResult.stderr());
             }
 
+            // Extract open questions from the plan
+            List<String> openQuestions = List.of();
+            try {
+                String extractPrompt = renderer.render(
+                    "refinement_extract.md.j2",
+                    Map.of("plan_file_path", planPath)
+                );
+                PlanResult planResult = claude.send(extractPrompt, PlanResult.class);
+                openQuestions = planResult.openQuestions();
+            } catch (Exception ex) {
+                log.warn("Failed to extract open questions for issue #{}", ctx.number(), ex);
+            }
+
             var pushResult = session.exec("smithy-commit-and-push", "Development plan for #" + ctx.number());
             if (pushResult.exitCode() != 0) {
                 throw new RuntimeException("Failed to commit and push plan: " + pushResult.stderr());
             }
 
-            // Post link to plan
+            // Post link to plan with open questions if any
             String publicBase = e.repoHtmlUrl();
             String planUrl = vcsClient.fileBrowseUrl(publicBase, branch, planPath);
+            var comment = new StringBuilder("Development plan: [%s](%s)".formatted(planPath, planUrl));
+            if (!openQuestions.isEmpty()) {
+                comment.append("\n\n### Open Questions");
+                for (String q : openQuestions) {
+                    comment.append("\n- ").append(q);
+                }
+            }
             issueTracker.createIssueComment(
                 info.owner(),
                 info.repo(),
                 ctx.number(),
-                "Development plan: [%s](%s)".formatted(planPath, planUrl)
+                comment.toString()
             );
 
             log.info("Refinement complete for issue #{}", ctx.number());
