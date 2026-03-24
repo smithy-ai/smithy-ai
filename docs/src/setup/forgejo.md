@@ -41,7 +41,15 @@ CLAUDE_CODE_OAUTH_TOKEN=<your oauth token>
 
 See the [configuration reference](../configuration.md) for all available settings.
 
-## 4. Run the orchestrator
+## 4. Create the Docker network
+
+The orchestrator spawns task containers that need network connectivity to your Forgejo instance. Create a shared Docker network for them:
+
+```bash
+docker network create smithy-net
+```
+
+## 5. Run the orchestrator
 
 Use `demo/docker-compose.yml` as a starting template. At minimum, the orchestrator service needs:
 
@@ -64,11 +72,11 @@ services:
       - ARCHITECT_FORGEJO_TOKEN=${ARCHITECT_FORGEJO_TOKEN}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
-      - DOCKER_NETWORK=${DOCKER_NETWORK:-forgejo-net}
+      - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
       - TASK_IMAGE=${TASK_IMAGE:-claude-task:latest}
 ```
 
-## 5. Per-repository setup
+## 6. Per-repository setup
 
 For each repository you want Smithy to work on:
 

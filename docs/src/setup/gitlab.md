@@ -42,7 +42,15 @@ CLAUDE_CODE_OAUTH_TOKEN=<your oauth token>
 
 See the [configuration reference](../configuration.md) for all available settings.
 
-## 4. Run the orchestrator
+## 4. Create the Docker network
+
+The orchestrator spawns task containers that need network connectivity to your GitLab instance. Create a shared Docker network for them:
+
+```bash
+docker network create smithy-net
+```
+
+## 5. Run the orchestrator
 
 Use `local-gitlab/docker-compose.yml` as a starting template:
 
@@ -62,11 +70,11 @@ services:
       - ARCHITECT_GITLAB_TOKEN=${ARCHITECT_GITLAB_TOKEN}
       - GITLAB_WEBHOOK_SECRET=${GITLAB_WEBHOOK_SECRET}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
-      - DOCKER_NETWORK=${DOCKER_NETWORK:-gitlab-net}
+      - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
       - TASK_IMAGE=${TASK_IMAGE:-claude-task-default:latest}
 ```
 
-## 5. Per-repository setup
+## 6. Per-repository setup
 
 For each repository you want Smithy to work on:
 

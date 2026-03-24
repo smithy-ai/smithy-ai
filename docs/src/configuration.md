@@ -7,7 +7,7 @@ Smithy-AI is configured through environment variables. These map to settings in 
 | Variable | Default | Description |
 |---|---|---|
 | `DOCKER_COMMAND` | `docker` | Docker CLI command |
-| `DOCKER_NETWORK` | `forgejo-net` | Docker network that task containers attach to |
+| `DOCKER_NETWORK` | `smithy-net` | Docker network that task containers attach to |
 | `TASK_IMAGE` | `claude-task:latest` | Docker image used for task containers |
 | `CACHE_VOLUMES` | `pnpm,npm` | Comma-separated cache volume types: `pnpm`, `npm`, `maven`, `gradle` |
 
