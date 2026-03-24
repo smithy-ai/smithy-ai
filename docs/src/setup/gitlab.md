@@ -19,12 +19,19 @@ You can use custom usernames by setting `SMITHY_BOT_USER` and `ARCHITECT_BOT_USE
 
 ## 2. Generate access tokens
 
-For each bot user, generate a personal access token with `api` scope:
+For each bot user, generate an access token with the `api`, `read_repository`, and `write_repository` scopes. Smithy supports two types of GitLab tokens:
 
-1. Log in as the bot user
-2. Go to **Preferences → Access Tokens**
-3. Create a token with the `api` scope
-4. Save the tokens
+**Option A: OAuth2 tokens** (group or project access tokens)
+
+1. Go to the group or project **Settings → Access Tokens**
+2. Create a token with `api`, `read_repository`, and `write_repository` scopes
+3. Set `GITLAB_TOKEN_TYPE=oauth2` in your environment
+
+**Option B: Personal or impersonation tokens**
+
+1. **Personal access token**: Log in as the bot user → **Preferences → Access Tokens** → create a token with `api`, `read_repository`, and `write_repository` scopes
+2. **Impersonation token**: As an admin → **Admin → Users → (bot user) → Impersonation Tokens** → create a token with the same scopes
+3. Set `GITLAB_TOKEN_TYPE=private-token` in your environment
 
 ## 3. Configure environment
 
@@ -34,6 +41,7 @@ Set the following environment variables:
 VCS_PROVIDER=gitlab
 GITLAB_URL=http://your-gitlab:80              # Internal URL (reachable from orchestrator)
 GITLAB_EXTERNAL_URL=https://gitlab.example.com  # Browser-reachable URL
+GITLAB_TOKEN_TYPE=oauth2                        # or "private-token" for PAT/impersonation tokens
 SMITHY_GITLAB_TOKEN=<smithy token>
 ARCHITECT_GITLAB_TOKEN=<architect token>
 GITLAB_WEBHOOK_SECRET=<a random secret string>
@@ -68,6 +76,7 @@ services:
       - GITLAB_EXTERNAL_URL=${GITLAB_EXTERNAL_URL}
       - SMITHY_GITLAB_TOKEN=${SMITHY_GITLAB_TOKEN}
       - ARCHITECT_GITLAB_TOKEN=${ARCHITECT_GITLAB_TOKEN}
+      - GITLAB_TOKEN_TYPE=${GITLAB_TOKEN_TYPE:-oauth2}
       - GITLAB_WEBHOOK_SECRET=${GITLAB_WEBHOOK_SECRET}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}

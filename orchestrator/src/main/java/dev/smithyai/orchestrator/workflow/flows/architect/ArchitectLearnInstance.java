@@ -287,7 +287,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private void addIssueComments(List<Map<String, Object>> entries, String owner, String repo, int prNumber) {
         try {
-            var comments = issueTracker.getIssueComments(owner, repo, prNumber);
+            var comments = vcsClient.getPrComments(owner, repo, prNumber);
             for (CommentEntry c : comments) {
                 entries.add(
                     Map.of(
@@ -303,7 +303,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                 );
             }
         } catch (Exception e) {
-            log.warn("Failed to fetch issue comments for PR #{}", prNumber, e);
+            log.warn("Failed to fetch PR comments for PR #{}", prNumber, e);
         }
     }
 

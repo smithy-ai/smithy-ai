@@ -31,6 +31,8 @@ public interface VcsClient {
         List<InlineComment> comments
     );
 
+    List<CommentEntry> getPrComments(String owner, String repo, int prNumber);
+
     List<ReviewEntry> getPrReviews(String owner, String repo, int prNumber);
 
     List<ReviewCommentEntry> getReviewComments(String owner, String repo, int prNumber, long reviewId);

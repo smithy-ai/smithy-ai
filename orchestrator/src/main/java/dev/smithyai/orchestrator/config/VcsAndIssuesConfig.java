@@ -78,7 +78,7 @@ public class VcsAndIssuesConfig {
             case "gitlab" -> {
                 var gl = vcs.gitlab();
                 String token = architect ? gl.architectToken() : gl.smithyToken();
-                yield new GitLabClient(gl.url(), gl.externalUrl(), token);
+                yield new GitLabClient(gl.url(), gl.externalUrl(), token, gl.isOAuth2());
             }
             default -> {
                 var fg = vcs.forgejo();
@@ -93,7 +93,7 @@ public class VcsAndIssuesConfig {
             case "gitlab" -> {
                 var gl = vcs.gitlab();
                 String token = architect ? gl.architectToken() : gl.smithyToken();
-                yield new GitLabClient(gl.url(), gl.externalUrl(), token);
+                yield new GitLabClient(gl.url(), gl.externalUrl(), token, gl.isOAuth2());
             }
             default -> {
                 var fg = vcs.forgejo();

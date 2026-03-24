@@ -23,15 +23,22 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
 
     private final String baseUrl;
     private final String externalUrl;
-    private final String token;
+    private final String authHeaderName;
+    private final String authHeaderValue;
     private final HttpClient http;
     private final ObjectMapper mapper;
     private final Map<String, Integer> userIdCache = new ConcurrentHashMap<>();
 
-    public GitLabClient(String baseUrl, String externalUrl, String token) {
+    public GitLabClient(String baseUrl, String externalUrl, String token, boolean oauth2) {
         this.baseUrl = baseUrl;
         this.externalUrl = externalUrl != null && !externalUrl.isBlank() ? externalUrl : baseUrl;
-        this.token = token;
+        if (oauth2) {
+            this.authHeaderName = "Authorization";
+            this.authHeaderValue = "Bearer " + token;
+        } else {
+            this.authHeaderName = "PRIVATE-TOKEN";
+            this.authHeaderValue = token;
+        }
         this.http = HttpClient.newBuilder().build();
         this.mapper = new ObjectMapper();
         this.mapper.registerModule(new JavaTimeModule());
@@ -116,7 +123,7 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public byte[] downloadAttachment(String url) {
         try {
-            var request = HttpRequest.newBuilder().uri(URI.create(url)).header("PRIVATE-TOKEN", token).GET().build();
+            var request = HttpRequest.newBuilder().uri(URI.create(url)).header(authHeaderName, authHeaderValue).GET().build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() >= 400) {
                 throw new RuntimeException("GitLab attachment download failed: " + response.statusCode());
@@ -168,6 +175,11 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public void createPrComment(String owner, String repo, int prNumber, String body) {
         post("/projects/%s/merge_requests/%d/notes", Map.of("body", body), projectId(owner, repo), prNumber);
+    }
+
+    @Override
+    public List<CommentEntry> getPrComments(String owner, String repo, int prNumber) {
+        return List.of(); // All MR notes are already returned by getPrReviews()
     }
 
     // ── VcsClient: Reviews ───────────────────────────────────
@@ -392,7 +404,7 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         try {
             var request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/v4" + path))
-                .header("PRIVATE-TOKEN", token)
+                .header(authHeaderName, authHeaderValue)
                 .GET()
                 .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString());
@@ -425,7 +437,7 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
             String json = mapper.writeValueAsString(body);
             var request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/v4" + path))
-                .header("PRIVATE-TOKEN", token)
+                .header(authHeaderName, authHeaderValue)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
@@ -447,7 +459,7 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
             String json = mapper.writeValueAsString(body);
             var request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/v4" + path))
-                .header("PRIVATE-TOKEN", token)
+                .header(authHeaderName, authHeaderValue)
                 .header("Content-Type", "application/json")
                 .PUT(HttpRequest.BodyPublishers.ofString(json))
                 .build();

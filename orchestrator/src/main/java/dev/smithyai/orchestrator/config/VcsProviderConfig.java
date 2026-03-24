@@ -21,8 +21,13 @@ public record VcsProviderConfig(
         @JsonProperty("external-url") String externalUrl,
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("smithy-token") String smithyToken,
-        @JsonProperty("architect-token") String architectToken
-    ) {}
+        @JsonProperty("architect-token") String architectToken,
+        @JsonProperty("token-type") String tokenType
+    ) {
+        public boolean isOAuth2() {
+            return tokenType == null || tokenType.isBlank() || "oauth2".equalsIgnoreCase(tokenType);
+        }
+    }
 
     public String resolvedProvider() {
         return provider != null && !provider.isBlank() ? provider : "forgejo";
@@ -67,7 +72,7 @@ public record VcsProviderConfig(
 
     public String gitAuthUser() {
         return switch (resolvedProvider()) {
-            case "gitlab" -> "oauth2";
+            case "gitlab" -> gitlab != null && !gitlab.isOAuth2() ? "private-token" : "oauth2";
             default -> "token";
         };
     }

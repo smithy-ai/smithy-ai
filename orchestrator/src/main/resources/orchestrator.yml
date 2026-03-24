@@ -24,6 +24,7 @@ vcs:
     webhook-secret: ${GITLAB_WEBHOOK_SECRET:}
     smithy-token: ${SMITHY_GITLAB_TOKEN:}
     architect-token: ${ARCHITECT_GITLAB_TOKEN:}
+    token-type: ${GITLAB_TOKEN_TYPE:}
 
 bots:
   smithy:

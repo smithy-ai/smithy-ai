@@ -40,6 +40,7 @@ Smithy-AI is configured through environment variables. These map to settings in 
 |---|---|---|
 | `GITLAB_URL` | — | Internal GitLab URL (reachable from orchestrator) |
 | `GITLAB_EXTERNAL_URL` | — | Browser-reachable GitLab URL |
+| `GITLAB_TOKEN_TYPE` | `oauth2` | Token type: `oauth2` for group/project access tokens, `private-token` for personal or impersonation tokens |
 | `GITLAB_WEBHOOK_SECRET` | — | Secret for verifying GitLab webhook signatures |
 | `SMITHY_GITLAB_TOKEN` | — | Access token for the smithy bot user |
 | `ARCHITECT_GITLAB_TOKEN` | — | Access token for the architect bot user |

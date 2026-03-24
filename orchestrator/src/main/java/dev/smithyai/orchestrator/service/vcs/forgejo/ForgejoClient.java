@@ -161,6 +161,11 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
         api(() -> issueApi.issueCreateComment(owner, repo, (long) prNumber, new CreateIssueCommentOption().body(body)));
     }
 
+    @Override
+    public List<CommentEntry> getPrComments(String owner, String repo, int prNumber) {
+        return getIssueComments(owner, repo, prNumber);
+    }
+
     // ── VcsClient: Reviews ───────────────────────────────────
 
     @Override
