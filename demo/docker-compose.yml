@@ -31,10 +31,30 @@ services:
       - DOCKER_NETWORK=${DOCKER_NETWORK:-forgejo-net}
       - TASK_IMAGE=${TASK_IMAGE:-claude-task-default:latest}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - KNOWLEDGEBASE_ENABLED=${KNOWLEDGEBASE_ENABLED:-false}
+      - KNOWLEDGEBASE_URL=${KNOWLEDGEBASE_URL:-http://knowledgebase:8000/mcp}
     networks:
       - forgejo-net
     depends_on:
       - forgejo
+
+  knowledgebase:
+    build:
+      context: ..
+      dockerfile: knowledgebase/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GIT_REPO_URL=${KNOWLEDGEBASE_GIT_REPO_URL:-}
+      - GIT_BRANCH=${KNOWLEDGEBASE_GIT_BRANCH:-main}
+      - GIT_ACCESS_TOKEN=${KNOWLEDGEBASE_GIT_ACCESS_TOKEN:-}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+    volumes:
+      - kb-git-knowledge:/app/git-knowledge
+      - kb-vectorstore:/app/vectorstore
+    networks:
+      - forgejo-net
 
   runner:
     image: data.forgejo.org/forgejo/runner:12.7.1
@@ -69,6 +89,8 @@ volumes:
   cache-npm:
   cache-gradle:
   runner-data:
+  kb-git-knowledge:
+  kb-vectorstore:
 
 networks:
   forgejo-net:
