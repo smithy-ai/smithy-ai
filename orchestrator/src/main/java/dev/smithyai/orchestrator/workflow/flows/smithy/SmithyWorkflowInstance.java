@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.workflow.flows.smithy;
 
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
@@ -38,6 +39,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback
@@ -49,6 +51,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            knowledgebaseConfig,
             botConfig,
             tools,
             destroyCallback,
@@ -63,6 +66,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback,
@@ -75,6 +79,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            knowledgebaseConfig,
             botConfig,
             tools,
             destroyCallback,
@@ -90,6 +95,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback,
@@ -103,6 +109,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            knowledgebaseConfig,
             tools,
             destroyCallback,
             existingSessionId
@@ -579,7 +586,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     // ── Private helpers ─────────────────────────────────────
 
     private void newClaudeSession(List<String> tools) {
-        this.claude = new ClaudeSession(session, tools);
+        this.claude = new ClaudeSession(session, tools, knowledgebaseConfig);
     }
 
     private void resumeBuild(RepoInfo info, int issueId, Integer prNumber, String prompt, boolean skipAssignmentCheck) {

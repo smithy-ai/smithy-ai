@@ -76,6 +76,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            null,
             tools,
             destroyCallback,
             existingSessionId

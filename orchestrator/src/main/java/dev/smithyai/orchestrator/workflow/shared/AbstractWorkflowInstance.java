@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.shared;
 
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.ClaudeSession;
@@ -24,6 +25,7 @@ public abstract class AbstractWorkflowInstance {
     protected final PromptRenderer renderer;
     protected final DockerConfig dockerConfig;
     protected final VcsProviderConfig vcsConfig;
+    protected final KnowledgebaseConfig knowledgebaseConfig;
     private final Runnable destroyCallback;
     private final ExecutorService eventThread;
 
@@ -34,10 +36,22 @@ public abstract class AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        KnowledgebaseConfig knowledgebaseConfig,
         List<String> tools,
         Runnable destroyCallback
     ) {
-        this(session, vcsClient, issueTracker, renderer, dockerConfig, vcsConfig, tools, destroyCallback, null);
+        this(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            knowledgebaseConfig,
+            tools,
+            destroyCallback,
+            null
+        );
     }
 
     protected AbstractWorkflowInstance(
@@ -47,6 +61,7 @@ public abstract class AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        KnowledgebaseConfig knowledgebaseConfig,
         List<String> tools,
         Runnable destroyCallback,
         String existingSessionId
@@ -54,13 +69,14 @@ public abstract class AbstractWorkflowInstance {
         this.session = session;
         this.claude =
             existingSessionId != null
-                ? new ClaudeSession(session, tools, existingSessionId)
-                : new ClaudeSession(session, tools);
+                ? new ClaudeSession(session, tools, existingSessionId, knowledgebaseConfig)
+                : new ClaudeSession(session, tools, knowledgebaseConfig);
         this.vcsClient = vcsClient;
         this.issueTracker = issueTracker;
         this.renderer = renderer;
         this.dockerConfig = dockerConfig;
         this.vcsConfig = vcsConfig;
+        this.knowledgebaseConfig = knowledgebaseConfig;
         this.destroyCallback = destroyCallback;
         this.eventThread = Executors.newSingleThreadExecutor(
             Thread.ofVirtual().name("wf-" + session.getContainerName() + "-", 0).factory()

@@ -26,6 +26,11 @@ vcs:
     architect-token: ${ARCHITECT_GITLAB_TOKEN:}
     token-type: ${GITLAB_TOKEN_TYPE:}
 
+knowledgebase:
+  enabled: ${KNOWLEDGEBASE_ENABLED:false}
+  url: ${KNOWLEDGEBASE_URL:http://knowledgebase:8000/mcp}
+  tool-name: ${KNOWLEDGEBASE_TOOL_NAME:searchKnowledge}
+
 bots:
   smithy:
     user: ${SMITHY_BOT_USER:smithy}

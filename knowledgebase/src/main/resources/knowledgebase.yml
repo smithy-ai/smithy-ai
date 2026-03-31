@@ -1,0 +1,21 @@
+server:
+  port: ${SERVER_PORT:8000}
+
+git:
+  repository-url: ${GIT_REPO_URL:}
+  branch: ${GIT_BRANCH:main}
+  access-token: ${GIT_ACCESS_TOKEN:}
+  local-path: ${GIT_DIR:/app/git-knowledge}
+
+vectorstore:
+  path: ${VECTORSTORE_PATH:/app/vectorstore}
+
+chunk-size: ${CHUNK_SIZE:1000}
+
+webhook:
+  secret: ${WEBHOOK_SECRET:}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  embedding-model: ${EMBEDDING_MODEL:text-embedding-3-small}
+  chat-model: ${CHAT_MODEL:gpt-4o}

@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.workflow.flows.smithy;
 
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
@@ -28,6 +29,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final ContainerService containerService;
     private final DockerConfig dockerConfig;
     private final VcsProviderConfig vcsConfig;
+    private final KnowledgebaseConfig knowledgebaseConfig;
     private final BotConfig botConfig;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
@@ -36,6 +38,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     public SmithyWorkflowFactory(
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
         ContainerService containerService,
         PromptRenderer renderer,
@@ -44,6 +47,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     ) {
         this.dockerConfig = dockerConfig;
         this.vcsConfig = vcsConfig;
+        this.knowledgebaseConfig = knowledgebaseConfig;
         this.botConfig = botConfig;
         this.containerService = containerService;
         this.renderer = renderer;
@@ -83,8 +87,9 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             renderer,
             dockerConfig,
             vcsConfig,
+            knowledgebaseConfig,
             botConfig,
-            REFINE_TOOLS,
+            augmentTools(REFINE_TOOLS),
             () -> removeInstance(key)
         );
     }
@@ -110,12 +115,22 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             renderer,
             dockerConfig,
             vcsConfig,
+            knowledgebaseConfig,
             botConfig,
-            tools,
+            augmentTools(tools),
             () -> removeInstance(containerName),
             stage,
             state.sessionId()
         );
+    }
+
+    private List<String> augmentTools(List<String> baseTools) {
+        if (knowledgebaseConfig == null || !knowledgebaseConfig.isActive()) {
+            return baseTools;
+        }
+        var tools = new java.util.ArrayList<>(baseTools);
+        tools.add(knowledgebaseConfig.mcpToolAllowName());
+        return List.copyOf(tools);
     }
 
     private static String containerKey(WorkflowEvent event) {
