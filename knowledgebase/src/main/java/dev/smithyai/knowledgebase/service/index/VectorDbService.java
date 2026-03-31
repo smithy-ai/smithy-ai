@@ -20,35 +20,34 @@ public class VectorDbService {
         this.indexingService = indexingService;
     }
 
-    public List<SearchResult> search(String query, int limit) {
-        VectorStore vectorStore = indexingService.getActiveVectorStore();
+    public List<SearchResult> search(String repoName, String query, int limit) {
+        VectorStore vectorStore = indexingService.getActiveVectorStore(repoName);
 
         if (vectorStore == null) {
-            log.warn("No active index available for search");
+            log.warn("No active index for repo {}", repoName);
             return List.of();
         }
 
         try {
             SearchRequest searchRequest = SearchRequest.builder().query(query).topK(limit).build();
-
             List<Document> results = vectorStore.similaritySearch(searchRequest);
 
             log.debug(
-                "Search for '{}' returned {} results in collection {}",
+                "Search in {} for '{}' returned {} results",
+                repoName,
                 query,
-                results.size(),
-                indexingService.getActiveCollectionName()
+                results.size()
             );
 
             return results.stream().map(this::documentToSearchResult).toList();
         } catch (Exception e) {
-            log.error("Error searching vector database: {}", e.getMessage());
+            log.error("Error searching repo {}: {}", repoName, e.getMessage());
             return List.of();
         }
     }
 
-    public boolean isInitialized() {
-        return indexingService.isInitialized();
+    public boolean isInitialized(String repoName) {
+        return indexingService.isInitialized(repoName);
     }
 
     private SearchResult documentToSearchResult(Document document) {

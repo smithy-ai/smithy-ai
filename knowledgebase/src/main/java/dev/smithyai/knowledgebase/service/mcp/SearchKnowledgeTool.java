@@ -2,11 +2,14 @@ package dev.smithyai.knowledgebase.service.mcp;
 
 import dev.smithyai.knowledgebase.model.SearchResult;
 import dev.smithyai.knowledgebase.service.index.VectorDbService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Slf4j
 @Component
@@ -31,24 +34,42 @@ public class SearchKnowledgeTool {
         @McpToolParam(description = "Description of the coding task or question you need help with")
             String taskDescription
     ) {
-        log.debug("searchKnowledge called with task: {}", taskDescription);
+        String repoName = getRepoFromRequest();
+        log.debug("searchKnowledge called for repo={}, task={}", repoName, taskDescription);
+
+        if (repoName == null || repoName.isBlank()) {
+            return "No repository specified. The MCP URL must include a ?repo= parameter.";
+        }
 
         try {
-            if (!vectorDbService.isInitialized()) {
-                log.warn("Knowledge base not yet initialized");
-                return "Knowledge base is not yet initialized. Please wait for the initial sync to complete.";
+            if (!vectorDbService.isInitialized(repoName)) {
+                log.warn("Knowledge base not yet initialized for repo {}", repoName);
+                return "Knowledge base for repository '" + repoName + "' is not yet initialized.";
             }
 
-            List<SearchResult> results = vectorDbService.search(taskDescription, 5);
+            List<SearchResult> results = vectorDbService.search(repoName, taskDescription, 5);
 
             if (results.isEmpty()) {
-                return "No relevant documentation found for the given task.";
+                return "No relevant documentation found for the given task in repository '" + repoName + "'.";
             }
 
-            return summarizerService.summarize(taskDescription, results);
+            return summarizerService.summarize(repoName, taskDescription, results);
         } catch (Exception e) {
-            log.error("Error in searchKnowledge tool: {}", e.getMessage(), e);
+            log.error("Error in searchKnowledge for repo {}: {}", repoName, e.getMessage(), e);
             return "An error occurred while searching the knowledge base. Please try again.";
         }
+    }
+
+    private String getRepoFromRequest() {
+        try {
+            var attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                HttpServletRequest request = attrs.getRequest();
+                return request.getParameter("repo");
+            }
+        } catch (Exception e) {
+            log.warn("Could not read repo from request context: {}", e.getMessage());
+        }
+        return null;
     }
 }

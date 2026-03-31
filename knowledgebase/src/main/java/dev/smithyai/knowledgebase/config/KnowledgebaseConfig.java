@@ -1,20 +1,19 @@
 package dev.smithyai.knowledgebase.config;
 
+import java.util.List;
+
 public record KnowledgebaseConfig(
     ServerConfig server,
-    GitConfig git,
+    VcsConfig vcs,
     VectorstoreConfig vectorstore,
     int chunkSize,
     WebhookConfig webhook,
-    OpenaiConfig openai
+    OpenaiConfig openai,
+    List<RepositoryConfig> repositories
 ) {
     public record ServerConfig(int port) {}
 
-    public record GitConfig(String repositoryUrl, String branch, String accessToken, String localPath) {
-        public boolean isConfigured() {
-            return repositoryUrl != null && !repositoryUrl.isBlank();
-        }
-    }
+    public record VcsConfig(String url, String token) {}
 
     public record VectorstoreConfig(String path) {}
 
@@ -25,4 +24,16 @@ public record KnowledgebaseConfig(
     }
 
     public record OpenaiConfig(String apiKey, String embeddingModel, String chatModel) {}
+
+    public record RepositoryConfig(String name, String cloneUrl, String branch) {
+        /** Filesystem/collection-safe key: "owner/repo" → "owner--repo" */
+        public String safeKey() {
+            return name.replace("/", "--");
+        }
+    }
+
+    public RepositoryConfig findRepository(String fullName) {
+        if (repositories == null) return null;
+        return repositories.stream().filter(r -> r.name().equals(fullName)).findFirst().orElse(null);
+    }
 }

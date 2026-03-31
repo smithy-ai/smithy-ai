@@ -29,6 +29,7 @@ public class ClaudeSession {
     private final ContainerSession container;
     private final List<String> tools;
     private final KnowledgebaseConfig knowledgebaseConfig;
+    private String contextRepoName;
     private boolean started = false;
 
     public ClaudeSession(ContainerSession container, List<String> tools) {
@@ -54,6 +55,10 @@ public class ClaudeSession {
         this.tools = tools;
         this.knowledgebaseConfig = knowledgebaseConfig;
         this.started = existingSessionId != null;
+    }
+
+    public void setContextRepoName(String contextRepoName) {
+        this.contextRepoName = contextRepoName;
     }
 
     public void startPlan(String prompt) {
@@ -153,9 +158,9 @@ public class ClaudeSession {
             command.add(outputSchema);
         }
 
-        if (knowledgebaseConfig != null && knowledgebaseConfig.isActive()) {
+        if (knowledgebaseConfig != null && knowledgebaseConfig.isActive() && contextRepoName != null) {
             command.add("--mcp-config");
-            command.add(knowledgebaseConfig.mcpConfigJson());
+            command.add(knowledgebaseConfig.mcpConfigJson(contextRepoName));
         }
 
         log.debug("Executing Claude prompt on {} (session={})", container.getContainerName(), sessionId);

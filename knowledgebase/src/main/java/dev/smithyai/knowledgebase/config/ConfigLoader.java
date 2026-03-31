@@ -28,7 +28,8 @@ public class ConfigLoader {
 
     public ConfigLoader(Environment env) {
         this.config = loadConfig(env);
-        log.info("Loaded knowledgebase config (git={})", config.git().isConfigured());
+        int repoCount = config.repositories() != null ? config.repositories().size() : 0;
+        log.info("Loaded knowledgebase config ({} repositories)", repoCount);
     }
 
     @Bean
@@ -37,8 +38,8 @@ public class ConfigLoader {
     }
 
     @Bean
-    public KnowledgebaseConfig.GitConfig gitConfig() {
-        return config.git();
+    public KnowledgebaseConfig.VcsConfig vcsConfig() {
+        return config.vcs();
     }
 
     @Bean

@@ -8,7 +8,7 @@ services:
       - forgejo-data:/data
       - ./config/forgejo-extra-links.tmpl:/data/gitea/templates/custom/extra_links.tmpl:ro
     environment:
-      - FORGEJO__webhook__ALLOWED_HOST_LIST=orchestrator
+      - FORGEJO__webhook__ALLOWED_HOST_LIST=orchestrator,knowledgebase
       - FORGEJO__actions__ENABLED=true
       - FORGEJO__ui__DEFAULT_SHOW_FULL_NAME=true
     networks:
@@ -38,23 +38,24 @@ services:
     depends_on:
       - forgejo
 
-  knowledgebase:
-    build:
-      context: ..
-      dockerfile: knowledgebase/Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - GIT_REPO_URL=${KNOWLEDGEBASE_GIT_REPO_URL:-}
-      - GIT_BRANCH=${KNOWLEDGEBASE_GIT_BRANCH:-main}
-      - GIT_ACCESS_TOKEN=${KNOWLEDGEBASE_GIT_ACCESS_TOKEN:-}
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
-    volumes:
-      - kb-git-knowledge:/app/git-knowledge
-      - kb-vectorstore:/app/vectorstore
-    networks:
-      - forgejo-net
+  # Uncomment to enable knowledgebase MCP server (requires OPENAI_API_KEY and
+  # a configured repositories list in config/knowledgebase.yml)
+  # knowledgebase:
+  #   build:
+  #     context: ..
+  #     dockerfile: knowledgebase/Dockerfile
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+  #     - VCS_URL=${FORGEJO_URL:-http://forgejo:3000}
+  #     - VCS_TOKEN=${SMITHY_FORGEJO_TOKEN:-}
+  #     - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+  #   volumes:
+  #     - kb-vectorstore:/app/vectorstore
+  #     - ./config/knowledgebase.yml:/config/knowledgebase.yml:ro
+  #   networks:
+  #     - forgejo-net
 
   runner:
     image: data.forgejo.org/forgejo/runner:12.7.1
@@ -89,7 +90,6 @@ volumes:
   cache-npm:
   cache-gradle:
   runner-data:
-  kb-git-knowledge:
   kb-vectorstore:
 
 networks:

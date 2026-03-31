@@ -1,9 +1,10 @@
 package dev.smithyai.knowledgebase.service.git;
 
 import dev.smithyai.knowledgebase.config.KnowledgebaseConfig;
+import dev.smithyai.knowledgebase.config.KnowledgebaseConfig.RepositoryConfig;
 import java.io.File;
 import java.io.IOException;
-import lombok.Getter;
+import java.nio.file.Path;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand;
@@ -15,72 +16,61 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class GitSyncService {
 
-    private final String repositoryUrl;
-    private final String branch;
-    private final String accessToken;
+    private final String vcsToken;
+    private final Path basePath;
 
-    @Getter
-    private final String localPath;
-
-    public GitSyncService(KnowledgebaseConfig.GitConfig gitConfig) {
-        this.repositoryUrl = gitConfig.repositoryUrl();
-        this.branch = gitConfig.branch();
-        this.accessToken = gitConfig.accessToken();
-        this.localPath = gitConfig.localPath();
+    public GitSyncService(KnowledgebaseConfig.VcsConfig vcsConfig, KnowledgebaseConfig.VectorstoreConfig vsConfig) {
+        this.vcsToken = vcsConfig.token();
+        // Store git repos alongside vectorstore: <vectorstore>/../git/<repoName>/
+        this.basePath = Path.of(vsConfig.path()).getParent().resolve("git");
     }
 
-    public String syncRepository() throws GitAPIException, IOException {
-        File repoDir = new File(localPath);
+    public Path repoLocalPath(RepositoryConfig repo) {
+        return basePath.resolve(repo.safeKey());
+    }
+
+    public String syncRepository(RepositoryConfig repo) throws GitAPIException, IOException {
+        File repoDir = repoLocalPath(repo).toFile();
         File gitDir = new File(repoDir, ".git");
 
         if (!gitDir.exists()) {
-            log.info("Cloning repository from {}", repositoryUrl);
-            return cloneRepository(repoDir);
+            log.info("Cloning {} from {}", repo.name(), repo.cloneUrl());
+            return cloneRepository(repo, repoDir);
         } else {
-            log.info("Pulling latest changes from {}", repositoryUrl);
-            return pullRepository(repoDir);
+            log.info("Pulling latest for {} from {}", repo.name(), repo.cloneUrl());
+            return pullRepository(repo, repoDir);
         }
     }
 
-    private String cloneRepository(File repoDir) throws GitAPIException, IOException {
-        if (repositoryUrl == null || repositoryUrl.isEmpty()) {
-            throw new IllegalStateException("GIT_REPO_URL is not configured");
-        }
-
+    private String cloneRepository(RepositoryConfig repo, File repoDir) throws GitAPIException, IOException {
         Git git = Git.cloneRepository()
-            .setURI(repositoryUrl)
+            .setURI(repo.cloneUrl())
             .setDirectory(repoDir)
-            .setBranch(branch)
+            .setBranch(repo.branch())
             .setCredentialsProvider(getCredentialsProvider())
             .call();
 
         String commitHash = git.getRepository().resolve("HEAD").getName();
-        log.info("Repository cloned. Latest commit: {}", commitHash);
-
+        log.info("{} cloned. Latest commit: {}", repo.name(), commitHash);
         git.close();
         return commitHash;
     }
 
-    private String pullRepository(File repoDir) throws GitAPIException, IOException {
+    private String pullRepository(RepositoryConfig repo, File repoDir) throws GitAPIException, IOException {
         try (Git git = Git.open(repoDir)) {
             git.fetch().setRemote("origin").setCredentialsProvider(getCredentialsProvider()).call();
-
-            git.reset().setMode(ResetCommand.ResetType.HARD).setRef("origin/" + branch).call();
+            git.reset().setMode(ResetCommand.ResetType.HARD).setRef("origin/" + repo.branch()).call();
 
             String commitHash = git.getRepository().resolve("HEAD").getName();
-            log.info("Repository updated. Latest commit: {}", commitHash);
+            log.info("{} updated. Latest commit: {}", repo.name(), commitHash);
             return commitHash;
         }
     }
 
     private UsernamePasswordCredentialsProvider getCredentialsProvider() {
-        if (accessToken == null || accessToken.isEmpty()) {
+        if (vcsToken == null || vcsToken.isEmpty()) {
             return null;
         }
-        return new UsernamePasswordCredentialsProvider("git", accessToken);
-    }
-
-    public boolean isConfigured() {
-        return repositoryUrl != null && !repositoryUrl.isEmpty();
+        return new UsernamePasswordCredentialsProvider("git", vcsToken);
     }
 }

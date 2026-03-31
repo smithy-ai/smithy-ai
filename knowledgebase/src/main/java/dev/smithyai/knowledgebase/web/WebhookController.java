@@ -1,6 +1,9 @@
 package dev.smithyai.knowledgebase.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.knowledgebase.config.KnowledgebaseConfig;
+import dev.smithyai.knowledgebase.config.KnowledgebaseConfig.RepositoryConfig;
 import dev.smithyai.knowledgebase.service.git.GitSyncService;
 import dev.smithyai.knowledgebase.service.index.IndexingService;
 import java.nio.charset.StandardCharsets;
@@ -21,17 +24,22 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 public class WebhookController {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final GitSyncService gitSyncService;
     private final IndexingService indexingService;
+    private final KnowledgebaseConfig config;
     private final String webhookSecret;
 
     public WebhookController(
         GitSyncService gitSyncService,
         IndexingService indexingService,
+        KnowledgebaseConfig config,
         KnowledgebaseConfig.WebhookConfig webhookConfig
     ) {
         this.gitSyncService = gitSyncService;
         this.indexingService = indexingService;
+        this.config = config;
         this.webhookSecret = webhookConfig.secret();
     }
 
@@ -43,7 +51,7 @@ public class WebhookController {
         @RequestHeader(value = "X-Hub-Signature-256", required = false) String hubSig,
         @RequestHeader(value = "X-Gitlab-Token", required = false) String gitlabToken
     ) {
-        // Verify webhook signature if secret is configured
+        // Verify signature
         if (webhookSecret != null && !webhookSecret.isBlank()) {
             String hmacSig = forgejoSig != null ? forgejoSig : giteaSig != null ? giteaSig : null;
 
@@ -52,7 +60,6 @@ public class WebhookController {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Invalid signature"));
                 }
             } else if (hubSig != null) {
-                // GitHub uses "sha256=<hex>" format
                 String hex = hubSig.startsWith("sha256=") ? hubSig.substring(7) : hubSig;
                 if (!verifyHmacSignature(payload, hex, webhookSecret)) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Invalid signature"));
@@ -70,33 +77,40 @@ public class WebhookController {
             }
         }
 
-        if (!gitSyncService.isConfigured()) {
+        // Parse repo full name from payload (e.g. "owner/repo")
+        String repoFullName = parseRepoFullName(payload);
+        if (repoFullName == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("error", "Git repository not configured"));
+                .body(Map.of("error", "Could not determine repository name from payload"));
         }
 
-        if (indexingService.isIndexing()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Sync already in progress"));
+        RepositoryConfig repo = config.findRepository(repoFullName);
+        if (repo == null) {
+            log.debug("Ignoring push for unconfigured repo: {}", repoFullName);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", "Repository not configured: " + repoFullName));
+        }
+
+        if (indexingService.isIndexing(repoFullName)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "Sync already in progress for " + repoFullName));
         }
 
         try {
-            log.info("Push webhook received, starting sync");
+            log.info("Push webhook received for repo {}, starting sync", repoFullName);
 
-            String commitHash = gitSyncService.syncRepository();
-            log.info("Git sync completed. Commit: {}", commitHash);
+            String commitHash = gitSyncService.syncRepository(repo);
+            log.info("Git sync completed for {}. Commit: {}", repoFullName, commitHash);
 
-            Map<String, Object> indexResult = indexingService.buildAndSwapIndex();
-            log.info("Index build completed: {}", indexResult);
+            Map<String, Object> indexResult = indexingService.buildAndSwapIndex(repo);
+            log.info("Index build completed for {}: {}", repoFullName, indexResult);
 
-            Map<String, Object> response = new HashMap<>();
+            Map<String, Object> response = new HashMap<>(indexResult);
             response.put("status", "success");
             response.put("commitHash", commitHash);
-            response.put("collectionName", indexResult.get("collectionName"));
-            response.put("documentCount", indexResult.get("documentCount"));
-            response.put("version", indexResult.get("version"));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Sync operation failed: {}", e.getMessage(), e);
+            log.error("Sync failed for repo {}: {}", repoFullName, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("status", "error", "error", e.getMessage()));
         }
@@ -106,11 +120,31 @@ public class WebhookController {
     public ResponseEntity<Map<String, Object>> health() {
         Map<String, Object> status = new HashMap<>();
         status.put("status", "up");
-        status.put("initialized", indexingService.isInitialized());
-        status.put("indexing", indexingService.isIndexing());
-        status.put("activeCollection", indexingService.getActiveCollectionName());
-        status.put("gitConfigured", gitSyncService.isConfigured());
+        status.put("collections", indexingService.allActiveCollections());
+        int repoCount = config.repositories() != null ? config.repositories().size() : 0;
+        status.put("configuredRepositories", repoCount);
         return ResponseEntity.ok(status);
+    }
+
+    private String parseRepoFullName(byte[] payload) {
+        try {
+            JsonNode root = MAPPER.readTree(payload);
+
+            // Forgejo/Gitea/GitHub: repository.full_name (e.g. "owner/repo")
+            JsonNode fullNameNode = root.path("repository").path("full_name");
+            if (!fullNameNode.isMissingNode()) {
+                return fullNameNode.asText();
+            }
+
+            // GitLab: project.path_with_namespace (e.g. "group/repo")
+            JsonNode projectNode = root.path("project").path("path_with_namespace");
+            if (!projectNode.isMissingNode()) {
+                return projectNode.asText();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse repo name from webhook payload: {}", e.getMessage());
+        }
+        return null;
     }
 
     static boolean verifyHmacSignature(byte[] payload, String signature, String secret) {

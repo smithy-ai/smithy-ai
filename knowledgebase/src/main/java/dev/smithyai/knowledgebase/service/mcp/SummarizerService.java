@@ -20,6 +20,8 @@ public class SummarizerService {
     private final ChatClient chatClient;
     private final VectorDbService vectorDbService;
 
+    private static final ThreadLocal<String> currentRepoName = new ThreadLocal<>();
+
     // @formatter:off
     private static final String SYSTEM_PROMPT = """
         You are a coding standards and guidelines assistant. Your role is to provide comprehensive overviews
@@ -42,7 +44,7 @@ public class SummarizerService {
         this.vectorDbService = vectorDbService;
     }
 
-    public String summarize(String taskDescription, List<SearchResult> initialResults) {
+    public String summarize(String repoName, String taskDescription, List<SearchResult> initialResults) {
         String context = formatSearchResults(initialResults);
 
         String userMessage =
@@ -61,13 +63,16 @@ public class SummarizerService {
                 .formatted(taskDescription, context);
 
         try {
+            currentRepoName.set(repoName);
             String response = chatClient.prompt().system(SYSTEM_PROMPT).user(userMessage).tools(this).call().content();
 
-            log.debug("Generated summary for task: {}", taskDescription);
+            log.debug("Generated summary for repo={}, task={}", repoName, taskDescription);
             return response;
         } catch (Exception e) {
             log.error("Error generating summary: {}", e.getMessage());
             throw new RuntimeException("Failed to generate summary", e);
+        } finally {
+            currentRepoName.remove();
         }
     }
 
@@ -98,8 +103,13 @@ public class SummarizerService {
 
     @Tool(description = "Retrieve additional context based on a search query")
     public String retrieveAdditionalContext(@ToolParam(description = "Text to search") String query) {
+        String repoName = currentRepoName.get();
+        if (repoName == null) {
+            return "{\"success\": false, \"error\": \"No repository context\"}";
+        }
+
         try {
-            List<SearchResult> results = vectorDbService.search(query, 3);
+            List<SearchResult> results = vectorDbService.search(repoName, query, 3);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);

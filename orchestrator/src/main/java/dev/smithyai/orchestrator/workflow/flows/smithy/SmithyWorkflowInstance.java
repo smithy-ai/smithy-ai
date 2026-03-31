@@ -31,6 +31,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
     private final String botUser;
     private final StateMachine<Stage> stateMachine;
+    private String contextRepoName;
 
     public SmithyWorkflowInstance(
         ContainerSession session,
@@ -147,6 +148,8 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             log.debug("Ignoring {} in stage {}", event.getClass().getSimpleName(), stateMachine.state());
             return;
         }
+        contextRepoName = event.info().owner() + "/" + Naming.contextRepoName(event.info().repo());
+        claude.setContextRepoName(contextRepoName);
         stateMachine.fire(event);
     }
 
@@ -587,6 +590,9 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
     private void newClaudeSession(List<String> tools) {
         this.claude = new ClaudeSession(session, tools, knowledgebaseConfig);
+        if (contextRepoName != null) {
+            claude.setContextRepoName(contextRepoName);
+        }
     }
 
     private void resumeBuild(RepoInfo info, int issueId, Integer prNumber, String prompt, boolean skipAssignmentCheck) {

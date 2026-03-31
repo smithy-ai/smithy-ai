@@ -1,0 +1,17 @@
+# Knowledgebase repository configuration
+# Add context repositories to index here.
+# Each entry needs:
+#   name: the repo name (must match the Forgejo repo name for webhook routing)
+#   clone-url: the full clone URL accessible from inside the Docker network
+#   branch: the branch to track
+#
+# Example:
+# repositories:
+#   - name: myapp-context
+#     clone-url: http://forgejo:3000/myorg/myapp-context.git
+#     branch: main
+
+repositories:
+  - name: test/example-context
+    clone-url: http://forgejo:3000/test/example-context.git
+    branch: main
