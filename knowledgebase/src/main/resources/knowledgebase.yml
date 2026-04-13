@@ -1,0 +1,25 @@
+server:
+  port: ${SERVER_PORT:8000}
+
+vcs:
+  url: ${VCS_URL:http://forgejo:3000}
+  token: ${VCS_TOKEN:}
+
+vectorstore:
+  path: ${VECTORSTORE_PATH:/app/vectorstore}
+
+chunk-size: ${CHUNK_SIZE:1000}
+
+webhook:
+  secret: ${WEBHOOK_SECRET:}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  embedding-model: ${EMBEDDING_MODEL:text-embedding-3-small}
+  chat-model: ${CHAT_MODEL:gpt-4o}
+
+# Override via /config/knowledgebase.yml with entries like:
+# repositories:
+#   - name: test/myapp-context
+#     clone-url: http://forgejo:3000/test/myapp-context.git
+#     branch: main

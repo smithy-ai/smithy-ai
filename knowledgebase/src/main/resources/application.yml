@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: knowledgebase-mcp
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      embedding:
+        options:
+          model: ${EMBEDDING_MODEL:text-embedding-3-small}
+      chat:
+        options:
+          model: ${CHAT_MODEL:gpt-4o}
+          temperature: 1
+    mcp:
+      server:
+        enabled: true
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+        protocol: streamable
+
+server:
+  port: ${SERVER_PORT:8000}
+  shutdown: immediate
+
+logging:
+  level:
+    root: INFO
+    dev.smithyai.knowledgebase: DEBUG

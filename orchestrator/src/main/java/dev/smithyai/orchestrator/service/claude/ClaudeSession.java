@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.service.claude;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.service.claude.dto.SchemaGenerator;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
 import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
@@ -27,19 +28,37 @@ public class ClaudeSession {
 
     private final ContainerSession container;
     private final List<String> tools;
+    private final KnowledgebaseConfig knowledgebaseConfig;
+    private String contextRepoName;
     private boolean started = false;
 
     public ClaudeSession(ContainerSession container, List<String> tools) {
-        this.sessionId = UUID.randomUUID().toString();
-        this.container = container;
-        this.tools = tools;
+        this(container, tools, null, null);
     }
 
     public ClaudeSession(ContainerSession container, List<String> tools, String existingSessionId) {
-        this.sessionId = existingSessionId;
+        this(container, tools, existingSessionId, null);
+    }
+
+    public ClaudeSession(ContainerSession container, List<String> tools, KnowledgebaseConfig knowledgebaseConfig) {
+        this(container, tools, null, knowledgebaseConfig);
+    }
+
+    public ClaudeSession(
+        ContainerSession container,
+        List<String> tools,
+        String existingSessionId,
+        KnowledgebaseConfig knowledgebaseConfig
+    ) {
+        this.sessionId = existingSessionId != null ? existingSessionId : UUID.randomUUID().toString();
         this.container = container;
         this.tools = tools;
-        this.started = true;
+        this.knowledgebaseConfig = knowledgebaseConfig;
+        this.started = existingSessionId != null;
+    }
+
+    public void setContextRepoName(String contextRepoName) {
+        this.contextRepoName = contextRepoName;
     }
 
     public void startPlan(String prompt) {
@@ -137,6 +156,15 @@ public class ClaudeSession {
         if (outputSchema != null) {
             command.add("--json-schema");
             command.add(outputSchema);
+        }
+
+        if (knowledgebaseConfig != null && knowledgebaseConfig.isActive() && contextRepoName != null) {
+            log.info("Adding knowledgebase MCP config for context repo: {}", contextRepoName);
+            command.add("--mcp-config");
+            command.add(knowledgebaseConfig.mcpConfigJson(contextRepoName));
+        } else {
+            log.debug("Knowledgebase MCP not added: config={}, active={}, contextRepo={}",
+                knowledgebaseConfig != null, knowledgebaseConfig != null && knowledgebaseConfig.isActive(), contextRepoName);
         }
 
         log.debug("Executing Claude prompt on {} (session={})", container.getContainerName(), sessionId);

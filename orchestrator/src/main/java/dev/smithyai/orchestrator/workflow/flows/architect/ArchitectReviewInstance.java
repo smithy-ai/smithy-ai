@@ -73,6 +73,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            null,
             tools,
             destroyCallback,
             existingSessionId

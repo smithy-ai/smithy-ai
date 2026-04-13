@@ -51,6 +51,13 @@ public class ConfigLoader {
         return config.bots();
     }
 
+    @Bean
+    public KnowledgebaseConfig knowledgebaseConfig() {
+        return config.knowledgebase() != null
+            ? config.knowledgebase()
+            : new KnowledgebaseConfig(false, null, null);
+    }
+
     private static String loadRawYaml(Environment env) {
         // 1. Check for explicit config path via env var or CLI arg
         String configPath = env.getProperty("ORCHESTRATOR_CONFIG", env.getProperty("config", (String) null));

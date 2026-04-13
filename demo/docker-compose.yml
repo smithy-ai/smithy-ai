@@ -8,7 +8,7 @@ services:
       - forgejo-data:/data
       - ./config/forgejo-extra-links.tmpl:/data/gitea/templates/custom/extra_links.tmpl:ro
     environment:
-      - FORGEJO__webhook__ALLOWED_HOST_LIST=orchestrator
+      - FORGEJO__webhook__ALLOWED_HOST_LIST=orchestrator,knowledgebase
       - FORGEJO__actions__ENABLED=true
       - FORGEJO__ui__DEFAULT_SHOW_FULL_NAME=true
     networks:
@@ -31,10 +31,31 @@ services:
       - DOCKER_NETWORK=${DOCKER_NETWORK:-forgejo-net}
       - TASK_IMAGE=${TASK_IMAGE:-claude-task-default:latest}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - KNOWLEDGEBASE_ENABLED=${KNOWLEDGEBASE_ENABLED:-false}
+      - KNOWLEDGEBASE_URL=${KNOWLEDGEBASE_URL:-http://knowledgebase:8000/mcp}
     networks:
       - forgejo-net
     depends_on:
       - forgejo
+
+  # Uncomment to enable knowledgebase MCP server (requires OPENAI_API_KEY and
+  # a configured repositories list in config/knowledgebase.yml)
+  # knowledgebase:
+  #   build:
+  #     context: ..
+  #     dockerfile: knowledgebase/Dockerfile
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+  #     - VCS_URL=${FORGEJO_URL:-http://forgejo:3000}
+  #     - VCS_TOKEN=${SMITHY_FORGEJO_TOKEN:-}
+  #     - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+  #   volumes:
+  #     - kb-vectorstore:/app/vectorstore
+  #     - ./config/knowledgebase.yml:/config/knowledgebase.yml:ro
+  #   networks:
+  #     - forgejo-net
 
   runner:
     image: data.forgejo.org/forgejo/runner:12.7.1
@@ -69,6 +90,7 @@ volumes:
   cache-npm:
   cache-gradle:
   runner-data:
+  kb-vectorstore:
 
 networks:
   forgejo-net:
