@@ -3,7 +3,9 @@ package dev.smithyai.orchestrator.config;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.forgejo.ForgejoClient;
+import dev.smithyai.orchestrator.service.vcs.github.GitHubClient;
 import dev.smithyai.orchestrator.service.vcs.gitlab.GitLabClient;
+import dev.smithyai.orchestrator.web.GitHubEventMapper;
 import dev.smithyai.orchestrator.web.GitLabEventMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -73,12 +75,34 @@ public class VcsAndIssuesConfig {
         return new GitLabEventMapper(botConfig, vcs, smithyVcs);
     }
 
+    @Bean
+    @Nullable
+    public GitHubEventMapper gitHubEventMapper(
+        VcsProviderConfig vcs,
+        BotConfig botConfig,
+        @Qualifier("smithyVcs") VcsClient smithyVcs
+    ) {
+        if (!"github".equals(vcs.resolvedProvider())) {
+            return null;
+        }
+        return new GitHubEventMapper(botConfig, vcs, smithyVcs);
+    }
+
     private VcsClient createVcsClient(VcsProviderConfig vcs, String provider, boolean architect) {
         return switch (provider) {
             case "gitlab" -> {
                 var gl = vcs.gitlab();
                 String token = architect ? gl.architectToken() : gl.smithyToken();
                 yield new GitLabClient(gl.url(), gl.externalUrl(), token, gl.isOAuth2());
+            }
+            case "github" -> {
+                var gh = vcs.github();
+                String token = architect ? gh.architectToken() : gh.smithyToken();
+                String apiUrl = gh.url() != null && !gh.url().isBlank() ? gh.url() : "https://api.github.com";
+                String extUrl = gh.externalUrl() != null && !gh.externalUrl().isBlank()
+                    ? gh.externalUrl()
+                    : "https://github.com";
+                yield new GitHubClient(apiUrl, extUrl, token);
             }
             default -> {
                 var fg = vcs.forgejo();
@@ -94,6 +118,15 @@ public class VcsAndIssuesConfig {
                 var gl = vcs.gitlab();
                 String token = architect ? gl.architectToken() : gl.smithyToken();
                 yield new GitLabClient(gl.url(), gl.externalUrl(), token, gl.isOAuth2());
+            }
+            case "github" -> {
+                var gh = vcs.github();
+                String token = architect ? gh.architectToken() : gh.smithyToken();
+                String apiUrl = gh.url() != null && !gh.url().isBlank() ? gh.url() : "https://api.github.com";
+                String extUrl = gh.externalUrl() != null && !gh.externalUrl().isBlank()
+                    ? gh.externalUrl()
+                    : "https://github.com";
+                yield new GitHubClient(apiUrl, extUrl, token);
             }
             default -> {
                 var fg = vcs.forgejo();
