@@ -126,10 +126,12 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
 
     private List<String> augmentTools(List<String> baseTools) {
         if (knowledgebaseConfig == null || !knowledgebaseConfig.isActive()) {
+            log.debug("Knowledgebase not active, skipping tool augmentation");
             return baseTools;
         }
         var tools = new java.util.ArrayList<>(baseTools);
         tools.add(knowledgebaseConfig.mcpToolAllowName());
+        log.info("Augmented tools with knowledgebase: {}", knowledgebaseConfig.mcpToolAllowName());
         return List.copyOf(tools);
     }
 

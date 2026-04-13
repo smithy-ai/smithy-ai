@@ -149,6 +149,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             return;
         }
         contextRepoName = event.info().owner() + "/" + Naming.contextRepoName(event.info().repo());
+        log.info("Setting context repo name: {}", contextRepoName);
         claude.setContextRepoName(contextRepoName);
         stateMachine.fire(event);
     }
