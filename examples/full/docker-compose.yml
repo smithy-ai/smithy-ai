@@ -34,6 +34,8 @@ services:
       # Knowledgebase
       - KNOWLEDGEBASE_ENABLED=${KNOWLEDGEBASE_ENABLED:-false}
       - KNOWLEDGEBASE_URL=${KNOWLEDGEBASE_URL:-http://knowledgebase:8000/mcp}
+      # Dashboard auth
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
     networks:
       - smithy-net
 
