@@ -1,0 +1,20 @@
+# Knowledgebase repository configuration
+# Add context repositories to index here.
+# Each entry needs:
+#   name: the repo path (must match the git provider's project path for webhook routing)
+#   clone-url: the full HTTPS clone URL
+#   branch: the branch to track
+#
+# GitLab example:
+#   repositories:
+#     - name: mygroup/myproject-context
+#       clone-url: https://gitlab.com/mygroup/myproject-context.git
+#       branch: main
+#
+# Forgejo example:
+#   repositories:
+#     - name: myorg/myproject-context
+#       clone-url: https://forgejo.example.com/myorg/myproject-context.git
+#       branch: main
+
+repositories: []

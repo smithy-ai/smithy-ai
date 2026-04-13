@@ -51,7 +51,7 @@ docker network create smithy-net
 
 ## 5. Run the orchestrator
 
-Use `demo/docker-compose.yml` as a starting template. At minimum, the orchestrator service needs:
+Use `examples/demo/docker-compose.yml` as a starting template. At minimum, the orchestrator service needs:
 
 - `/var/run/docker.sock` mounted (to spawn task containers)
 - The environment variables above
@@ -87,5 +87,5 @@ For each repository you want Smithy to work on:
 !!! tip
     If your Forgejo instance is API-accessible from your machine, you can use `setup_repo.py` to automate per-repo setup:
     ```bash
-    python3 demo/scripts/setup_repo.py owner/repo
+    python3 examples/demo/scripts/setup_repo.py owner/repo
     ```

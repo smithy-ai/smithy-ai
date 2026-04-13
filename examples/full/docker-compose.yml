@@ -1,0 +1,77 @@
+services:
+  orchestrator:
+    image: ghcr.io/smithy-ai/orchestrator:${IMAGE_TAG:-dev}
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Provider selection
+      - VCS_PROVIDER=${VCS_PROVIDER:-gitlab}
+      # GitLab settings
+      - GITLAB_URL=${GITLAB_URL:-}
+      - GITLAB_EXTERNAL_URL=${GITLAB_EXTERNAL_URL:-}
+      - GITLAB_TOKEN_TYPE=${GITLAB_TOKEN_TYPE:-oauth2}
+      - SMITHY_GITLAB_TOKEN=${SMITHY_GITLAB_TOKEN:-}
+      - ARCHITECT_GITLAB_TOKEN=${ARCHITECT_GITLAB_TOKEN:-}
+      - GITLAB_WEBHOOK_SECRET=${GITLAB_WEBHOOK_SECRET:-}
+      # Forgejo settings
+      - FORGEJO_URL=${FORGEJO_URL:-}
+      - FORGEJO_EXTERNAL_URL=${FORGEJO_EXTERNAL_URL:-}
+      - SMITHY_FORGEJO_TOKEN=${SMITHY_FORGEJO_TOKEN:-}
+      - ARCHITECT_FORGEJO_TOKEN=${ARCHITECT_FORGEJO_TOKEN:-}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      # Claude & Docker
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+      - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
+      - TASK_IMAGE=${TASK_IMAGE:-ghcr.io/smithy-ai/claude-task-default:dev}
+      - CACHE_VOLUMES=${CACHE_VOLUMES:-pnpm,npm}
+      # Bot users
+      - SMITHY_BOT_USER=${SMITHY_BOT_USER:-smithy}
+      - ARCHITECT_BOT_USER=${ARCHITECT_BOT_USER:-architect}
+      - SMITHY_BOT_EMAIL=${SMITHY_BOT_EMAIL:-}
+      - ARCHITECT_BOT_EMAIL=${ARCHITECT_BOT_EMAIL:-}
+      # Knowledgebase
+      - KNOWLEDGEBASE_ENABLED=${KNOWLEDGEBASE_ENABLED:-false}
+      - KNOWLEDGEBASE_URL=${KNOWLEDGEBASE_URL:-http://knowledgebase:8000/mcp}
+    networks:
+      - smithy-net
+
+  knowledgebase:
+    image: ghcr.io/smithy-ai/knowledgebase:${IMAGE_TAG:-dev}
+    restart: unless-stopped
+    profiles:
+      - knowledgebase
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - VCS_URL=${KB_VCS_URL:-}
+      - VCS_TOKEN=${KB_VCS_TOKEN:-}
+      - WEBHOOK_SECRET=${KB_WEBHOOK_SECRET:-}
+    volumes:
+      - kb-vectorstore:/app/vectorstore
+      - ./config/knowledgebase.yml:/config/knowledgebase.yml:ro
+    networks:
+      - smithy-net
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    command: caddy reverse-proxy --from ${SMITHY_HOST} --to orchestrator:8080
+    networks:
+      - smithy-net
+
+volumes:
+  kb-vectorstore:
+  caddy-data:
+  caddy-config:
+
+networks:
+  smithy-net:
+    name: smithy-net

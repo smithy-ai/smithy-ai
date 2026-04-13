@@ -36,13 +36,10 @@ Human actions are in yellow. The project knowledge base is an optional separate 
 
 ## Demo setup
 
-The `demo/` directory contains a Docker Compose stack that runs a local Forgejo instance with the orchestrator.
+The `examples/demo/` directory contains a Docker Compose stack that runs a local Forgejo instance with the orchestrator.
 
 ```bash
-# Build the images
-scripts/build-images.sh
-
-cd demo
+cd examples/demo
 cp .env.example .env
 ```
 

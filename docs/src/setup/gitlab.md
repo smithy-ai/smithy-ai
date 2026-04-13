@@ -60,7 +60,7 @@ docker network create smithy-net
 
 ## 5. Run the orchestrator
 
-Use `local-gitlab/docker-compose.yml` as a starting template:
+Use `examples/full/docker-compose.yml` as a starting template, or create a minimal compose file:
 
 ```yaml
 services:
