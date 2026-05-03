@@ -1,12 +1,12 @@
-# Smithy-AI
+# Orchestrate Claude sessions from your issue tracker
 
-An orchestrator for AI-assisted software development. Managing planning, building, and review with autonomous Claude Code agents.
+Smithy-AI is an orchestrator for AI-assisted software development. It runs Claude Code sessions, isolated in Docker containers, with the usual planning and building phases. Optionally you can create a knowledgebase with project specific best practies and automatically review each PR against it. 
 
 > **This project is a work in progress.** Feel free to watch the repo or open a discussion if you're interested.
 
 ## Overview
 
-Smithy-AI coordinates multiple AI agents working alongside human developers through a Gitlab or Forgejo-based workflow:
+Smithy-AI coordinates multiple AI agents working alongside human developers through a Jira, Gitlab or Forgejo-based workflow:
 
 - **Agent Smithy**: plans and implements features based on issues, creates pull requests, and responds to review feedback.
 - **The Architect**: reviews pull requests against established best practices and maintains the project's knowledge base in a separate context repository.
@@ -27,7 +27,7 @@ Human actions are in yellow. The project knowledge base is an optional separate 
 6. Smithy responds to your (and The Architect's) review comments
 7. You remove the Draft status of the PR, Smithy cleans up his plan and related file. Done.
 
-### The Architect learning workflow
+### The Architect learning workflow (optional)
 
 
 1. Once a PR is merged or rejected, The Architect scans the (human) review comments
