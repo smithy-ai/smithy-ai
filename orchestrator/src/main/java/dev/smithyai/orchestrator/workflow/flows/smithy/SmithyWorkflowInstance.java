@@ -236,7 +236,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                     "refinement_extract.md.j2",
                     Map.of("plan_file_path", planPath)
                 );
-                PlanResult planResult = claude.send(extractPrompt, PlanResult.class);
+                PlanResult planResult = claude.send(extractPrompt, PlanResult.class, "haiku");
                 openQuestions = planResult.openQuestions();
             } catch (Exception ex) {
                 log.warn("Failed to extract open questions for issue #{}", ctx.number(), ex);
