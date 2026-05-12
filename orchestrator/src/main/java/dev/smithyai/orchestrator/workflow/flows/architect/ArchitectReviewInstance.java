@@ -126,7 +126,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             .gitEmail(architectEmail)
             .gitUsername("The Architect")
             .vcsToken(vcsConfig.architectToken())
-            .extraRepos(List.of(new ContainerConfig.ExtraRepo(contextCloneUrl, "/context-repo", "main")))
+            .extraRepos(List.of(new ContainerConfig.ExtraRepo(contextCloneUrl, "/context-repo", "")))
             .workflowType(WorkflowType.ARCHITECT)
             .build();
     }

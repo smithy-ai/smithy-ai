@@ -407,8 +407,8 @@ public class GitLabEventMapper {
             mr.path("title").asText(""),
             mr.path("description").asText(""),
             "merged".equals(mr.path("state").asText("")),
-            mr.path("source_branch").asText("main"),
-            mr.path("target_branch").asText("main")
+            mr.path("source_branch").asText(""),
+            mr.path("target_branch").asText("")
         );
     }
 

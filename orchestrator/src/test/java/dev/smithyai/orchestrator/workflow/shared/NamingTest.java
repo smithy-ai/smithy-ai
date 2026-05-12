@@ -37,8 +37,8 @@ class NamingTest {
 
     @Test
     void resolveBaseBranch() {
-        assertEquals("main", Naming.resolveBaseBranch(""));
-        assertEquals("main", Naming.resolveBaseBranch(null));
+        assertEquals("", Naming.resolveBaseBranch(""));
+        assertEquals("", Naming.resolveBaseBranch(null));
         assertEquals("develop", Naming.resolveBaseBranch("develop"));
     }
 
