@@ -332,9 +332,18 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             String planPath = Naming.planFilePath(ctx.number());
             var info = ctx.info();
 
+            String effectiveBase = ctx.baseBranch();
+            if (effectiveBase == null || effectiveBase.isBlank()) {
+                var r = session.exec(List.of("cat", "/tmp/smithy-base-branch"));
+                if (r.exitCode() != 0) {
+                    throw new RuntimeException("Cannot resolve base branch: " + r.stderr());
+                }
+                effectiveBase = r.stdout().trim();
+            }
+
             // Rebase onto base branch
-            log.info("Rebasing {} onto {}", session.getContainerName(), ctx.baseBranch());
-            var rebaseResult = session.exec("smithy-rebase-onto", branch, ctx.baseBranch());
+            log.info("Rebasing {} onto {}", session.getContainerName(), effectiveBase);
+            var rebaseResult = session.exec("smithy-rebase-onto", branch, effectiveBase);
             if (rebaseResult.exitCode() != 0) {
                 throw new RuntimeException("Rebase failed: " + rebaseResult.stderr());
             }
@@ -345,7 +354,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 info.repo(),
                 ctx.title(),
                 branch,
-                ctx.baseBranch(),
+                effectiveBase,
                 "fixes #" + ctx.number(),
                 true
             );

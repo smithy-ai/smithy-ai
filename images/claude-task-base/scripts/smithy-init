@@ -23,6 +23,16 @@ git config --global user.email "$GIT_EMAIL"
 git config --global user.name "$GIT_USERNAME"
 git config --global push.autoSetupRemote true
 
+if [ -z "$SOURCE_BRANCH" ]; then
+  SOURCE_BRANCH=$(git ls-remote --symref "$CLONE_URL" HEAD \
+    | awk '/^ref:/ {sub("refs/heads/", "", $2); print $2; exit}')
+  echo "[smithy] Detected default branch from remote: $SOURCE_BRANCH"
+fi
+if [ -z "$BRANCH" ]; then
+  BRANCH="$SOURCE_BRANCH"
+fi
+echo "$SOURCE_BRANCH" > /tmp/smithy-base-branch
+
 echo "[smithy] Cloning $CLONE_URL (branch: $BRANCH)"
 if git clone --filter=blob:none --single-branch --branch "$BRANCH" "$CLONE_URL" /workspace; then
   cd /workspace
@@ -45,10 +55,16 @@ if [ -n "$EXTRA_REPOS" ] && [ "$EXTRA_REPOS" != "null" ]; then
     repo_url=$(echo "$EXTRA_REPOS" | jq -r ".[$i][0]")
     repo_dir=$(echo "$EXTRA_REPOS" | jq -r ".[$i][1]")
     repo_branch=$(echo "$EXTRA_REPOS" | jq -r ".[$i][2]")
-    echo "[smithy] Cloning $repo_url -> $repo_dir (branch: $repo_branch)"
+    if [ -z "$repo_branch" ] || [ "$repo_branch" = "null" ]; then
+      repo_branch=""
+    fi
+    echo "[smithy] Cloning $repo_url -> $repo_dir (branch: ${repo_branch:-<default>})"
     git clone --filter=blob:none "$repo_url" "$repo_dir"
     cd "$repo_dir"
-    git checkout -b "$repo_branch" || true
+    repo_default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
+    if [ -n "$repo_branch" ] && [ "$repo_branch" != "$repo_default" ]; then
+      git checkout -b "$repo_branch" || true
+    fi
     cd /workspace
     i=$((i + 1))
   done

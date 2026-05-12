@@ -37,7 +37,7 @@ public final class Naming {
     }
 
     public static String resolveBaseBranch(String issueRef) {
-        return (issueRef != null && !issueRef.isBlank()) ? issueRef : "main";
+        return (issueRef != null && !issueRef.isBlank()) ? issueRef : "";
     }
 
     public static Integer parseIssueIdFromBranch(String branch) {

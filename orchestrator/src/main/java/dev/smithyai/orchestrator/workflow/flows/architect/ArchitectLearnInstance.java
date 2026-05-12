@@ -193,6 +193,15 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     throw new RuntimeException("Failed to push context repo: " + pushResult.stderr());
                 }
 
+                var headResult = session.exec(List.of(
+                    "sh", "-c",
+                    "cd /context-repo && git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||'"
+                ));
+                if (headResult.exitCode() != 0) {
+                    throw new RuntimeException("Failed to resolve context-repo default branch: " + headResult.stderr());
+                }
+                String contextBaseBranch = headResult.stdout().trim();
+
                 String prLink = vcsClient.prUrl(
                     vcsConfig.resolvedExternalUrl(),
                     info.owner(),
@@ -204,7 +213,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     contextRepo,
                     title,
                     learnBranch,
-                    "main",
+                    contextBaseBranch,
                     "Learned from [%s/%s#%d](%s): %s\n\n%s".formatted(
                         info.owner(),
                         info.repo(),
