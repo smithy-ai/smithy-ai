@@ -7,6 +7,11 @@ set -e
 BRANCH="$1"
 BASE_BRANCH="$2"
 
+if [ -z "$BASE_BRANCH" ] && [ -f /tmp/smithy-base-branch ]; then
+  BASE_BRANCH=$(cat /tmp/smithy-base-branch)
+  echo "[smithy] Using detected base branch: $BASE_BRANCH"
+fi
+
 echo "[smithy] Ensuring branches are fetchable"
 git remote set-branches --add origin "$BRANCH"
 git remote set-branches --add origin "$BASE_BRANCH"

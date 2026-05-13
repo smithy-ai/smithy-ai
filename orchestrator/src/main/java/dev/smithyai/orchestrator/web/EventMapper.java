@@ -347,8 +347,8 @@ public class EventMapper {
             pr.path("title").asText(""),
             pr.path("body").asText(""),
             pr.path("merged").asBoolean(false),
-            pr.path("head").path("ref").asText("main"),
-            pr.path("base").path("ref").asText("main")
+            pr.path("head").path("ref").asText(""),
+            pr.path("base").path("ref").asText("")
         );
     }
 

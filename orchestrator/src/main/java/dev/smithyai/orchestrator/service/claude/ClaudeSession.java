@@ -20,7 +20,7 @@ public class ClaudeSession {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration TIMEOUT = Duration.ofMinutes(30);
     private static final String CLAUDE_BINARY = "/usr/bin/claude";
-    private static final String MODEL = "opus";
+    private static final String DEFAULT_MODEL = "opus";
     private static final String PLANS_DIR = "/root/.claude/plans";
 
     @Getter
@@ -62,7 +62,7 @@ public class ClaudeSession {
     }
 
     public void startPlan(String prompt) {
-        execute(prompt, "plan", false, null);
+        execute(prompt, DEFAULT_MODEL, "plan", false, null);
         started = true;
     }
 
@@ -71,6 +71,10 @@ public class ClaudeSession {
     }
 
     public <T> T send(String prompt, Class<T> resultType) {
+        return send(prompt, resultType, DEFAULT_MODEL);
+    }
+
+    public <T> T send(String prompt, Class<T> resultType, String model) {
         boolean resume = started;
         if (!started) started = true;
 
@@ -79,7 +83,7 @@ public class ClaudeSession {
             schema = SchemaGenerator.generate(resultType);
         }
 
-        String content = execute(prompt, "default", resume, schema);
+        String content = execute(prompt, model, "default", resume, schema);
 
         if (resultType.equals(String.class)) {
             return resultType.cast(content);
@@ -127,13 +131,13 @@ public class ClaudeSession {
 
     // ── Internal ─────────────────────────────────────────────
 
-    private String execute(String prompt, String permissionMode, boolean resume, String outputSchema) {
+    private String execute(String prompt, String model, String permissionMode, boolean resume, String outputSchema) {
         List<String> command = new ArrayList<>();
         command.add(CLAUDE_BINARY);
         command.add("-p");
         command.add("-"); // read prompt from stdin
         command.add("--model");
-        command.add(MODEL);
+        command.add(model);
         command.add("--output-format");
         command.add("json");
         if (resume) {

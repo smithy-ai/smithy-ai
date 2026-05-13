@@ -26,6 +26,11 @@ public class GitLabEventMapper {
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
+        log.info(
+            "GitLabEventMapper initialized: smithyBot='{}', architectBot='{}'",
+            botUser,
+            botConfig.resolvedArchitectUser()
+        );
     }
 
     public WorkflowEvent map(String eventType, JsonNode payload) {
@@ -57,7 +62,10 @@ public class GitLabEventMapper {
 
     private WorkflowEvent mapIssueOpen(JsonNode payload, JsonNode attrs) {
         var assignees = payload.path("assignees");
-        if (!isUserInArray(assignees, botUser)) return null;
+        if (!isUserInArray(assignees, botUser)) {
+            log.debug("Issue 'open' skipped: bot '{}' not in assignees {}", botUser, usernamesIn(assignees));
+            return null;
+        }
 
         var info = repoInfo(payload);
         var ctx = extractIssueFromAttrs(info, attrs);
@@ -91,14 +99,27 @@ public class GitLabEventMapper {
         var previousAssignees = changes.path("assignees").path("previous");
         boolean previouslyAssigned = isUserInArray(previousAssignees, botUser);
 
+        String state = attrs.path("state").asText("");
+        log.debug(
+            "Issue assignee change: bot='{}', current={}, previous={}, state='{}'",
+            botUser,
+            usernamesIn(currentAssignees),
+            usernamesIn(previousAssignees),
+            state
+        );
+
         if (currentlyAssigned && !previouslyAssigned) {
-            if (!"opened".equals(attrs.path("state").asText(""))) return null;
+            if (!"opened".equals(state)) {
+                log.debug("Issue assignee change skipped: state is '{}', expected 'opened'", state);
+                return null;
+            }
             String repoHtmlUrl = payload.path("project").path("web_url").asText("");
             return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
         } else if (!currentlyAssigned && previouslyAssigned) {
             return new WorkflowEvent.IssueUnassigned(ctx);
         }
 
+        log.debug("Issue assignee change skipped: no assignment transition for bot '{}'", botUser);
         return null;
     }
 
@@ -113,7 +134,13 @@ public class GitLabEventMapper {
                 }
             }
         }
-        if (!hasPlanApproved) return null;
+        if (!hasPlanApproved) {
+            log.debug(
+                "Issue label change skipped: 'Plan Approved' label not present (labels={})",
+                labelTitles(labels)
+            );
+            return null;
+        }
 
         var info = repoInfo(payload);
         var ctx = extractIssueFromAttrs(info, attrs);
@@ -380,8 +407,8 @@ public class GitLabEventMapper {
             mr.path("title").asText(""),
             mr.path("description").asText(""),
             "merged".equals(mr.path("state").asText("")),
-            mr.path("source_branch").asText("main"),
-            mr.path("target_branch").asText("main")
+            mr.path("source_branch").asText(""),
+            mr.path("target_branch").asText("")
         );
     }
 
@@ -391,5 +418,19 @@ public class GitLabEventMapper {
             if (username.equals(item.path("username").asText(""))) return true;
         }
         return false;
+    }
+
+    private static List<String> usernamesIn(JsonNode array) {
+        if (array == null || !array.isArray()) return List.of();
+        var out = new java.util.ArrayList<String>();
+        for (var item : array) out.add(item.path("username").asText(""));
+        return out;
+    }
+
+    private static List<String> labelTitles(JsonNode array) {
+        if (array == null || !array.isArray()) return List.of();
+        var out = new java.util.ArrayList<String>();
+        for (var item : array) out.add(item.path("title").asText(""));
+        return out;
     }
 }
