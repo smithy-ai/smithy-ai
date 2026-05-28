@@ -26,19 +26,22 @@ public class WebhookController {
     private final ObjectMapper mapper;
     private final EventMapper eventMapper;
     private final GitLabEventMapper gitLabEventMapper;
+    private final GitHubEventMapper gitHubEventMapper;
 
     public WebhookController(
         VcsProviderConfig vcsConfig,
         WorkflowService workflowService,
         ObjectMapper mapper,
         EventMapper eventMapper,
-        @Nullable GitLabEventMapper gitLabEventMapper
+        @Nullable GitLabEventMapper gitLabEventMapper,
+        @Nullable GitHubEventMapper gitHubEventMapper
     ) {
         this.vcsConfig = vcsConfig;
         this.workflowService = workflowService;
         this.mapper = mapper;
         this.eventMapper = eventMapper;
         this.gitLabEventMapper = gitLabEventMapper;
+        this.gitHubEventMapper = gitHubEventMapper;
     }
 
     @PostMapping("/webhooks/forgejo")
@@ -118,6 +121,47 @@ public class WebhookController {
             return ResponseEntity.ok("");
         } catch (Exception e) {
             log.error("Failed to process GitLab webhook", e);
+            return ResponseEntity.internalServerError().body("Error");
+        }
+    }
+
+    @PostMapping("/webhooks/github")
+    public ResponseEntity<String> handleGitHubWebhook(
+        @RequestBody byte[] body,
+        @RequestHeader(value = "X-Hub-Signature-256", defaultValue = "") String signature,
+        @RequestHeader(value = "X-GitHub-Event", required = false) String eventType
+    ) {
+        if (gitHubEventMapper == null) {
+            return ResponseEntity.status(404).body("GitHub integration not enabled");
+        }
+
+        String secret = vcsConfig.github() != null ? vcsConfig.github().webhookSecret() : "";
+        // GitHub sends "sha256=<hex>" — strip the prefix before verifying
+        String signatureHex = signature.startsWith("sha256=") ? signature.substring(7) : signature;
+        if (!verifySignature(body, signatureHex, secret)) {
+            log.warn("GitHub webhook rejected: invalid HMAC signature");
+            return ResponseEntity.status(403).body("Invalid signature");
+        }
+
+        if (eventType == null || eventType.isBlank()) {
+            log.warn("Missing GitHub event type header");
+            return ResponseEntity.badRequest().body("Missing event type");
+        }
+
+        try {
+            JsonNode payload = mapper.readTree(body);
+            log.info("GitHub webhook received: {}", eventType);
+
+            WorkflowEvent event = gitHubEventMapper.map(eventType, payload);
+            if (event != null) {
+                log.debug("Parsed GitHub event: {}", event.getClass().getSimpleName());
+                workflowService.onEvent(event);
+            } else {
+                log.debug("No event produced for GitHub {}", eventType);
+            }
+            return ResponseEntity.ok("");
+        } catch (Exception e) {
+            log.error("Failed to process GitHub webhook", e);
             return ResponseEntity.internalServerError().body("Error");
         }
     }
