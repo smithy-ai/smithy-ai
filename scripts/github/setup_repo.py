@@ -18,7 +18,75 @@ import sys
 from pathlib import Path
 from typing import List
 
+import subprocess
+
 from setup_lib import APIError, EnvFile, GitHubAPI, find_env_file
+
+
+def get_owner_token(owner: str, env: EnvFile, api_base: str) -> str:
+    """Get a token that has admin access to the repo (the repo owner's token).
+
+    Tries in order:
+    1. Active gh CLI account — if it matches the repo owner, use its token
+    2. Any gh CLI account that matches the repo owner
+    3. SMITHY_GITHUB_TOKEN from .env (fallback, may lack admin rights)
+    """
+    try:
+        # Check which gh account is active and what its login is
+        result = subprocess.run(
+            ["gh", "auth", "status"],
+            capture_output=True, text=True, timeout=10,
+        )
+        output = result.stdout + result.stderr
+
+        import re
+        # Find "Active account: true" block to get active user
+        active_match = re.search(
+            r"account ([^\s(]+).*?Active account: true", output, re.DOTALL
+        )
+        if active_match:
+            active_user = active_match.group(1)
+            token_result = subprocess.run(
+                ["gh", "auth", "token", "--user", active_user],
+                capture_output=True, text=True, timeout=10,
+            )
+            token = token_result.stdout.strip()
+            if token:
+                # Verify this token owns the repo
+                api = GitHubAPI(token, api_base)
+                try:
+                    user = api.current_user()
+                    if user.get("login", "").lower() == owner.lower():
+                        print(f"    Using gh CLI token for @{active_user} (repo owner)")
+                        return token
+                except Exception:
+                    pass
+
+        # Try any gh account that matches the owner
+        all_users = re.findall(r"account ([^\s(]+)", output)
+        for user in all_users:
+            if user.lower() == owner.lower():
+                token_result = subprocess.run(
+                    ["gh", "auth", "token", "--user", user],
+                    capture_output=True, text=True, timeout=10,
+                )
+                token = token_result.stdout.strip()
+                if token:
+                    print(f"    Using gh CLI token for @{user} (repo owner)")
+                    return token
+    except Exception:
+        pass
+
+    # Fallback: smithy token (may not have admin rights on private repos)
+    token = env.get("SMITHY_GITHUB_TOKEN")
+    if token:
+        print("    Warning: using SMITHY_GITHUB_TOKEN — may lack admin rights")
+        print(f"    Tip: run `gh auth login` as @{owner} to avoid this")
+        return token
+
+    print("Error: no usable GitHub token found. Run `gh auth login` as the repo owner or run setup.py first.")
+    import sys
+    sys.exit(1)
 
 MAIN_REPO_EVENTS = [
     "issues",
@@ -192,12 +260,6 @@ def main():
     webhook_url = orchestrator_url.rstrip("/") + "/webhooks/github"
 
     # Load required config from .env
-    smithy_token = env.get("SMITHY_GITHUB_TOKEN")
-    if not smithy_token:
-        print("Error: SMITHY_GITHUB_TOKEN not found in .env")
-        print("Run setup.py first.")
-        sys.exit(1)
-
     webhook_secret = env.get("GITHUB_WEBHOOK_SECRET")
     if not webhook_secret:
         print("Error: GITHUB_WEBHOOK_SECRET not found in .env")
@@ -214,7 +276,10 @@ def main():
         else github_url.rstrip("/") + "/api/v3"
     )
 
-    api = GitHubAPI(smithy_token, api_base)
+    # Use the repo owner's token for admin operations (adding collaborators, webhooks, labels).
+    # Fall back to the active gh CLI account, then SMITHY_GITHUB_TOKEN.
+    owner_token = get_owner_token(owner, env, api_base)
+    api = GitHubAPI(owner_token, api_base)
 
     # ── Step 1: Add collaborators to main repo ───────────────
     print(f"==> Adding collaborators to {owner}/{repo_name}...")
