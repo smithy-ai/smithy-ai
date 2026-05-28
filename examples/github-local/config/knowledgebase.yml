@@ -1,0 +1,4 @@
+repositories:
+  - name: salvolf/finestrix-context
+    clone-url: https://github.com/salvolf/finestrix-context.git
+    branch: main
