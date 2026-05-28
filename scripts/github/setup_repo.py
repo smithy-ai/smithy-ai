@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Per-repository GitHub setup for Smithy-AI.
 
 Adds bot collaborators, creates a webhook, creates the "Plan Approved" label,
@@ -10,9 +11,12 @@ Usage:
     python3 scripts/github/setup_repo.py owner/repo --orchestrator-url https://smithy.example.com
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
+from typing import List
 
 from setup_lib import APIError, EnvFile, GitHubAPI, find_env_file
 
@@ -55,7 +59,7 @@ def add_collaborator(api: GitHubAPI, owner: str, repo: str, username: str):
 
 # ── Webhook ──────────────────────────────────────────────────
 
-def ensure_webhook(api: GitHubAPI, owner: str, repo: str, webhook_url: str, secret: str, events: list[str]):
+def ensure_webhook(api: GitHubAPI, owner: str, repo: str, webhook_url: str, secret: str, events: List[str]):
     """Create webhook if one pointing to our URL doesn't already exist."""
     try:
         hooks = api.get(f"/repos/{owner}/{repo}/hooks") or []

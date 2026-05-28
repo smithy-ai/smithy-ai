@@ -1,12 +1,13 @@
 """Shared utilities for GitHub setup scripts."""
 
-import getpass
+from __future__ import annotations
+
 import json
-import os
 import secrets
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Optional, Union
 
 
 class EnvFile:
@@ -55,7 +56,7 @@ class GitHubAPI:
         self.api_url = base_url.rstrip("/")
         self.token = token
 
-    def request(self, method: str, path: str, data: dict | None = None) -> dict | list | None:
+    def request(self, method: str, path: str, data: Optional[Union[dict, list]] = None) -> Optional[Union[dict, list]]:
         url = f"{self.api_url}{path}"
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request(url, data=body, method=method)
@@ -71,13 +72,13 @@ class GitHubAPI:
         except urllib.error.HTTPError as e:
             raise APIError(e.code, e.read().decode()) from e
 
-    def get(self, path: str) -> dict | list | None:
+    def get(self, path: str) -> Optional[Union[dict, list]]:
         return self.request("GET", path)
 
-    def post(self, path: str, data: dict) -> dict | list | None:
+    def post(self, path: str, data: dict) -> Optional[Union[dict, list]]:
         return self.request("POST", path, data)
 
-    def put(self, path: str, data: dict | None = None) -> dict | list | None:
+    def put(self, path: str, data: Optional[Union[dict, list]] = None) -> Optional[Union[dict, list]]:
         return self.request("PUT", path, data)
 
     def delete(self, path: str) -> None:

@@ -8,6 +8,8 @@ Usage:
     python3 scripts/github/setup.py [--env /path/to/.env]
 """
 
+from __future__ import annotations
+
 import argparse
 import getpass
 import sys
