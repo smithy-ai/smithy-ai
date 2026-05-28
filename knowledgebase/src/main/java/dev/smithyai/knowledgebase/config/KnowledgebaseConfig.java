@@ -8,7 +8,7 @@ public record KnowledgebaseConfig(
     VectorstoreConfig vectorstore,
     int chunkSize,
     WebhookConfig webhook,
-    OpenaiConfig openai,
+    OllamaConfig ollama,
     List<RepositoryConfig> repositories
 ) {
     public record ServerConfig(int port) {}
@@ -23,7 +23,7 @@ public record KnowledgebaseConfig(
         }
     }
 
-    public record OpenaiConfig(String apiKey, String embeddingModel, String chatModel) {}
+    public record OllamaConfig(String baseUrl, String embeddingModel, String chatModel) {}
 
     public record RepositoryConfig(String name, String cloneUrl, String branch) {
         /** Filesystem/collection-safe key: "owner/repo" → "owner--repo" */

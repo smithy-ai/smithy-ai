@@ -10,12 +10,9 @@ import dev.smithyai.orchestrator.service.vcs.dto.PrData;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component
-public class EventMapper {
+public class GitHubEventMapper {
 
     private final BotConfig botConfig;
     private final VcsProviderConfig vcsConfig;
@@ -23,25 +20,43 @@ public class EventMapper {
     private final String botUser;
     private final String smithyEmail;
 
-    public EventMapper(
-        BotConfig botConfig,
-        VcsProviderConfig vcsConfig,
-        @Qualifier("smithyVcs") VcsClient smithyClient
-    ) {
+    public GitHubEventMapper(BotConfig botConfig, VcsProviderConfig vcsConfig, VcsClient smithyClient) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
+        log.info(
+            "GitHubEventMapper initialized: smithyBot='{}', architectBot='{}'",
+            botUser,
+            botConfig.resolvedArchitectUser()
+        );
     }
 
-    // ── Issue events ─────────────────────────────
+    public WorkflowEvent map(String eventType, JsonNode payload) {
+        return switch (eventType) {
+            case "issues" -> mapIssueEvent(payload);
+            case "issue_comment" -> mapIssueComment(payload);
+            case "push" -> mapPush(payload);
+            case "pull_request" -> mapPullRequest(payload);
+            case "pull_request_review" -> mapPullRequestReview(payload);
+            case "pull_request_review_comment" -> mapPullRequestReviewComment(payload);
+            case "workflow_run" -> mapWorkflowRun(payload);
+            default -> {
+                log.debug("Unhandled GitHub event type: {}", eventType);
+                yield null;
+            }
+        };
+    }
 
-    public WorkflowEvent mapIssueEvent(String action, JsonNode payload) {
+    // ── Issues ──────────────────────────────────────────────
+
+    private WorkflowEvent mapIssueEvent(JsonNode payload) {
+        String action = payload.path("action").asText("");
         return switch (action) {
             case "assigned" -> mapIssueAssigned(payload);
             case "unassigned" -> mapIssueUnassigned(payload);
-            case "label", "label_updated" -> mapIssueLabel(payload);
+            case "labeled" -> mapIssueLabeled(payload);
             default -> null;
         };
     }
@@ -51,30 +66,18 @@ public class EventMapper {
         if (!"open".equals(payload.path("issue").path("state").asText(""))) return null;
 
         var ctx = extractIssue(payload);
-        String repoHtmlUrl = payload.get("repository").get("html_url").asText("");
+        String repoHtmlUrl = payload.path("repository").path("html_url").asText("");
         return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
     }
 
     private WorkflowEvent mapIssueUnassigned(JsonNode payload) {
         if (isUserAssigned(payload, botUser)) return null;
-
         var ctx = extractIssue(payload);
         return new WorkflowEvent.IssueUnassigned(ctx);
     }
 
-    private WorkflowEvent mapIssueLabel(JsonNode payload) {
+    private WorkflowEvent mapIssueLabeled(JsonNode payload) {
         String labelName = payload.path("label").path("name").asText("");
-        if (labelName.isBlank()) {
-            var issueLabels = payload.path("issue").path("labels");
-            if (issueLabels.isArray()) {
-                for (var l : issueLabels) {
-                    if ("Plan Approved".equals(l.path("name").asText(""))) {
-                        labelName = "Plan Approved";
-                        break;
-                    }
-                }
-            }
-        }
         if (!"Plan Approved".equals(labelName)) return null;
 
         String approver = payload.path("sender").path("login").asText("");
@@ -82,16 +85,15 @@ public class EventMapper {
         return new WorkflowEvent.PlanApproved(ctx, approver);
     }
 
-    // ── Issue comment events ─────────────────────
+    // ── Issue comments ──────────────────────────────────────
 
-    public WorkflowEvent mapIssueComment(JsonNode payload) {
+    private WorkflowEvent mapIssueComment(JsonNode payload) {
         if (!"created".equals(payload.path("action").asText(""))) return null;
         String commentUser = payload.path("comment").path("user").path("login").asText("");
         if (botUser.equals(commentUser)) return null;
 
-        var issue = payload.get("issue");
-
-        // PR conversation comments arrive as issue_comment events
+        var issue = payload.path("issue");
+        // GitHub sends PR conversation comments as issue_comment events
         var pullRequest = issue.path("pull_request");
         if (!pullRequest.isMissingNode() && !pullRequest.isNull()) {
             return mapPrConversationFromIssueComment(payload, commentUser);
@@ -99,7 +101,16 @@ public class EventMapper {
 
         var ctx = extractIssue(payload);
         String commentBody = payload.path("comment").path("body").asText("");
+        if (isUserAssigned(payload, botUser) && isPlanApproval(commentBody)) {
+            return new WorkflowEvent.PlanApproved(ctx, commentUser);
+        }
         return new WorkflowEvent.IssueComment(ctx, commentBody);
+    }
+
+    private static boolean isPlanApproval(String body) {
+        String lower = body.strip().toLowerCase();
+        return lower.equals("approved") || lower.equals("/approve") || lower.equals("lgtm")
+            || lower.equals("looks good") || lower.equals("go ahead");
     }
 
     private WorkflowEvent mapPrConversationFromIssueComment(JsonNode payload, String commentUser) {
@@ -107,14 +118,12 @@ public class EventMapper {
         int prNumber = payload.path("issue").path("number").asInt();
         String commentBody = payload.path("comment").path("body").asText("");
 
-        // Context repo: route to architect
         String repoFull = payload.path("repository").path("full_name").asText("");
         if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
-            var prc = extractPr(info, payload.path("issue"));
+            var prc = extractPrFromIssue(info, payload.path("issue"));
             return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
         }
 
-        // Smithy: needs head branch from API to determine if smithy branch
         try {
             log.debug("Fetching PR #{} from {}/{}", prNumber, info.owner(), info.repo());
             PrData pr = smithyClient.getPullRequest(info.owner(), info.repo(), prNumber);
@@ -138,22 +147,23 @@ public class EventMapper {
         } catch (Exception e) {
             log.warn("Failed to fetch PR #{} for conversation comment routing", prNumber, e);
         }
-
         return null;
     }
 
-    // ── Push events ──────────────────────────────
+    // ── Push ────────────────────────────────────────────────
 
-    public WorkflowEvent mapPush(JsonNode payload) {
+    private WorkflowEvent mapPush(JsonNode payload) {
         String ref = payload.path("ref").asText("");
         String branch = ref.replaceFirst("^refs/heads/", "");
         if (!Naming.isSmithyBranch(branch)) return null;
 
-        var commits = payload.get("commits");
+        var commits = payload.path("commits");
         boolean isHuman = false;
-        if (commits != null && commits.isArray()) {
+        if (commits.isArray()) {
             for (var c : commits) {
-                if (!smithyEmail.equals(c.path("committer").path("email").asText(""))) {
+                // GitHub uses author.email for the commit author
+                String email = c.path("author").path("email").asText("");
+                if (!smithyEmail.equals(email)) {
                     isHuman = true;
                     break;
                 }
@@ -165,12 +175,13 @@ public class EventMapper {
         return new WorkflowEvent.HumanPush(info, branch);
     }
 
-    // ── Pull request events ──────────────────────
+    // ── Pull Requests ────────────────────────────────────────
 
-    public WorkflowEvent mapPullRequest(String action, JsonNode payload) {
+    private WorkflowEvent mapPullRequest(JsonNode payload) {
+        String action = payload.path("action").asText("");
         return switch (action) {
             case "review_requested" -> mapReviewRequested(payload);
-            case "edited" -> mapPrEdited(payload);
+            case "ready_for_review" -> mapPrReadyForReview(payload);
             case "closed" -> mapPrClosed(payload);
             case "unassigned" -> mapPrUnassigned(payload);
             default -> null;
@@ -186,17 +197,14 @@ public class EventMapper {
         return new WorkflowEvent.ReviewRequested(prc);
     }
 
-    private WorkflowEvent mapPrEdited(JsonNode payload) {
+    // GitHub sends ready_for_review when a draft PR is marked as ready — equivalent to PrFinalized
+    private WorkflowEvent mapPrReadyForReview(JsonNode payload) {
         var pr = payload.path("pull_request");
-        String oldTitle = payload.path("changes").path("title").path("from").asText("");
-        String newTitle = pr.path("title").asText("");
-        if (!oldTitle.startsWith("WIP:") || newTitle.startsWith("WIP:")) return null;
-
-        var info = repoInfo(payload);
         String headBranch = pr.path("head").path("ref").asText("");
         Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
         if (issueId == null) return null;
 
+        var info = repoInfo(payload);
         var prc = extractPr(info, pr);
         return new WorkflowEvent.PrFinalized(prc);
     }
@@ -206,13 +214,11 @@ public class EventMapper {
         boolean merged = pr.path("merged").asBoolean(false);
         var info = repoInfo(payload);
 
-        // Merged non-context-repo PRs → PrMerged (architect learns from these)
         if (merged && !info.repo().endsWith("-context")) {
             var prc = extractPr(info, pr);
             return new WorkflowEvent.PrMerged(prc);
         }
 
-        // Everything else → PrClosed (architect uses for context-repo cleanup)
         String headBranch = pr.path("head").path("ref").asText("");
         int prNumber = pr.path("number").asInt();
         return new WorkflowEvent.PrClosed(info, prNumber, merged, headBranch);
@@ -227,25 +233,43 @@ public class EventMapper {
         if (issueId == null) return null;
 
         var assignees = pr.path("assignees");
-        boolean smithyAssigned = false;
         if (assignees.isArray()) {
             for (var a : assignees) {
-                if (botUser.equals(a.path("login").asText(""))) {
-                    smithyAssigned = true;
-                    break;
-                }
+                if (botUser.equals(a.path("login").asText(""))) return null;
             }
         }
-        if (smithyAssigned) return null;
 
         var info = repoInfo(payload);
         var prc = extractPr(info, pr);
         return new WorkflowEvent.PrUnassigned(prc);
     }
 
-    // ── PR comment events ────────────────────────
+    // ── Pull Request Reviews ─────────────────────────────────
 
-    public WorkflowEvent mapPrComment(JsonNode payload) {
+    private WorkflowEvent mapPullRequestReview(JsonNode payload) {
+        if (!"submitted".equals(payload.path("action").asText(""))) return null;
+
+        var review = payload.path("review");
+        String reviewUser = review.path("user").path("login").asText("");
+        if (botUser.equals(reviewUser)) return null;
+
+        var pr = payload.path("pull_request");
+        String headBranch = pr.path("head").path("ref").asText("");
+        if (!Naming.isSmithyBranch(headBranch)) return null;
+
+        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
+        if (issueId == null) return null;
+
+        var info = repoInfo(payload);
+        long reviewId = review.path("id").asLong();
+        String reviewBody = review.path("body").asText("");
+        var prc = extractPr(info, pr);
+        return new WorkflowEvent.ReviewSubmitted(prc, reviewId, reviewBody, reviewUser);
+    }
+
+    // ── Pull Request Review Comments ─────────────────────────
+
+    private WorkflowEvent mapPullRequestReviewComment(JsonNode payload) {
         if (!"created".equals(payload.path("action").asText(""))) return null;
 
         var comment = payload.path("comment");
@@ -254,77 +278,70 @@ public class EventMapper {
 
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
-        var info = repoInfo(payload);
 
-        // Context repo PR comments → route to architect
         String repoFull = payload.path("repository").path("full_name").asText("");
         if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
+            var info = repoInfo(payload);
             var prc = extractPr(info, pr);
-            var cd = commentFromPayload(payload);
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body());
+            return new WorkflowEvent.PrConversationComment(prc, commentUser, comment.path("body").asText(""));
         }
-
-        // Smithy: review comment on smithy branch PR
-        if (Naming.isSmithyBranch(headBranch)) {
-            Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-            if (issueId != null) {
-                var prc = extractPr(info, pr);
-                var cd = commentFromPayload(payload);
-                return new WorkflowEvent.PrReviewComment(prc, List.of(cd));
-            }
-        }
-
-        return null;
-    }
-
-    // ── Review submitted events ──────────────────
-
-    public WorkflowEvent mapReviewSubmitted(JsonNode payload) {
-        if (!"reviewed".equals(payload.path("action").asText(""))) return null;
-
-        var review = payload.path("review");
-        String reviewUser = review.path("user").path("login").asText(payload.path("sender").path("login").asText(""));
-        if (botUser.equals(reviewUser)) return null;
-
-        var pr = payload.path("pull_request");
-        String headBranch = pr.path("head").path("ref").asText("");
-        var info = repoInfo(payload);
 
         if (!Naming.isSmithyBranch(headBranch)) return null;
         Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
         if (issueId == null) return null;
 
-        long reviewId = review.path("id").asLong();
-        String reviewBody = review.path("body").asText("");
-
+        var info = repoInfo(payload);
         var prc = extractPr(info, pr);
-        return new WorkflowEvent.ReviewSubmitted(prc, reviewId, reviewBody, reviewUser);
+        var cd = new CommentData(
+            commentUser,
+            comment.path("body").asText(""),
+            comment.path("path").asText(""),
+            comment.path("line").asInt(comment.path("original_line").asInt(0))
+        );
+        return new WorkflowEvent.PrReviewComment(prc, List.of(cd));
     }
 
-    // ── CI events ────────────────────────────────
+    // ── Workflow Run (CI) ────────────────────────────────────
 
-    public WorkflowEvent mapCiEvent(String eventType, JsonNode payload) {
-        var resolved = resolveCiRun(payload);
-        if (resolved == null) return null;
+    private WorkflowEvent mapWorkflowRun(JsonNode payload) {
+        if (!"completed".equals(payload.path("action").asText(""))) return null;
 
-        var info = resolved.info();
-        var ciRun = resolved.ciRun();
+        var run = payload.path("workflow_run");
+        String conclusion = run.path("conclusion").asText("");
+        if (!"failure".equals(conclusion) && !"success".equals(conclusion)) return null;
 
-        if ("action_run_failure".equals(eventType)) {
-            if (!Naming.isSmithyBranch(ciRun.headBranch())) {
-                log.info("CI failure on non-smithy branch {}, ignoring", ciRun.headBranch());
-                return null;
+        String headBranch = run.path("head_branch").asText("");
+        var info = repoInfo(payload);
+
+        // Try to find the associated PR number
+        Integer prNumber = null;
+        var prs = run.path("pull_requests");
+        if (prs.isArray() && !prs.isEmpty()) {
+            prNumber = prs.get(0).path("number").asInt();
+        } else if (!headBranch.isBlank()) {
+            try {
+                PrData pr = smithyClient.findPrByHead(info.owner(), info.repo(), headBranch);
+                if (pr != null) prNumber = pr.number();
+            } catch (Exception e) {
+                log.warn("Failed to find PR for branch {} in workflow_run event", headBranch, e);
             }
-            String workflowName = payload.path("run").path("name").asText("");
-            return new WorkflowEvent.CiFailure(info, ciRun, workflowName);
-        } else if ("action_run_recover".equals(eventType)) {
-            return new WorkflowEvent.CiRecovery(info, ciRun);
         }
 
-        return null;
+        var ciRun = new CiRunInfo(headBranch, prNumber);
+
+        if ("failure".equals(conclusion)) {
+            if (!Naming.isSmithyBranch(headBranch)) {
+                log.info("CI failure on non-smithy branch {}, ignoring", headBranch);
+                return null;
+            }
+            String workflowName = run.path("name").asText("");
+            return new WorkflowEvent.CiFailure(info, ciRun, workflowName);
+        } else {
+            return new WorkflowEvent.CiRecovery(info, ciRun);
+        }
     }
 
-    // ── Shared extraction helpers ────────────────
+    // ── Helpers ──────────────────────────────────────────────
 
     private RepoInfo repoInfo(JsonNode payload) {
         return Naming.repoInfo(payload, vcsConfig.resolvedUrl());
@@ -332,9 +349,9 @@ public class EventMapper {
 
     private IssueContext extractIssue(JsonNode payload) {
         var info = repoInfo(payload);
-        var issue = payload.get("issue");
-        int number = issue.get("number").asInt();
-        String title = issue.get("title").asText();
+        var issue = payload.path("issue");
+        int number = issue.path("number").asInt();
+        String title = issue.path("title").asText("");
         String body = issue.path("body").asText("");
         String baseBranch = Naming.resolveBaseBranch(issue.path("ref").asText(""));
         String author = issue.path("user").path("login").asText("");
@@ -353,56 +370,17 @@ public class EventMapper {
         );
     }
 
-    private record ResolvedCiRun(RepoInfo info, CiRunInfo ciRun) {}
-
-    private ResolvedCiRun resolveCiRun(JsonNode payload) {
-        var run = payload.path("run");
-        String prettyref = run.path("prettyref").asText("");
-        if (prettyref.isBlank()) return null;
-
-        var runRepo = run.path("repository");
-        if (!runRepo.has("full_name")) return null;
-        String[] parts = runRepo.get("full_name").asText("").split("/", 2);
-        if (parts.length < 2) return null;
-        String owner = parts[0];
-        String repoName = parts[1];
-
-        String headBranch;
-        Integer prNumber;
-
-        if (prettyref.startsWith("#")) {
-            prNumber = Integer.parseInt(prettyref.substring(1));
-            PrData pr = smithyClient.getPullRequest(owner, repoName, prNumber);
-            headBranch = pr.headRef();
-        } else {
-            headBranch = prettyref;
-            PrData pr = smithyClient.findPrByHead(owner, repoName, headBranch);
-            prNumber = pr != null ? pr.number() : null;
-        }
-
-        var info = new RepoInfo(owner, repoName, "");
-        return new ResolvedCiRun(info, new CiRunInfo(headBranch, prNumber));
+    private PrContext extractPrFromIssue(RepoInfo info, JsonNode issue) {
+        return new PrContext(info, issue.path("number").asInt(), issue.path("title").asText(""), issue.path("body").asText(""), false, "", "");
     }
 
     private static boolean isUserAssigned(JsonNode payload, String login) {
         var assignees = payload.path("issue").path("assignees");
         if (assignees.isArray()) {
             for (var a : assignees) {
-                if (login.equals(a.path("login").asText(""))) {
-                    return true;
-                }
+                if (login.equals(a.path("login").asText(""))) return true;
             }
         }
         return false;
-    }
-
-    private static CommentData commentFromPayload(JsonNode payload) {
-        var comment = payload.path("comment");
-        return new CommentData(
-            comment.path("user").path("login").asText(""),
-            comment.path("body").asText(""),
-            comment.path("path").asText(""),
-            comment.path("line").asInt(0)
-        );
     }
 }

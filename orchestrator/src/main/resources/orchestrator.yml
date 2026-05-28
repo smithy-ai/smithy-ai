@@ -26,6 +26,13 @@ vcs:
     architect-token: ${ARCHITECT_GITLAB_TOKEN:}
     token-type: ${GITLAB_TOKEN_TYPE:}
 
+  github:
+    url: ${GITHUB_URL:}
+    external-url: ${GITHUB_EXTERNAL_URL:}
+    webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+    smithy-token: ${SMITHY_GITHUB_TOKEN:}
+    architect-token: ${ARCHITECT_GITHUB_TOKEN:}
+
 knowledgebase:
   enabled: ${KNOWLEDGEBASE_ENABLED:false}
   url: ${KNOWLEDGEBASE_URL:http://knowledgebase:8000/mcp}
