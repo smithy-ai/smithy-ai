@@ -1,0 +1,27 @@
+services:
+  orchestrator:
+    image: ghcr.io/smithy-ai/orchestrator:${IMAGE_TAG:-dev}
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - VCS_PROVIDER=github
+      - SMITHY_GITHUB_TOKEN=${SMITHY_GITHUB_TOKEN}
+      - ARCHITECT_GITHUB_TOKEN=${ARCHITECT_GITHUB_TOKEN}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+      - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
+      - TASK_IMAGE=${TASK_IMAGE:-ghcr.io/smithy-ai/claude-task-default:dev}
+      - CACHE_VOLUMES=${CACHE_VOLUMES:-pnpm,npm}
+      - SMITHY_BOT_USER=${SMITHY_BOT_USER:-smithy-bot}
+      - ARCHITECT_BOT_USER=${ARCHITECT_BOT_USER:-architect-bot}
+      - SMITHY_BOT_EMAIL=${SMITHY_BOT_EMAIL:-}
+      - ARCHITECT_BOT_EMAIL=${ARCHITECT_BOT_EMAIL:-}
+    networks:
+      - smithy-net
+
+networks:
+  smithy-net:
+    name: smithy-net
