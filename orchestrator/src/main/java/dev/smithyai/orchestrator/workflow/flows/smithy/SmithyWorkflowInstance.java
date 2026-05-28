@@ -497,7 +497,14 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             }
 
             if (commentDicts.isEmpty()) {
-                log.info("Review on PR #{} has no comments, skipping", prNumber);
+                if ("APPROVED".equals(e.reviewState())) {
+                    log.info("PR #{} approved with no comments — marking ready and merging", prNumber);
+                    vcsClient.markPrReady(info.owner(), info.repo(), prNumber);
+                    vcsClient.mergePullRequest(info.owner(), info.repo(), prNumber);
+                    log.info("Merged PR #{} for issue #{}", prNumber, issueId);
+                } else {
+                    log.info("Review on PR #{} has no comments, skipping", prNumber);
+                }
                 return;
             }
 

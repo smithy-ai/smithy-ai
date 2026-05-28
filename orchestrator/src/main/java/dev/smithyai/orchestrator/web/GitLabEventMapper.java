@@ -315,7 +315,7 @@ public class GitLabEventMapper {
         if (!Naming.isSmithyBranch(headBranch)) return null;
 
         var prc = extractPrFromMr(info, attrs);
-        return new WorkflowEvent.ReviewSubmitted(prc, 0, "", reviewer);
+        return new WorkflowEvent.ReviewSubmitted(prc, 0, "", reviewer, "APPROVED");
     }
 
     // ── Pipeline Hook ───────────────────────────

@@ -224,6 +224,16 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
         return pr.assignees() != null && pr.assignees().contains(username);
     }
 
+    @Override
+    public void markPrReady(String owner, String repo, int prNumber) {
+        patch("/repos/%s/%s/pulls/%d", Map.of("draft", false), owner, repo, prNumber);
+    }
+
+    @Override
+    public void mergePullRequest(String owner, String repo, int prNumber) {
+        post("/repos/%s/%s/pulls/%d/merge", Map.of("merge_method", "squash"), owner, repo, prNumber);
+    }
+
     // ── VcsClient: Repository ────────────────────────────────
 
     @Override

@@ -296,9 +296,10 @@ public class EventMapper {
 
         long reviewId = review.path("id").asLong();
         String reviewBody = review.path("body").asText("");
+        String reviewState = review.path("state").asText("").toUpperCase();
 
         var prc = extractPr(info, pr);
-        return new WorkflowEvent.ReviewSubmitted(prc, reviewId, reviewBody, reviewUser);
+        return new WorkflowEvent.ReviewSubmitted(prc, reviewId, reviewBody, reviewUser, reviewState);
     }
 
     // ── CI events ────────────────────────────────
