@@ -251,11 +251,19 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             String publicBase = e.repoHtmlUrl();
             String planUrl = vcsClient.fileBrowseUrl(publicBase, branch, planPath);
             var comment = new StringBuilder("Development plan: [%s](%s)".formatted(planPath, planUrl));
+            String authorMention = (ctx.author() != null && !ctx.author().isBlank())
+                ? "@" + ctx.author() + " "
+                : "";
             if (!openQuestions.isEmpty()) {
                 comment.append("\n\n### Open Questions");
                 for (String q : openQuestions) {
                     comment.append("\n- ").append(q);
                 }
+                comment.append("\n\n").append(authorMention)
+                    .append("Please clarify the above questions, then reply with `approved` or `/approve` to start implementation.");
+            } else {
+                comment.append("\n\n").append(authorMention)
+                    .append("The plan is ready. Reply with `approved` or `/approve` to start implementation.");
             }
             issueTracker.createIssueComment(
                 info.owner(),
