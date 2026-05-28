@@ -281,6 +281,19 @@ def main():
     owner_token = get_owner_token(owner, env, api_base)
     api = GitHubAPI(owner_token, api_base)
 
+    # Verify repo exists and is accessible before proceeding
+    print(f"==> Verifying access to {owner}/{repo_name}...")
+    try:
+        repo_data = api.get(f"/repos/{owner}/{repo_name}")
+        print(f"    ✓ Repository found: {repo_data.get('full_name')} ({'private' if repo_data.get('private') else 'public'})")
+    except APIError as e:
+        if e.status == 404:
+            print(f"    ✗ Repository '{owner}/{repo_name}' not found.")
+            print(f"    Make sure the repo exists and the token has access to it.")
+            print(f"    If it's a private repo, ensure you're authenticated as @{owner}.")
+            sys.exit(1)
+        raise
+
     # ── Step 1: Add collaborators to main repo ───────────────
     print(f"==> Adding collaborators to {owner}/{repo_name}...")
     add_collaborator(api, owner, repo_name, smithy_bot)
