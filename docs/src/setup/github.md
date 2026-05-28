@@ -37,7 +37,15 @@ Steps:
 
 ## 3. Configure environment
 
-Set the following environment variables:
+Run the setup script to validate your tokens and generate a webhook secret:
+
+```bash
+python3 scripts/github/setup.py
+```
+
+This will write `SMITHY_GITHUB_TOKEN`, `ARCHITECT_GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`, and the bot usernames to your `.env` file.
+
+Alternatively, set the following environment variables manually:
 
 ```bash
 VCS_PROVIDER=github
@@ -93,6 +101,12 @@ networks:
 ```
 
 ## 6. Per-repository setup
+
+!!! tip "Automated setup"
+    If the orchestrator is reachable and your tokens are configured, you can automate all per-repo steps with the setup script:
+    ```bash
+    python3 scripts/github/setup_repo.py owner/repo --orchestrator-url https://smithy.example.com
+    ```
 
 For each repository you want Smithy to work on:
 
