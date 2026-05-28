@@ -46,6 +46,10 @@ public interface VcsClient {
 
     boolean isAssigned(String owner, String repo, int prNumber, String username);
 
+    void markPrReady(String owner, String repo, int prNumber);
+
+    void mergePullRequest(String owner, String repo, int prNumber);
+
     // Repository
     boolean repoExists(String owner, String repo);
 

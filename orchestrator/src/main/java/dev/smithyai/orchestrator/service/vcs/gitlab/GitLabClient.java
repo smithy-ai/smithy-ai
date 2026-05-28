@@ -358,6 +358,16 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         return pr.assignees() != null && pr.assignees().contains(username);
     }
 
+    @Override
+    public void markPrReady(String owner, String repo, int prNumber) {
+        put("/projects/%s/merge_requests/%d", Map.of("draft", false), projectId(owner, repo), prNumber);
+    }
+
+    @Override
+    public void mergePullRequest(String owner, String repo, int prNumber) {
+        post("/projects/%s/merge_requests/%d/merge", Map.of(), projectId(owner, repo), prNumber);
+    }
+
     // ── VcsClient: Repository ────────────────────────────────
 
     @Override

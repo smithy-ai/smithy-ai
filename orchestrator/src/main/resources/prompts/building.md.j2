@@ -18,9 +18,47 @@ You may read these files directly or copy them into the repository if needed.
 
 ## Instructions
 
-1. Read the plan file carefully.
-2. Implement each step described in the plan.
-3. Run tests to verify your implementation.
-4. **You MUST `git add` and `git commit` all your changes before finishing.** Do not leave any uncommitted work. Use one or more commits as appropriate.
+Work through the steps below **in order**. Do not skip a step. If any step fails, stop and report the failure — do not open a PR with known failures.
 
-Do NOT reference the issue number (e.g. `#{{ issue_number }}`) in commit messages — the commits are visible in the PR, and issue references clutter the issue timeline. Do NOT push — the orchestrator handles pushing.
+### Step 1 — Snapshot
+Before writing any code, record the baseline:
+- Run `git status` to confirm you are on the correct branch.
+- Count existing test files and note any skipped tests:
+  - Find skipped tests: `grep -r "test\.skip\|it\.skip\|describe\.skip\|\.skip(" . --include="*.spec.*" --include="*.test.*" -l 2>/dev/null || true`
+  - Count spec files: `find . -name "*.spec.*" -o -name "*.test.*" 2>/dev/null | grep -v node_modules | wc -l`
+
+### Step 2 — Implement
+Read `{{ plan_file_path }}` carefully and implement every step it describes. Commit your implementation changes with a clear message.
+
+**You MUST `git add` and `git commit` all implementation changes before proceeding to Step 3.** Do not leave any uncommitted work. Do NOT reference the issue number (e.g. `#{{ issue_number }}`) in commit messages.
+
+### Step 3 — Fix skipped tests
+Search the codebase for any skipped tests:
+```
+grep -r "test\.skip\|it\.skip\|describe\.skip\|\.skip(" . --include="*.spec.*" --include="*.test.*" -l 2>/dev/null || true
+```
+For each skipped test file found: read the file, understand why the test is skipped, fix the root cause, remove the skip, and verify the test passes in isolation. Do not proceed until there are **zero skipped tests**.
+
+### Step 4 — Fill coverage gaps
+Check whether your implementation introduced new pages, routes, or features that have no corresponding test file. Look at the files you changed in Step 2 and ask: does each significant new behaviour have at least one test covering it? If not, write a minimal test covering the happy path. Only test against seeded/fixture data — do not rely on test-created state that could conflict across runs.
+
+### Step 5 — TypeScript check
+If the project uses TypeScript, run the type checker and fix every error before continuing:
+- Check `CLAUDE.md` or `package.json` for the typecheck command (commonly `npm run typecheck`, `npx tsc --noEmit`, or `tsc --noEmit`).
+- Run it on every TypeScript sub-project in the repo (frontend, backend, etc.).
+- Fix all errors. Do not suppress errors with `// @ts-ignore` unless the plan explicitly allows it.
+
+### Step 6 — Commit test and doc changes
+If Steps 3–5 produced any changes (new/fixed tests, updated docs, type fixes), commit them now with a descriptive message such as:
+```
+test: fix skipped tests, add coverage for <feature>
+```
+Skip this step if nothing changed.
+
+### Step 7 — Full test suite
+Run the project's full test suite. Check `CLAUDE.md` for the exact command (look for a "Testing" section or commands like `bash scripts/test-e2e.sh`, `npm test`, `npx playwright test`, etc.).
+
+- If **all tests pass**: you are done. The orchestrator will handle pushing and PR creation.
+- If **any test fails**: stop here. Report which tests failed and why. Do NOT proceed — a failing test suite must not result in a PR.
+
+Do NOT push — the orchestrator handles pushing.
