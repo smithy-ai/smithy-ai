@@ -40,18 +40,15 @@ def gh_token_for(username: str) -> str:
 
 def gh_logged_in_users() -> list:
     """Return list of usernames currently logged in via gh."""
+    import re
     try:
         result = subprocess.run(
-            ["gh", "auth", "status", "--json", "username"],
+            ["gh", "auth", "status"],
             capture_output=True, text=True, timeout=10,
         )
-        if result.returncode == 0 and result.stdout.strip():
-            import json
-            data = json.loads(result.stdout)
-            if isinstance(data, list):
-                return [entry.get("username", "") for entry in data if entry.get("username")]
-            if isinstance(data, dict):
-                return [data.get("username", "")] if data.get("username") else []
+        output = result.stdout + result.stderr
+        # Matches: "✓ Logged in to github.com account <username>"
+        return re.findall(r"Logged in to [^\s]+ account ([^\s(]+)", output)
     except Exception:
         pass
     return []
