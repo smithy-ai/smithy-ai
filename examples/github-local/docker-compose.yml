@@ -19,6 +19,7 @@ services:
       - ARCHITECT_BOT_USER=${ARCHITECT_BOT_USER:-architect-bot}
       - SMITHY_BOT_EMAIL=${SMITHY_BOT_EMAIL:-}
       - ARCHITECT_BOT_EMAIL=${ARCHITECT_BOT_EMAIL:-}
+      - DOCKER_API_VERSION=1.41
     networks:
       - smithy-net
 
