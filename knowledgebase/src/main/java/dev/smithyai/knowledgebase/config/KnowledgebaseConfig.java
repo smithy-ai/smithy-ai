@@ -8,6 +8,8 @@ public record KnowledgebaseConfig(
     VectorstoreConfig vectorstore,
     int chunkSize,
     WebhookConfig webhook,
+    String aiProvider,
+    OllamaConfig ollama,
     OpenaiConfig openai,
     List<RepositoryConfig> repositories
 ) {
@@ -23,7 +25,13 @@ public record KnowledgebaseConfig(
         }
     }
 
+    public record OllamaConfig(String baseUrl, String embeddingModel, String chatModel) {}
+
     public record OpenaiConfig(String apiKey, String embeddingModel, String chatModel) {}
+
+    public boolean isOllama() {
+        return !"openai".equalsIgnoreCase(aiProvider);
+    }
 
     public record RepositoryConfig(String name, String cloneUrl, String branch) {
         /** Filesystem/collection-safe key: "owner/repo" → "owner--repo" */
