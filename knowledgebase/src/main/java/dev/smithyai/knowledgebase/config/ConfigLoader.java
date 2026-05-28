@@ -53,8 +53,8 @@ public class ConfigLoader {
     }
 
     @Bean
-    public KnowledgebaseConfig.OpenaiConfig openaiConfig() {
-        return config.openai();
+    public KnowledgebaseConfig.OllamaConfig ollamaConfig() {
+        return config.ollama();
     }
 
     @SuppressWarnings("unchecked")

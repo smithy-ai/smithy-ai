@@ -2,14 +2,14 @@ spring:
   application:
     name: knowledgebase-mcp
   ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://ollama:11434}
       embedding:
         options:
-          model: ${EMBEDDING_MODEL:text-embedding-3-small}
+          model: ${EMBEDDING_MODEL:nomic-embed-text}
       chat:
         options:
-          model: ${CHAT_MODEL:gpt-4o}
+          model: ${CHAT_MODEL:llama3.2}
           temperature: 1
     mcp:
       server:
