@@ -126,6 +126,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 .on(WorkflowEvent.PlanApproved.class, this::handlePlanApproved).then(Stage.BUILD)
                 .done()
             .in(Stage.BUILD)
+                .on(WorkflowEvent.IssueComment.class, this::handleIssueCommentInBuild).thenRemain()
                 .on(WorkflowEvent.PrConversationComment.class, this::handlePrConversationComment).thenRemain()
                 .on(WorkflowEvent.PrReviewComment.class, this::handlePrReviewComment).thenRemain()
                 .on(WorkflowEvent.ReviewSubmitted.class, this::handleReviewSubmitted).thenRemain()
@@ -322,10 +323,39 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             claude.send(prompt);
             syncSessionId();
 
+            // Extract updated open questions and post a reply comment
+            String planPath = Naming.planFilePath(ctx.number());
+            List<String> openQuestions = List.of();
+            try {
+                String extractPrompt = renderer.render("refinement_extract.md.j2", Map.of("plan_file_path", planPath));
+                PlanResult planResult = claude.send(extractPrompt, PlanResult.class, "haiku");
+                openQuestions = planResult.openQuestions();
+            } catch (Exception ex) {
+                log.warn("Failed to extract open questions for issue #{}", ctx.number(), ex);
+            }
+
             var pushResult = session.exec("smithy-commit-and-push", "Update plan for #" + ctx.number());
             if (pushResult.exitCode() != 0) {
                 log.warn("smithy-commit-and-push failed in {}: {}", session.getContainerName(), pushResult.stderr());
             }
+
+            String authorMention = (ctx.author() != null && !ctx.author().isBlank())
+                ? "@" + ctx.author() + " "
+                : "";
+            var reply = new StringBuilder();
+            if (!openQuestions.isEmpty()) {
+                reply.append("Plan updated. Still have some open questions:\n");
+                for (String q : openQuestions) {
+                    reply.append("\n- ").append(q);
+                }
+                reply.append("\n\n").append(authorMention)
+                    .append("Please clarify, then reply with `approved` or `/approve` to start implementation.");
+            } else {
+                reply.append(authorMention)
+                    .append("Plan updated — no open questions remain. Reply with `approved` or `/approve` to start implementation.");
+            }
+            issueTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.number(), reply.toString());
+
         } catch (Exception ex) {
             log.error("Resume refinement failed for issue #{}", ctx.number(), ex);
         }
@@ -431,6 +461,34 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             Map.of("pr_number", e.prc().number(), "issue_number", issueId, "comments", commentDicts)
         );
         resumeBuild(e.prc().info(), issueId, e.prc().number(), prompt, false);
+    }
+
+    private void handleIssueCommentInBuild(WorkflowEvent.IssueComment e) {
+        var ctx = e.ctx();
+        try {
+            session.updateState(ContainerState::touch);
+            if (!session.exists()) return;
+
+            String prompt = renderer.render(
+                "build_comment.md.j2",
+                Map.of("issue_number", ctx.number(), "comment_body", e.commentBody())
+            );
+
+            var result = claude.send(prompt);
+            if (result != null && !result.isBlank()) {
+                String authorMention = (ctx.author() != null && !ctx.author().isBlank())
+                    ? "@" + ctx.author() + " "
+                    : "";
+                issueTracker.createIssueComment(
+                    ctx.info().owner(),
+                    ctx.info().repo(),
+                    ctx.number(),
+                    authorMention + result
+                );
+            }
+        } catch (Exception ex) {
+            log.error("Failed to handle issue comment in BUILD for issue #{}", ctx.number(), ex);
+        }
     }
 
     private void handlePrConversationComment(WorkflowEvent.PrConversationComment e) {

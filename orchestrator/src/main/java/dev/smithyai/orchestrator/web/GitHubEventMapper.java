@@ -101,10 +101,23 @@ public class GitHubEventMapper {
 
         var ctx = extractIssue(payload);
         String commentBody = payload.path("comment").path("body").asText("");
+
+        if (!isUserAssigned(payload, botUser) && isBotMention(commentBody, botUser)) {
+            String repoHtmlUrl = payload.path("repository").path("html_url").asText("");
+            log.info("Bot mention detected in issue #{} comment by {} — starting workflow", ctx.number(), commentUser);
+            return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
+        }
         if (isUserAssigned(payload, botUser) && isPlanApproval(commentBody)) {
             return new WorkflowEvent.PlanApproved(ctx, commentUser);
         }
         return new WorkflowEvent.IssueComment(ctx, commentBody);
+    }
+
+    private static boolean isBotMention(String body, String botUser) {
+        String lower = body.toLowerCase();
+        return lower.contains("@" + botUser.toLowerCase())
+            || lower.startsWith("/smithy")
+            || lower.startsWith("/assign");
     }
 
     private static boolean isPlanApproval(String body) {
