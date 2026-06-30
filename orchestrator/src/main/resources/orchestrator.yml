@@ -6,6 +6,7 @@ docker:
 
 claude:
   oauth-token: ${CLAUDE_CODE_OAUTH_TOKEN:}
+  api-key: ${ANTHROPIC_API_KEY:}
 
 vcs:
   provider: ${VCS_PROVIDER:forgejo}
