@@ -114,7 +114,6 @@ Add both `smithy` and `architect` as repository collaborators with **Write** acc
    - Issue comments
    - Pull requests
    - Pull request reviews
-   - Pull request review comments
    - Pushes
    - Workflow runs
 6. Click **Add webhook**
@@ -135,7 +134,6 @@ Add both bot accounts as collaborators and create the same `/webhooks/github` we
 - Issue comments
 - Pull requests
 - Pull request reviews
-- Pull request review comments
 
 !!! note "Draft pull requests"
     Smithy creates pull requests as **drafts** on GitHub (native draft support). When you are ready for implementation to finish, mark the PR as **"Ready for review"** rather than removing a "WIP:" prefix as you would with Forgejo.

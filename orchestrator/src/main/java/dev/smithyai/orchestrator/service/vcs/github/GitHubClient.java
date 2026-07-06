@@ -149,10 +149,13 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
         List<InlineComment> comments
     ) {
         var params = new LinkedHashMap<String, Object>();
+        String resolvedEvent = event != null ? event : "COMMENT";
         if (body != null && !body.isBlank()) {
             params.put("body", body);
+        } else if ("COMMENT".equals(resolvedEvent) && comments != null && !comments.isEmpty()) {
+            params.put("body", "Inline review comments.");
         }
-        params.put("event", event != null ? event : "COMMENT");
+        params.put("event", resolvedEvent);
         if (comments != null && !comments.isEmpty()) {
             var reviewComments = new ArrayList<Map<String, Object>>();
             for (var c : comments) {
@@ -209,13 +212,7 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
 
     @Override
     public void requestReview(String owner, String repo, int prNumber, List<String> reviewers) {
-        post(
-            "/repos/%s/%s/pulls/%d/requested_reviewers",
-            Map.of("reviewers", reviewers),
-            owner,
-            repo,
-            prNumber
-        );
+        post("/repos/%s/%s/pulls/%d/requested_reviewers", Map.of("reviewers", reviewers), owner, repo, prNumber);
     }
 
     @Override

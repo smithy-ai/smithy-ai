@@ -8,7 +8,6 @@ import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.PrData;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -277,19 +276,10 @@ public class GitHubEventMapper {
             return new WorkflowEvent.PrConversationComment(prc, commentUser, comment.path("body").asText(""));
         }
 
-        if (!Naming.isSmithyBranch(headBranch)) return null;
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
-
-        var info = repoInfo(payload);
-        var prc = extractPr(info, pr);
-        var cd = new CommentData(
-            commentUser,
-            comment.path("body").asText(""),
-            comment.path("path").asText(""),
-            comment.path("line").asInt(comment.path("original_line").asInt(0))
-        );
-        return new WorkflowEvent.PrReviewComment(prc, List.of(cd));
+        // GitHub also emits these for comments that are included in a submitted review.
+        // Smithy handles review feedback from pull_request_review so all inline comments
+        // for a review are fetched and processed once.
+        return null;
     }
 
     // ── Workflow Run (CI) ────────────────────────────────────
@@ -361,7 +351,15 @@ public class GitHubEventMapper {
     }
 
     private PrContext extractPrFromIssue(RepoInfo info, JsonNode issue) {
-        return new PrContext(info, issue.path("number").asInt(), issue.path("title").asText(""), issue.path("body").asText(""), false, "", "");
+        return new PrContext(
+            info,
+            issue.path("number").asInt(),
+            issue.path("title").asText(""),
+            issue.path("body").asText(""),
+            false,
+            "",
+            ""
+        );
     }
 
     private static boolean isUserAssigned(JsonNode payload, String login) {
