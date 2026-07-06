@@ -69,18 +69,27 @@ public class IndexingService {
                 }
             }
 
-            // Sync and reindex
+            // Sync and reindex if the latest commit is not already indexed
             try {
                 log.info("Startup sync for repo {}", repo.name());
-                gitSyncService.syncRepository(repo);
-                buildAndSwapIndex(repo);
+                String commitHash = gitSyncService.syncRepository(repo);
+                String lastIndexedCommit = indexStatusService.readCommit(key);
+                if (activeCollectionNames.containsKey(key) && Objects.equals(lastIndexedCommit, commitHash)) {
+                    log.info(
+                        "Skipping startup reindex for repo {}; commit {} is already indexed",
+                        repo.name(),
+                        commitHash
+                    );
+                    continue;
+                }
+                buildAndSwapIndex(repo, commitHash);
             } catch (Exception e) {
                 log.error("Startup sync failed for repo {}: {}", repo.name(), e.getMessage());
             }
         }
     }
 
-    public Map<String, Object> buildAndSwapIndex(RepositoryConfig repo) {
+    public Map<String, Object> buildAndSwapIndex(RepositoryConfig repo, String commitHash) {
         String key = repo.safeKey();
         if (!indexingInProgress.add(key)) {
             throw new IllegalStateException("Indexing already in progress for " + repo.name());
@@ -115,7 +124,7 @@ public class IndexingService {
 
             log.info("Swapped {} from {} to {}", repo.name(), oldCollectionName, newCollectionName);
 
-            indexStatusService.writeVersion(key, newVersion);
+            indexStatusService.writeStatus(key, newVersion, commitHash);
 
             if (oldCollectionName != null) {
                 Thread.startVirtualThread(() -> {
@@ -133,6 +142,7 @@ public class IndexingService {
             result.put("collectionName", newCollectionName);
             result.put("documentCount", chunks.size());
             result.put("version", newVersion);
+            result.put("commitHash", commitHash);
             return result;
         } finally {
             indexingInProgress.remove(key);
