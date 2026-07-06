@@ -37,15 +37,7 @@ Steps:
 
 ## 3. Configure environment
 
-Run the setup script to validate your tokens and generate a webhook secret:
-
-```bash
-python3 scripts/github/setup.py
-```
-
-This will write `SMITHY_GITHUB_TOKEN`, `ARCHITECT_GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`, and the bot usernames to your `.env` file.
-
-Alternatively, set the following environment variables manually:
+Set the following environment variables:
 
 ```bash
 VCS_PROVIDER=github
@@ -102,12 +94,6 @@ networks:
 
 ## 6. Per-repository setup
 
-!!! tip "Automated setup"
-    If the orchestrator is reachable and your tokens are configured, you can automate all per-repo steps with the setup script:
-    ```bash
-    python3 scripts/github/setup_repo.py owner/repo --orchestrator-url https://smithy.example.com
-    ```
-
 For each repository you want Smithy to work on:
 
 ### Add collaborators
@@ -139,6 +125,17 @@ Create a **"Plan Approved"** label in the repository — this triggers Smithy's 
 
 1. Go to **Issues → Labels → New label**
 2. Name it exactly `Plan Approved`
+
+### Create the context repository
+
+If you want to use The Architect, create a separate repository named `<repo>-context` under the same owner as the main repository. Match the visibility of the source repository unless you have a specific reason to make the context public.
+
+Add both bot accounts as collaborators and create the same `/webhooks/github` webhook on the context repository. The context repository only needs these webhook events:
+
+- Issue comments
+- Pull requests
+- Pull request reviews
+- Pull request review comments
 
 !!! note "Draft pull requests"
     Smithy creates pull requests as **drafts** on GitHub (native draft support). When you are ready for implementation to finish, mark the PR as **"Ready for review"** rather than removing a "WIP:" prefix as you would with Forgejo.
