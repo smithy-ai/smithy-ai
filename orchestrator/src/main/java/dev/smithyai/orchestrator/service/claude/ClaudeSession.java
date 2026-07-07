@@ -167,8 +167,12 @@ public class ClaudeSession {
             command.add("--mcp-config");
             command.add(knowledgebaseConfig.mcpConfigJson(contextRepoName));
         } else {
-            log.debug("Knowledgebase MCP not added: config={}, active={}, contextRepo={}",
-                knowledgebaseConfig != null, knowledgebaseConfig != null && knowledgebaseConfig.isActive(), contextRepoName);
+            log.debug(
+                "Knowledgebase MCP not added: config={}, active={}, contextRepo={}",
+                knowledgebaseConfig != null,
+                knowledgebaseConfig != null && knowledgebaseConfig.isActive(),
+                contextRepoName
+            );
         }
 
         log.debug("Executing Claude prompt on {} (session={})", container.getContainerName(), sessionId);

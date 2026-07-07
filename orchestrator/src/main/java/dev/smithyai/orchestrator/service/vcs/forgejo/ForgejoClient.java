@@ -9,7 +9,9 @@ import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.*;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.Base64;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestClient;
 
@@ -263,6 +265,28 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
             return true;
         } catch (ForgejoApiException e) {
             if (e.isNotFound()) return false;
+            throw e;
+        }
+    }
+
+    @Override
+    public Optional<String> readRepositoryFile(String owner, String repo, String path, String ref) {
+        try {
+            String resolvedRef = ref;
+            if (resolvedRef == null || resolvedRef.isBlank()) {
+                resolvedRef = api(() -> repoApi.repoGet(owner, repo)).getDefaultBranch();
+            }
+            String fileRef = resolvedRef;
+            var contents = api(() -> repoApi.repoGetContents(owner, repo, path, fileRef));
+            String content = contents.getContent();
+            if (content == null) return Optional.empty();
+            if ("base64".equalsIgnoreCase(contents.getEncoding())) {
+                String normalized = content.replaceAll("\\s+", "");
+                return Optional.of(new String(Base64.getDecoder().decode(normalized), StandardCharsets.UTF_8));
+            }
+            return Optional.of(content);
+        } catch (ForgejoApiException e) {
+            if (e.isNotFound()) return Optional.empty();
             throw e;
         }
     }

@@ -59,6 +59,13 @@ class NamingTest {
     }
 
     @Test
+    void isArchitectBranch() {
+        assertTrue(Naming.isArchitectBranch("architect/7-learn"));
+        assertFalse(Naming.isArchitectBranch("main"));
+        assertFalse(Naming.isArchitectBranch("smithy/42-add-feature"));
+    }
+
+    @Test
     void contextRepoName() {
         assertEquals("myrepo-context", Naming.contextRepoName("myrepo"));
     }

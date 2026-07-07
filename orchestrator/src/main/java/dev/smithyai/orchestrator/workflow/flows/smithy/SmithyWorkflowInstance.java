@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.workflow.flows.smithy;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
@@ -29,6 +30,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
     private static final int MAX_CI_RETRIES = 5;
 
+    private final RepositoryConfigResolver repositoryConfigResolver;
     private final String botUser;
     private final StateMachine<Stage> stateMachine;
     private String contextRepoName;
@@ -41,6 +43,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback
@@ -53,6 +56,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             dockerConfig,
             vcsConfig,
             knowledgebaseConfig,
+            repositoryConfigResolver,
             botConfig,
             tools,
             destroyCallback,
@@ -68,6 +72,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback,
@@ -81,6 +86,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             dockerConfig,
             vcsConfig,
             knowledgebaseConfig,
+            repositoryConfigResolver,
             botConfig,
             tools,
             destroyCallback,
@@ -97,6 +103,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback,
@@ -115,6 +122,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             destroyCallback,
             existingSessionId
         );
+        this.repositoryConfigResolver = repositoryConfigResolver;
         this.botUser = botConfig.resolvedSmithyUser();
         // @formatter:off
         this.stateMachine = StateMachine.builder(Stage.class, initialStage)
@@ -148,7 +156,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             log.debug("Ignoring {} in stage {}", event.getClass().getSimpleName(), stateMachine.state());
             return;
         }
-        contextRepoName = event.info().owner() + "/" + Naming.contextRepoName(event.info().repo());
+        contextRepoName = repositoryConfigResolver.contextRepository(event.info()).fullName();
         log.info("Setting context repo name: {}", contextRepoName);
         claude.setContextRepoName(contextRepoName);
         stateMachine.fire(event);
@@ -232,10 +240,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             // Extract open questions from the plan
             List<String> openQuestions = List.of();
             try {
-                String extractPrompt = renderer.render(
-                    "refinement_extract.md.j2",
-                    Map.of("plan_file_path", planPath)
-                );
+                String extractPrompt = renderer.render("refinement_extract.md.j2", Map.of("plan_file_path", planPath));
                 PlanResult planResult = claude.send(extractPrompt, PlanResult.class, "haiku");
                 openQuestions = planResult.openQuestions();
             } catch (Exception ex) {
@@ -257,12 +262,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                     comment.append("\n- ").append(q);
                 }
             }
-            issueTracker.createIssueComment(
-                info.owner(),
-                info.repo(),
-                ctx.number(),
-                comment.toString()
-            );
+            issueTracker.createIssueComment(info.owner(), info.repo(), ctx.number(), comment.toString());
 
             log.info("Refinement complete for issue #{}", ctx.number());
         } catch (Exception ex) {

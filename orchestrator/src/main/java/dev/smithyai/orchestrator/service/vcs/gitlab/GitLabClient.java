@@ -123,7 +123,11 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public byte[] downloadAttachment(String url) {
         try {
-            var request = HttpRequest.newBuilder().uri(URI.create(url)).header(authHeaderName, authHeaderValue).GET().build();
+            var request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header(authHeaderName, authHeaderValue)
+                .GET()
+                .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() >= 400) {
                 throw new RuntimeException("GitLab attachment download failed: " + response.statusCode());
@@ -371,6 +375,37 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         }
     }
 
+    @Override
+    public Optional<String> readRepositoryFile(String owner, String repo, String path, String ref) {
+        String pid = projectId(owner, repo);
+        String resolvedRef = ref;
+        if (resolvedRef == null || resolvedRef.isBlank()) {
+            resolvedRef = get("/projects/%s", pid).path("default_branch").asText("");
+        }
+        if (resolvedRef.isBlank()) return Optional.empty();
+
+        String encodedPath = urlEncode(path);
+        String encodedRef = urlEncode(resolvedRef);
+        String apiPath = "/projects/%s/repository/files/%s/raw?ref=%s".formatted(pid, encodedPath, encodedRef);
+        try {
+            var request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/api/v4" + apiPath))
+                .header(authHeaderName, authHeaderValue)
+                .GET()
+                .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 404) return Optional.empty();
+            if (response.statusCode() >= 400) {
+                throw new RuntimeException(
+                    "GitLab API error %d on GET %s: %s".formatted(response.statusCode(), apiPath, response.body())
+                );
+            }
+            return Optional.of(response.body());
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("GitLab API request failed: GET " + apiPath, e);
+        }
+    }
+
     // ── VcsClient: URL helpers ───────────────────────────────
 
     @Override
@@ -396,7 +431,11 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     // ── HTTP helpers ─────────────────────────────────────────
 
     private String projectId(String owner, String repo) {
-        return URLEncoder.encode(owner + "/" + repo, StandardCharsets.UTF_8);
+        return urlEncode(owner + "/" + repo);
+    }
+
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private JsonNode get(String pathTemplate, Object... args) {

@@ -135,10 +135,7 @@ public class GitLabEventMapper {
             }
         }
         if (!hasPlanApproved) {
-            log.debug(
-                "Issue label change skipped: 'Plan Approved' label not present (labels={})",
-                labelTitles(labels)
-            );
+            log.debug("Issue label change skipped: 'Plan Approved' label not present (labels={})", labelTitles(labels));
             return null;
         }
 
@@ -181,6 +178,11 @@ public class GitLabEventMapper {
 
         String commentBody = attrs.path("note").asText("");
         String type = attrs.path("type").asText("");
+        String headBranch = mr.path("source_branch").asText("");
+
+        if (Naming.isArchitectBranch(headBranch) && !commentUser.equals(botConfig.resolvedArchitectUser())) {
+            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+        }
 
         // DiffNote → review comment
         if ("DiffNote".equals(type)) {
@@ -192,12 +194,6 @@ public class GitLabEventMapper {
         }
 
         // Regular note → conversation comment
-        String repoFull = payload.path("project").path("path_with_namespace").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
-        }
-
-        String headBranch = mr.path("source_branch").asText("");
         if (Naming.isSmithyBranch(headBranch)) {
             return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
         }
@@ -297,11 +293,11 @@ public class GitLabEventMapper {
 
     private WorkflowEvent mapMrMerge(JsonNode payload, JsonNode attrs) {
         var info = repoInfo(payload);
-        if (!info.repo().endsWith("-context")) {
+        String headBranch = attrs.path("source_branch").asText("");
+        if (!Naming.isArchitectBranch(headBranch)) {
             var prc = extractPrFromMr(info, attrs);
             return new WorkflowEvent.PrMerged(prc);
         }
-        String headBranch = attrs.path("source_branch").asText("");
         int mrNumber = attrs.path("iid").asInt();
         return new WorkflowEvent.PrClosed(info, mrNumber, true, headBranch);
     }

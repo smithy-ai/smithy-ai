@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
@@ -17,7 +18,6 @@ import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.InlineComment;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
 import dev.smithyai.orchestrator.workflow.shared.StateMachine;
-import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import java.util.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ArchitectReviewInstance extends AbstractWorkflowInstance {
 
     private final StateMachine<ReviewStage> stateMachine;
+    private final RepositoryConfigResolver repositoryConfigResolver;
     private final String architectEmail;
 
     public ArchitectReviewInstance(
@@ -34,6 +35,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         List<String> tools,
         Runnable destroyCallback,
         String architectEmail
@@ -45,6 +47,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            repositoryConfigResolver,
             tools,
             destroyCallback,
             ReviewStage.NEW,
@@ -60,6 +63,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         List<String> tools,
         Runnable destroyCallback,
         ReviewStage initialStage,
@@ -78,6 +82,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             destroyCallback,
             existingSessionId
         );
+        this.repositoryConfigResolver = repositoryConfigResolver;
         this.architectEmail = architectEmail;
         // @formatter:off
         this.stateMachine = StateMachine.builder(ReviewStage.class, initialStage)
@@ -117,8 +122,8 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
     // ── Init ─────────────────────────────────────────────────
 
     private ContainerConfig buildInit(PrContext prc) {
-        String contextRepo = Naming.contextRepoName(prc.info().repo());
-        String contextCloneUrl = vcsClient.cloneUrl(prc.info().owner(), contextRepo);
+        var contextRepo = repositoryConfigResolver.contextRepository(prc.info());
+        String contextCloneUrl = vcsClient.cloneUrl(contextRepo.owner(), contextRepo.repo());
         return ContainerConfig.builder()
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())
@@ -135,7 +140,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
 
     private void reviewTask(PrContext prc) {
         var info = prc.info();
-        String contextRepo = Naming.contextRepoName(info.repo());
+        var contextRepo = repositoryConfigResolver.contextRepository(info);
 
         try {
             log.info("Starting architect review for PR #{} in {}", prc.number(), session.getContainerName());
@@ -147,8 +152,10 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
                     info.owner(),
                     "repo",
                     info.repo(),
+                    "context_owner",
+                    contextRepo.owner(),
                     "context_repo",
-                    contextRepo,
+                    contextRepo.repo(),
                     "pr_number",
                     prc.number(),
                     "pr_title",

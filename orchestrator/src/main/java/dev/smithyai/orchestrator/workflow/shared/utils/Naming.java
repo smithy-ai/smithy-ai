@@ -22,6 +22,10 @@ public final class Naming {
         return branch.startsWith("smithy/");
     }
 
+    public static boolean isArchitectBranch(String branch) {
+        return branch.startsWith("architect/");
+    }
+
     public static String branchName(int issueId, String title) {
         String slug = title.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
         if (slug.length() > 40) slug = slug.substring(0, 40);

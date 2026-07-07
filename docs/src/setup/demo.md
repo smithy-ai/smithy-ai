@@ -47,7 +47,7 @@ This creates the `smithy` and `architect` bot users, generates API tokens, a web
 python3 scripts/setup_repo.py owner/repo
 ```
 
-This adds the bot users as collaborators, creates the webhook pointing to the orchestrator, adds the "Plan Approved" label, and creates the context repository (`<repo>-context`).
+This adds the bot users as collaborators, creates the webhook pointing to the orchestrator, adds the "Plan Approved" label, and creates the default context repository (`<repo>-context`). You can override the context repository later with `.smithy/config.yml`.
 
 ## What's next
 

@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.workflow.flows.architect;
 
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
@@ -27,6 +28,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     private final ContainerService containerService;
     private final DockerConfig dockerConfig;
     private final VcsProviderConfig vcsConfig;
+    private final RepositoryConfigResolver repositoryConfigResolver;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
@@ -35,6 +37,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     public ArchitectReviewFactory(
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         BotConfig botConfig,
         ContainerService containerService,
         PromptRenderer renderer,
@@ -43,6 +46,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     ) {
         this.dockerConfig = dockerConfig;
         this.vcsConfig = vcsConfig;
+        this.repositoryConfigResolver = repositoryConfigResolver;
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
@@ -55,9 +59,9 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
         return switch (event) {
             case WorkflowEvent.ReviewRequested e -> {
                 var prc = e.prc();
-                String contextRepo = Naming.contextRepoName(prc.info().repo());
-                if (!vcsClient.repoExists(prc.info().owner(), contextRepo)) {
-                    log.warn("Context repo {}/{} does not exist, skipping review", prc.info().owner(), contextRepo);
+                var contextRepo = repositoryConfigResolver.contextRepository(prc.info());
+                if (!vcsClient.repoExists(contextRepo.owner(), contextRepo.repo())) {
+                    log.warn("Context repo {} does not exist, skipping review", contextRepo.fullName());
                     yield EventAction.IGNORE;
                 }
                 String key = architectContainerName(prc.info().owner(), prc.info().repo(), "pr-" + prc.number());
@@ -83,6 +87,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
             renderer,
             dockerConfig,
             vcsConfig,
+            repositoryConfigResolver,
             TOOLS,
             () -> removeInstance(key),
             architectEmail
@@ -110,6 +115,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
             renderer,
             dockerConfig,
             vcsConfig,
+            repositoryConfigResolver,
             TOOLS,
             () -> removeInstance(containerName),
             stage,
@@ -120,16 +126,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
 
     static String resolveCommentKey(WorkflowEvent.PrConversationComment e, String prefix) {
         var info = e.prc().info();
-        String lookupRepo = info.repo();
-        int lookupPr = e.prc().number();
-        if (info.repo().endsWith("-context")) {
-            lookupRepo = info.repo().substring(0, info.repo().length() - 8);
-            Integer sourcePrId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
-            if (sourcePrId != null) {
-                lookupPr = sourcePrId;
-            }
-        }
-        return architectContainerName(info.owner(), lookupRepo, prefix + lookupPr);
+        return architectContainerName(info.owner(), info.repo(), prefix + e.prc().number());
     }
 
     static String architectContainerName(String owner, String repo, String identifier) {

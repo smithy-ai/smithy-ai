@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
@@ -28,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private final StateMachine<LearnStage> stateMachine;
+    private final RepositoryConfigResolver repositoryConfigResolver;
     private final String architectEmail;
 
     public ArchitectLearnInstance(
@@ -37,6 +39,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         List<String> tools,
         Runnable destroyCallback,
         String architectEmail
@@ -48,6 +51,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            repositoryConfigResolver,
             tools,
             destroyCallback,
             LearnStage.NEW,
@@ -63,6 +67,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         List<String> tools,
         Runnable destroyCallback,
         LearnStage initialStage,
@@ -81,6 +86,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             destroyCallback,
             existingSessionId
         );
+        this.repositoryConfigResolver = repositoryConfigResolver;
         this.architectEmail = architectEmail;
         // @formatter:off
         this.stateMachine = StateMachine.builder(LearnStage.class, initialStage)
@@ -122,8 +128,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
     // ── Init ─────────────────────────────────────────────────
 
     private ContainerConfig buildInit(PrContext prc, String learnBranch) {
-        String contextRepo = Naming.contextRepoName(prc.info().repo());
-        String contextCloneUrl = vcsClient.cloneUrl(prc.info().owner(), contextRepo);
+        var contextRepo = repositoryConfigResolver.contextRepository(prc.info());
+        String contextCloneUrl = vcsClient.cloneUrl(contextRepo.owner(), contextRepo.repo());
         return ContainerConfig.builder()
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())
@@ -140,7 +146,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private void learnTask(PrContext prc) {
         var info = prc.info();
-        String contextRepo = Naming.contextRepoName(info.repo());
+        var contextRepo = repositoryConfigResolver.contextRepository(info);
         String learnBranch = Naming.architectBranchName(prc.number(), "learn");
 
         try {
@@ -155,8 +161,10 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     info.owner(),
                     "repo",
                     info.repo(),
+                    "context_owner",
+                    contextRepo.owner(),
                     "context_repo",
-                    contextRepo,
+                    contextRepo.repo(),
                     "pr_number",
                     prc.number(),
                     "pr_title",
@@ -193,10 +201,13 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     throw new RuntimeException("Failed to push context repo: " + pushResult.stderr());
                 }
 
-                var headResult = session.exec(List.of(
-                    "sh", "-c",
-                    "cd /context-repo && git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||'"
-                ));
+                var headResult = session.exec(
+                    List.of(
+                        "sh",
+                        "-c",
+                        "cd /context-repo && git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||'"
+                    )
+                );
                 if (headResult.exitCode() != 0) {
                     throw new RuntimeException("Failed to resolve context-repo default branch: " + headResult.stderr());
                 }
@@ -209,8 +220,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     prc.number()
                 );
                 var contextPr = vcsClient.createPullRequest(
-                    info.owner(),
-                    contextRepo,
+                    contextRepo.owner(),
+                    contextRepo.repo(),
                     title,
                     learnBranch,
                     contextBaseBranch,

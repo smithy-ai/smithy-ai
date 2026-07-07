@@ -54,3 +54,13 @@ Smithy-AI is configured through environment variables. These map to settings in 
 | `ARCHITECT_BOT_USER` | `architect` | Username of the architect bot |
 | `ARCHITECT_BOT_EMAIL` | `architect@localhost` | Email address of the architect bot (used for git commits) |
 
+## Repository settings
+
+Repositories can define Smithy-specific settings in `.smithy/config.yml`.
+
+```yaml
+context:
+  repository: shared-guidelines
+```
+
+`context.repository` can be either a repository name in the same owner/group or an `owner/repo` value. When omitted, Smithy uses `<repo>-context`.

@@ -54,9 +54,7 @@ public class ConfigLoader {
 
     @Bean
     public KnowledgebaseConfig knowledgebaseConfig() {
-        return config.knowledgebase() != null
-            ? config.knowledgebase()
-            : new KnowledgebaseConfig(false, null, null);
+        return config.knowledgebase() != null ? config.knowledgebase() : new KnowledgebaseConfig(false, null, null);
     }
 
     private static String loadRawYaml(Environment env) {

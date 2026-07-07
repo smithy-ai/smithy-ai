@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.workflow.flows.architect;
 
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
@@ -27,6 +28,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     private final ContainerService containerService;
     private final DockerConfig dockerConfig;
     private final VcsProviderConfig vcsConfig;
+    private final RepositoryConfigResolver repositoryConfigResolver;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
@@ -35,6 +37,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     public ArchitectLearnFactory(
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        RepositoryConfigResolver repositoryConfigResolver,
         BotConfig botConfig,
         ContainerService containerService,
         PromptRenderer renderer,
@@ -43,6 +46,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     ) {
         this.dockerConfig = dockerConfig;
         this.vcsConfig = vcsConfig;
+        this.repositoryConfigResolver = repositoryConfigResolver;
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
@@ -55,9 +59,9 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
         return switch (event) {
             case WorkflowEvent.PrMerged e -> {
                 var prc = e.prc();
-                String contextRepo = Naming.contextRepoName(prc.info().repo());
-                if (!vcsClient.repoExists(prc.info().owner(), contextRepo)) {
-                    log.warn("Context repo {}/{} does not exist, skipping learning", prc.info().owner(), contextRepo);
+                var contextRepo = repositoryConfigResolver.contextRepository(prc.info());
+                if (!vcsClient.repoExists(contextRepo.owner(), contextRepo.repo())) {
+                    log.warn("Context repo {} does not exist, skipping learning", contextRepo.fullName());
                     yield EventAction.IGNORE;
                 }
                 String key = ArchitectReviewFactory.architectContainerName(
@@ -68,19 +72,19 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
                 yield new EventAction.Create(key);
             }
             case WorkflowEvent.PrClosed e -> {
-                if (!e.info().repo().endsWith("-context")) yield EventAction.IGNORE;
                 Integer sourcePrId = Naming.parseIssueIdFromBranch(e.headBranch());
                 if (sourcePrId == null) yield EventAction.IGNORE;
-                String sourceRepo = e.info().repo().substring(0, e.info().repo().length() - 8);
-                String key = ArchitectReviewFactory.architectContainerName(
-                    e.info().owner(),
-                    sourceRepo,
-                    "learn-" + sourcePrId
-                );
-                yield new EventAction.Destroy(key);
+                String key = findLearnInstanceKey(sourcePrId);
+                yield key != null ? new EventAction.Destroy(key) : EventAction.IGNORE;
             }
             case WorkflowEvent.PrConversationComment e -> {
                 var key = ArchitectReviewFactory.resolveCommentKey(e, "learn-");
+                if (!instances.containsKey(key)) {
+                    Integer sourcePrId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
+                    if (sourcePrId != null) {
+                        key = findLearnInstanceKey(sourcePrId);
+                    }
+                }
                 var instance = instances.get(key);
                 yield (instance != null && instance.exists()) ? new EventAction.Dispatch(key) : EventAction.IGNORE;
             }
@@ -98,6 +102,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             renderer,
             dockerConfig,
             vcsConfig,
+            repositoryConfigResolver,
             TOOLS,
             () -> removeInstance(key),
             architectEmail
@@ -125,11 +130,27 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             renderer,
             dockerConfig,
             vcsConfig,
+            repositoryConfigResolver,
             TOOLS,
             () -> removeInstance(containerName),
             stage,
             state.sessionId(),
             architectEmail
         );
+    }
+
+    private String findLearnInstanceKey(int sourcePrId) {
+        String suffix = ".learn-" + sourcePrId;
+        String match = null;
+        for (String key : instances.keySet()) {
+            if (key.endsWith(suffix)) {
+                if (match != null) {
+                    log.warn("Multiple Architect learn instances match PR id {}, using {}", sourcePrId, match);
+                    return match;
+                }
+                match = key;
+            }
+        }
+        return match;
     }
 }

@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.service.vcs;
 
 import dev.smithyai.orchestrator.service.vcs.dto.*;
 import java.util.List;
+import java.util.Optional;
 
 public interface VcsClient {
     // Pull/Merge Requests
@@ -48,6 +49,8 @@ public interface VcsClient {
 
     // Repository
     boolean repoExists(String owner, String repo);
+
+    Optional<String> readRepositoryFile(String owner, String repo, String path, String ref);
 
     // URL helpers (provider-specific URL patterns)
     String fileBrowseUrl(String repoHtmlUrl, String branch, String path);
