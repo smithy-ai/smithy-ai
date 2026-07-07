@@ -52,6 +52,8 @@ public interface VcsClient {
 
     Optional<String> readRepositoryFile(String owner, String repo, String path, String ref);
 
+    List<String> listRepositoryFiles(String owner, String repo, String path, String ref);
+
     // URL helpers (provider-specific URL patterns)
     String fileBrowseUrl(String repoHtmlUrl, String branch, String path);
 

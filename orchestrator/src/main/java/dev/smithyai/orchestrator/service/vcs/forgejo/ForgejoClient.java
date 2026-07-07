@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.service.vcs.forgejo;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.forgejoclient.ApiClient;
 import dev.smithyai.forgejoclient.ApiException;
 import dev.smithyai.forgejoclient.api.IssueApi;
@@ -9,10 +10,13 @@ import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.*;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.Base64;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
@@ -291,6 +295,43 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
         }
     }
 
+    @Override
+    public List<String> listRepositoryFiles(String owner, String repo, String path, String ref) {
+        try {
+            String resolvedRef = ref;
+            if (resolvedRef == null || resolvedRef.isBlank()) {
+                resolvedRef = api(() -> repoApi.repoGet(owner, repo)).getDefaultBranch();
+            }
+            String url = "%s/api/v1/repos/%s/%s/contents/%s?ref=%s".formatted(
+                baseUrl,
+                urlEncode(owner),
+                urlEncode(repo),
+                encodePath(path),
+                urlEncode(resolvedRef)
+            );
+            JsonNode node = rest.get().uri(URI.create(url)).retrieve().body(JsonNode.class);
+            if (node == null || !node.isArray()) {
+                return List.of();
+            }
+
+            var files = new ArrayList<String>();
+            for (JsonNode item : node) {
+                if ("file".equals(item.path("type").asText(""))) {
+                    String itemPath = item.path("path").asText("");
+                    if (!itemPath.isBlank()) {
+                        files.add(itemPath);
+                    }
+                }
+            }
+            return files;
+        } catch (HttpClientErrorException.NotFound e) {
+            return List.of();
+        } catch (ForgejoApiException e) {
+            if (e.isNotFound()) return List.of();
+            throw e;
+        }
+    }
+
     // ── VcsClient: URL helpers ───────────────────────────────
 
     @Override
@@ -311,6 +352,14 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     @Override
     public String baseUrl() {
         return baseUrl;
+    }
+
+    private String encodePath(String path) {
+        return Arrays.stream(path.split("/")).map(this::urlEncode).collect(Collectors.joining("/"));
+    }
+
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     // ── DTO conversion helpers ───────────────────────────────

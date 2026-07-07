@@ -406,6 +406,38 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         }
     }
 
+    @Override
+    public List<String> listRepositoryFiles(String owner, String repo, String path, String ref) {
+        String pid = projectId(owner, repo);
+        String resolvedRef = ref;
+        if (resolvedRef == null || resolvedRef.isBlank()) {
+            resolvedRef = get("/projects/%s", pid).path("default_branch").asText("");
+        }
+        if (resolvedRef.isBlank()) return List.of();
+
+        try {
+            var nodes = getList(
+                "/projects/%s/repository/tree?path=%s&ref=%s",
+                pid,
+                urlEncode(path),
+                urlEncode(resolvedRef)
+            );
+            var files = new ArrayList<String>();
+            for (var node : nodes) {
+                if ("blob".equals(node.path("type").asText(""))) {
+                    String filePath = node.path("path").asText("");
+                    if (!filePath.isBlank()) {
+                        files.add(filePath);
+                    }
+                }
+            }
+            return files;
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("404")) return List.of();
+            throw e;
+        }
+    }
+
     // ── VcsClient: URL helpers ───────────────────────────────
 
     @Override
