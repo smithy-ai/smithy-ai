@@ -8,14 +8,18 @@ Smithy-AI is configured through environment variables. These map to settings in 
 |---|---|---|
 | `DOCKER_COMMAND` | `docker` | Docker CLI command |
 | `DOCKER_NETWORK` | `smithy-net` | Docker network that task containers attach to |
-| `TASK_IMAGE` | `claude-task:latest` | Docker image used for task containers |
+| `TASK_IMAGE` | `claude-task-default:latest` | Docker image used for task containers |
 | `CACHE_VOLUMES` | `pnpm,npm` | Comma-separated cache volume types: `pnpm`, `npm`, `maven`, `gradle` |
 
-## Claude settings
+## Agent provider settings
 
 | Variable | Default | Description |
 |---|---|---|
-| `CLAUDE_CODE_OAUTH_TOKEN` | — | OAuth token from `claude setup-token` **(required)** |
+| `CLAUDE_CODE_OAUTH_TOKEN` | — | OAuth token from `claude setup-token`; required when using Claude Code unless `ANTHROPIC_API_KEY` is set |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key; alternative to `CLAUDE_CODE_OAUTH_TOKEN` |
+| `CODEX_ENABLED` | `false` | Set to `true` to use Codex instead of Claude Code |
+| `OPENAI_API_KEY` | — | OpenAI API key; required when `CODEX_ENABLED=true` |
+| `CODEX_MODEL` | — | Optional Codex model override; blank uses the Codex CLI default |
 
 ## VCS provider
 
@@ -53,4 +57,3 @@ Smithy-AI is configured through environment variables. These map to settings in 
 | `SMITHY_BOT_EMAIL` | `smithy@localhost` | Email address of the smithy bot (used for git commits and push detection) |
 | `ARCHITECT_BOT_USER` | `architect` | Username of the architect bot |
 | `ARCHITECT_BOT_EMAIL` | `architect@localhost` | Email address of the architect bot (used for git commits) |
-

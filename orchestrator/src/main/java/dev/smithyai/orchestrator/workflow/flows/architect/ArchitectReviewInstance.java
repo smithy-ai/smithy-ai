@@ -5,6 +5,7 @@ import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.service.agent.AgentSessionFactory;
 import dev.smithyai.orchestrator.service.claude.ClaudeParseException;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.claude.dto.ReviewResult;
@@ -34,6 +35,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        AgentSessionFactory agentSessionFactory,
         List<String> tools,
         Runnable destroyCallback,
         String architectEmail
@@ -45,6 +47,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            agentSessionFactory,
             tools,
             destroyCallback,
             ReviewStage.NEW,
@@ -60,6 +63,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        AgentSessionFactory agentSessionFactory,
         List<String> tools,
         Runnable destroyCallback,
         ReviewStage initialStage,
@@ -74,6 +78,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             dockerConfig,
             vcsConfig,
             null,
+            agentSessionFactory,
             tools,
             destroyCallback,
             existingSessionId
@@ -163,7 +168,8 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             syncSessionId();
 
             try {
-                var reviewData = claude.send(prompt, ReviewResult.class);
+                var reviewData = agent.send(prompt, ReviewResult.class);
+                syncSessionId();
                 postReview(info.owner(), info.repo(), prc.number(), reviewData);
             } catch (ClaudeParseException e) {
                 log.error("Failed to parse architect review output for PR #{}", prc.number(), e);
@@ -201,7 +207,8 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             syncSessionId();
 
             try {
-                var responseData = claude.send(prompt, ReviewResult.class);
+                var responseData = agent.send(prompt, ReviewResult.class);
+                syncSessionId();
                 postReview(info.owner(), info.repo(), prNumber, responseData);
             } catch (ClaudeParseException e) {
                 if (e.getRawContent() != null && !e.getRawContent().isBlank()) {

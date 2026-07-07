@@ -25,7 +25,10 @@ public class ConfigLoader {
             var mapper = YAMLMapper.builder().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
             this.config = mapper.readValue(resolved, SmithyConfig.class);
             config.vcs().validate();
-            config.claude().validate();
+            codexConfig().validate();
+            if (!codexConfig().enabled()) {
+                claudeConfig().validate();
+            }
             log.info("Loaded orchestrator config (provider={})", config.vcs().resolvedProvider());
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to parse orchestrator config", e);
@@ -39,7 +42,12 @@ public class ConfigLoader {
 
     @Bean
     public ClaudeConfig claudeConfig() {
-        return config.claude();
+        return config.claude() != null ? config.claude() : ClaudeConfig.empty();
+    }
+
+    @Bean
+    public CodexConfig codexConfig() {
+        return config.codex() != null ? config.codex() : CodexConfig.disabled();
     }
 
     @Bean
@@ -54,9 +62,7 @@ public class ConfigLoader {
 
     @Bean
     public KnowledgebaseConfig knowledgebaseConfig() {
-        return config.knowledgebase() != null
-            ? config.knowledgebase()
-            : new KnowledgebaseConfig(false, null, null);
+        return config.knowledgebase() != null ? config.knowledgebase() : new KnowledgebaseConfig(false, null, null);
     }
 
     private static String loadRawYaml(Environment env) {

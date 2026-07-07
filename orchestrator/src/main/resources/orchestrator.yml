@@ -8,6 +8,11 @@ claude:
   oauth-token: ${CLAUDE_CODE_OAUTH_TOKEN:}
   api-key: ${ANTHROPIC_API_KEY:}
 
+codex:
+  enabled: ${CODEX_ENABLED:false}
+  api-key: ${OPENAI_API_KEY:}
+  model: ${CODEX_MODEL:}
+
 vcs:
   provider: ${VCS_PROVIDER:forgejo}
   issue-provider: ${ISSUE_PROVIDER:}

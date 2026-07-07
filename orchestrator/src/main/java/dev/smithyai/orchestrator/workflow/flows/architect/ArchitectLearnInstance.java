@@ -6,6 +6,7 @@ import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.service.agent.AgentSessionFactory;
 import dev.smithyai.orchestrator.service.claude.ClaudeParseException;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.claude.dto.LearnResult;
@@ -37,6 +38,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        AgentSessionFactory agentSessionFactory,
         List<String> tools,
         Runnable destroyCallback,
         String architectEmail
@@ -48,6 +50,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             renderer,
             dockerConfig,
             vcsConfig,
+            agentSessionFactory,
             tools,
             destroyCallback,
             LearnStage.NEW,
@@ -63,6 +66,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         PromptRenderer renderer,
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
+        AgentSessionFactory agentSessionFactory,
         List<String> tools,
         Runnable destroyCallback,
         LearnStage initialStage,
@@ -77,6 +81,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             dockerConfig,
             vcsConfig,
             null,
+            agentSessionFactory,
             tools,
             destroyCallback,
             existingSessionId
@@ -176,7 +181,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
             LearnResult learnData;
             try {
-                learnData = claude.send(prompt, LearnResult.class);
+                learnData = agent.send(prompt, LearnResult.class);
+                syncSessionId();
             } catch (ClaudeParseException e) {
                 log.error("Failed to parse architect learn output for PR #{}", prc.number(), e);
                 destroy();
@@ -193,10 +199,13 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     throw new RuntimeException("Failed to push context repo: " + pushResult.stderr());
                 }
 
-                var headResult = session.exec(List.of(
-                    "sh", "-c",
-                    "cd /context-repo && git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||'"
-                ));
+                var headResult = session.exec(
+                    List.of(
+                        "sh",
+                        "-c",
+                        "cd /context-repo && git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||'"
+                    )
+                );
                 if (headResult.exitCode() != 0) {
                     throw new RuntimeException("Failed to resolve context-repo default branch: " + headResult.stderr());
                 }
@@ -251,7 +260,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                 "architect_learn_comment.md.j2",
                 Map.of("pr_number", prNumber, "comments", commentDicts)
             );
-            var result = claude.send(prompt);
+            var result = agent.send(prompt);
             syncSessionId();
 
             var commitResult = session.exec("smithy-commit-and-push", "Update context", "/context-repo");

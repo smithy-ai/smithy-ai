@@ -9,9 +9,14 @@ public record KnowledgebaseConfig(boolean enabled, String url, String toolName) 
         return "mcp__knowledgebase";
     }
 
-    public String mcpConfigJson(String contextRepoName) {
+    public String scopedUrl(String contextRepoName) {
         String separator = url.contains("?") ? "&" : "?";
-        String scopedUrl = url + separator + "repo=" + contextRepoName;
-        return "{\"mcpServers\":{\"knowledgebase\":{\"type\":\"http\",\"url\":\"%s\"}}}".formatted(scopedUrl);
+        return url + separator + "repo=" + contextRepoName;
+    }
+
+    public String mcpConfigJson(String contextRepoName) {
+        return "{\"mcpServers\":{\"knowledgebase\":{\"type\":\"http\",\"url\":\"%s\"}}}".formatted(
+            scopedUrl(contextRepoName)
+        );
     }
 }

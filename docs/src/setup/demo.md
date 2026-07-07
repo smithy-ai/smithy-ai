@@ -6,7 +6,7 @@ The `examples/demo/` directory contains a Docker Compose stack that runs a local
 
 - Docker and Docker Compose
 - Python 3
-- A Claude Code OAuth token — run `claude setup-token` to obtain one
+- A Claude Code OAuth token from `claude setup-token`, or an OpenAI API key for Codex
 
 ## 1. Configure environment
 
@@ -15,7 +15,7 @@ cd examples/demo
 cp .env.example .env
 ```
 
-Edit `.env` and set your `CLAUDE_CODE_OAUTH_TOKEN`. The remaining values are populated automatically by the setup scripts in the following steps.
+Edit `.env` and set your `CLAUDE_CODE_OAUTH_TOKEN`. To use Codex instead, set `CODEX_ENABLED=true` and `OPENAI_API_KEY`. The remaining values are populated automatically by the setup scripts in the following steps.
 
 ## 2. Start the stack
 

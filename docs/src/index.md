@@ -1,6 +1,6 @@
 # Smithy AI
 
-An orchestrator for AI-assisted software development. Managing planning, building, and review with autonomous Claude Code agents.
+An orchestrator for AI-assisted software development. Managing planning, building, and review with autonomous Claude Code or Codex agents.
 
 ## How it works
 

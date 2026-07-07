@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.ClaudeConfig;
+import dev.smithyai.orchestrator.config.CodexConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
@@ -35,12 +36,14 @@ public class ContainerService {
     private final String vcsToken;
     private final String claudeOauthToken;
     private final String claudeApiKey;
+    private final String codexApiKey;
     private final String gitAuthUser;
     private final String defaultGitEmail;
 
     public ContainerService(
         DockerConfig dockerConfig,
         ClaudeConfig claudeConfig,
+        CodexConfig codexConfig,
         VcsProviderConfig vcsConfig,
         BotConfig botConfig,
         DockerCli docker
@@ -52,6 +55,7 @@ public class ContainerService {
         this.vcsToken = vcsConfig.smithyToken();
         this.claudeOauthToken = claudeConfig.oauthToken();
         this.claudeApiKey = claudeConfig.apiKey();
+        this.codexApiKey = codexConfig.apiKey();
         this.gitAuthUser = vcsConfig.gitAuthUser();
         this.defaultGitEmail = botConfig.resolvedSmithyEmail();
     }
@@ -127,6 +131,10 @@ public class ContainerService {
         if (claudeApiKey != null && !claudeApiKey.isBlank()) {
             args.add("-e");
             args.add("ANTHROPIC_API_KEY=" + claudeApiKey);
+        }
+        if (codexApiKey != null && !codexApiKey.isBlank()) {
+            args.add("-e");
+            args.add("OPENAI_API_KEY=" + codexApiKey);
         }
         args.add("-e");
         args.add("VCS_URL=" + vcsUrl);

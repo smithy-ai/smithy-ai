@@ -5,6 +5,7 @@ import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.service.agent.AgentSessionFactory;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
@@ -31,6 +32,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final VcsProviderConfig vcsConfig;
     private final KnowledgebaseConfig knowledgebaseConfig;
     private final BotConfig botConfig;
+    private final AgentSessionFactory agentSessionFactory;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
@@ -40,6 +42,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
+        AgentSessionFactory agentSessionFactory,
         ContainerService containerService,
         PromptRenderer renderer,
         @Qualifier("smithyVcs") VcsClient vcsClient,
@@ -49,6 +52,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         this.vcsConfig = vcsConfig;
         this.knowledgebaseConfig = knowledgebaseConfig;
         this.botConfig = botConfig;
+        this.agentSessionFactory = agentSessionFactory;
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
@@ -88,6 +92,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             dockerConfig,
             vcsConfig,
             knowledgebaseConfig,
+            agentSessionFactory,
             botConfig,
             augmentTools(REFINE_TOOLS),
             () -> removeInstance(key)
@@ -116,6 +121,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             dockerConfig,
             vcsConfig,
             knowledgebaseConfig,
+            agentSessionFactory,
             botConfig,
             augmentTools(tools),
             () -> removeInstance(containerName),

@@ -20,9 +20,12 @@ services:
       - SMITHY_FORGEJO_TOKEN=${SMITHY_FORGEJO_TOKEN:-}
       - ARCHITECT_FORGEJO_TOKEN=${ARCHITECT_FORGEJO_TOKEN:-}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
-      # Claude & Docker
+      # Agent & Docker
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - CODEX_ENABLED=${CODEX_ENABLED:-false}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - CODEX_MODEL=${CODEX_MODEL:-}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
       - TASK_IMAGE=${TASK_IMAGE:-ghcr.io/smithy-ai/claude-task-default:dev}
       - CACHE_VOLUMES=${CACHE_VOLUMES:-pnpm,npm}

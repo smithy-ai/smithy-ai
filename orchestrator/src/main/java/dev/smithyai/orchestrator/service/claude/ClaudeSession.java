@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.service.claude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
+import dev.smithyai.orchestrator.service.agent.AgentSession;
 import dev.smithyai.orchestrator.service.claude.dto.SchemaGenerator;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
 import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
@@ -15,7 +16,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class ClaudeSession {
+public class ClaudeSession implements AgentSession {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration TIMEOUT = Duration.ofMinutes(30);
@@ -167,8 +168,12 @@ public class ClaudeSession {
             command.add("--mcp-config");
             command.add(knowledgebaseConfig.mcpConfigJson(contextRepoName));
         } else {
-            log.debug("Knowledgebase MCP not added: config={}, active={}, contextRepo={}",
-                knowledgebaseConfig != null, knowledgebaseConfig != null && knowledgebaseConfig.isActive(), contextRepoName);
+            log.debug(
+                "Knowledgebase MCP not added: config={}, active={}, contextRepo={}",
+                knowledgebaseConfig != null,
+                knowledgebaseConfig != null && knowledgebaseConfig.isActive(),
+                contextRepoName
+            );
         }
 
         log.debug("Executing Claude prompt on {} (session={})", container.getContainerName(), sessionId);

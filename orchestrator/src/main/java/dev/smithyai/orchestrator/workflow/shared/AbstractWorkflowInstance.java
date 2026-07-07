@@ -4,7 +4,8 @@ import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
-import dev.smithyai.orchestrator.service.claude.ClaudeSession;
+import dev.smithyai.orchestrator.service.agent.AgentSession;
+import dev.smithyai.orchestrator.service.agent.AgentSessionFactory;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
@@ -19,13 +20,14 @@ import lombok.extern.slf4j.Slf4j;
 public abstract class AbstractWorkflowInstance {
 
     protected final ContainerSession session;
-    protected ClaudeSession claude;
+    protected AgentSession agent;
     protected final VcsClient vcsClient;
     protected final IssueTrackerClient issueTracker;
     protected final PromptRenderer renderer;
     protected final DockerConfig dockerConfig;
     protected final VcsProviderConfig vcsConfig;
     protected final KnowledgebaseConfig knowledgebaseConfig;
+    protected final AgentSessionFactory agentSessionFactory;
     private final Runnable destroyCallback;
     private final ExecutorService eventThread;
 
@@ -37,6 +39,7 @@ public abstract class AbstractWorkflowInstance {
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
+        AgentSessionFactory agentSessionFactory,
         List<String> tools,
         Runnable destroyCallback
     ) {
@@ -48,6 +51,7 @@ public abstract class AbstractWorkflowInstance {
             dockerConfig,
             vcsConfig,
             knowledgebaseConfig,
+            agentSessionFactory,
             tools,
             destroyCallback,
             null
@@ -62,15 +66,17 @@ public abstract class AbstractWorkflowInstance {
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
+        AgentSessionFactory agentSessionFactory,
         List<String> tools,
         Runnable destroyCallback,
         String existingSessionId
     ) {
         this.session = session;
-        this.claude =
+        this.agentSessionFactory = agentSessionFactory;
+        this.agent =
             existingSessionId != null
-                ? new ClaudeSession(session, tools, existingSessionId, knowledgebaseConfig)
-                : new ClaudeSession(session, tools, knowledgebaseConfig);
+                ? agentSessionFactory.create(session, tools, existingSessionId, knowledgebaseConfig)
+                : agentSessionFactory.create(session, tools, knowledgebaseConfig);
         this.vcsClient = vcsClient;
         this.issueTracker = issueTracker;
         this.renderer = renderer;
@@ -122,6 +128,11 @@ public abstract class AbstractWorkflowInstance {
     }
 
     protected void syncSessionId() {
-        session.updateState(s -> s.withSessionId(claude.getSessionId()));
+        String sessionId = agent.getSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            log.debug("Skipping session id sync for {}, no agent session id yet", session.getContainerName());
+            return;
+        }
+        session.updateState(s -> s.withSessionId(sessionId));
     }
 }

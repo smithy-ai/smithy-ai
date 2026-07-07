@@ -6,7 +6,7 @@ This guide covers connecting Smithy-AI to a GitLab instance (self-hosted or gitl
 
 - A GitLab instance (self-hosted or gitlab.com)
 - A Docker host to run the orchestrator
-- A Claude Code OAuth token — run `claude setup-token` to obtain one
+- A Claude Code OAuth token from `claude setup-token`, or an OpenAI API key for Codex
 
 ## 1. Create bot users
 
@@ -46,6 +46,9 @@ SMITHY_GITLAB_TOKEN=<smithy token>
 ARCHITECT_GITLAB_TOKEN=<architect token>
 GITLAB_WEBHOOK_SECRET=<a random secret string>
 CLAUDE_CODE_OAUTH_TOKEN=<your oauth token>
+# Or use Codex:
+# CODEX_ENABLED=true
+# OPENAI_API_KEY=<your openai api key>
 ```
 
 See the [configuration reference](../configuration.md) for all available settings.
@@ -79,6 +82,8 @@ services:
       - GITLAB_TOKEN_TYPE=${GITLAB_TOKEN_TYPE:-oauth2}
       - GITLAB_WEBHOOK_SECRET=${GITLAB_WEBHOOK_SECRET}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+      - CODEX_ENABLED=${CODEX_ENABLED:-false}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
       - TASK_IMAGE=${TASK_IMAGE:-claude-task-default:latest}
 ```
@@ -89,4 +94,3 @@ For each repository you want Smithy to work on:
 
 1. **Add bot members**: Add both `smithy` and `architect` as project members with Developer role or higher
 2. **Create webhook**: Go to **Settings → Webhooks** and add a webhook pointing to `http://<orchestrator-host>:8080/webhooks/gitlab` with your secret
-

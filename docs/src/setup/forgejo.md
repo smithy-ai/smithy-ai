@@ -6,7 +6,7 @@ This guide covers connecting Smithy-AI to a Forgejo instance you already run, ra
 
 - Forgejo 7 or later
 - A Docker host to run the orchestrator
-- A Claude Code OAuth token — run `claude setup-token` to obtain one
+- A Claude Code OAuth token from `claude setup-token`, or an OpenAI API key for Codex
 
 ## 1. Create bot users
 
@@ -37,6 +37,9 @@ SMITHY_FORGEJO_TOKEN=<smithy token>
 ARCHITECT_FORGEJO_TOKEN=<architect token>
 WEBHOOK_SECRET=<a random secret string>
 CLAUDE_CODE_OAUTH_TOKEN=<your oauth token>
+# Or use Codex:
+# CODEX_ENABLED=true
+# OPENAI_API_KEY=<your openai api key>
 ```
 
 See the [configuration reference](../configuration.md) for all available settings.
@@ -72,8 +75,10 @@ services:
       - ARCHITECT_FORGEJO_TOKEN=${ARCHITECT_FORGEJO_TOKEN}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+      - CODEX_ENABLED=${CODEX_ENABLED:-false}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
-      - TASK_IMAGE=${TASK_IMAGE:-claude-task:latest}
+      - TASK_IMAGE=${TASK_IMAGE:-claude-task-default:latest}
 ```
 
 ## 6. Per-repository setup

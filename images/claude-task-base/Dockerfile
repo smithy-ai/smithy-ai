@@ -8,13 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js (required for Claude Code CLI)
+# Install Node.js (required for agent CLIs)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code
+# Install supported agent CLIs
+RUN npm install -g @anthropic-ai/claude-code @openai/codex
 
 # Install Forgejo CLI (tea)
 ARG TARGETARCH

@@ -4,6 +4,7 @@ import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.service.agent.AgentSessionFactory;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
@@ -27,6 +28,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     private final ContainerService containerService;
     private final DockerConfig dockerConfig;
     private final VcsProviderConfig vcsConfig;
+    private final AgentSessionFactory agentSessionFactory;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
@@ -36,6 +38,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         BotConfig botConfig,
+        AgentSessionFactory agentSessionFactory,
         ContainerService containerService,
         PromptRenderer renderer,
         @Qualifier("architectVcs") VcsClient vcsClient,
@@ -43,6 +46,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     ) {
         this.dockerConfig = dockerConfig;
         this.vcsConfig = vcsConfig;
+        this.agentSessionFactory = agentSessionFactory;
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
@@ -98,6 +102,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             renderer,
             dockerConfig,
             vcsConfig,
+            agentSessionFactory,
             TOOLS,
             () -> removeInstance(key),
             architectEmail
@@ -125,6 +130,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             renderer,
             dockerConfig,
             vcsConfig,
+            agentSessionFactory,
             TOOLS,
             () -> removeInstance(containerName),
             stage,

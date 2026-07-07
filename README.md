@@ -1,6 +1,6 @@
-# Orchestrate Claude sessions from your issue tracker
+# Orchestrate AI coding sessions from your issue tracker
 
-Smithy-AI is an orchestrator for AI-assisted software development. It runs Claude Code sessions, isolated in Docker containers, with the usual planning and building phases. Optionally you can create a knowledgebase with project specific best practies and automatically review each PR against it. 
+Smithy-AI is an orchestrator for AI-assisted software development. It runs Claude Code or Codex sessions, isolated in Docker containers, with the usual planning and building phases. Optionally you can create a knowledgebase with project specific best practices and automatically review each PR against it.
 
 > **This project is a work in progress.** Feel free to watch the repo or open a discussion if you're interested.
 
@@ -20,7 +20,7 @@ Human actions are in yellow. The project knowledge base is an optional separate 
 ### Smithy development workflow
 
 1. Create an issue and assign to Agent Smithy
-2. Smithy creates a branch, let's Claude Code write a plan and shares it with you
+2. Smithy creates a branch, lets the configured coding agent write a plan, and shares it with you
 3. You add comments to the issue to improve the plan, once done label the issue "Plan Approved"
 4. Smithy creates a draft pull-request, implements the plan, and watches CI status to validate
 5. You review the issue manually or request a PR review by The Architect
@@ -43,7 +43,7 @@ cd examples/demo
 cp .env.example .env
 ```
 
-Edit .env with your CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`)
+Edit `.env` with either your `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) or set `CODEX_ENABLED=true` and provide `OPENAI_API_KEY`.
 Other fields are set automatically by the setup scripts below.
 
 ```bash

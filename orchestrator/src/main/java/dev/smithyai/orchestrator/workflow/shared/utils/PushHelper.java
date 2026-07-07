@@ -1,6 +1,6 @@
 package dev.smithyai.orchestrator.workflow.shared.utils;
 
-import dev.smithyai.orchestrator.service.claude.ClaudeSession;
+import dev.smithyai.orchestrator.service.agent.AgentSession;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +18,7 @@ public final class PushHelper {
 
     public static void pushWithRetry(
         ContainerSession session,
-        ClaudeSession claude,
+        AgentSession agent,
         VcsClient client,
         String owner,
         String repo,
@@ -31,13 +31,13 @@ public final class PushHelper {
         String errorOutput = result.stderr().isBlank() ? result.stdout() : result.stderr();
         log.warn("git push failed in {}: {}", session.getContainerName(), errorOutput);
 
-        // Ask Claude to fix
+        // Ask the configured agent to fix
         try {
             String prompt = PUSH_FIX_PROMPT.formatted(errorOutput);
-            claude.send(prompt);
-            claude.ensureCommitted();
+            agent.send(prompt);
+            agent.ensureCommitted();
         } catch (Exception e) {
-            log.error("Claude fix attempt failed in {}", session.getContainerName(), e);
+            log.error("Agent fix attempt failed in {}", session.getContainerName(), e);
         }
 
         // Second attempt

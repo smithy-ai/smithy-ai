@@ -6,7 +6,7 @@ import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
-import dev.smithyai.orchestrator.service.claude.ClaudeSession;
+import dev.smithyai.orchestrator.service.agent.AgentSessionFactory;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.claude.dto.PlanResult;
 import dev.smithyai.orchestrator.service.docker.*;
@@ -41,6 +41,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
+        AgentSessionFactory agentSessionFactory,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback
@@ -53,6 +54,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             dockerConfig,
             vcsConfig,
             knowledgebaseConfig,
+            agentSessionFactory,
             botConfig,
             tools,
             destroyCallback,
@@ -68,6 +70,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
+        AgentSessionFactory agentSessionFactory,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback,
@@ -81,6 +84,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             dockerConfig,
             vcsConfig,
             knowledgebaseConfig,
+            agentSessionFactory,
             botConfig,
             tools,
             destroyCallback,
@@ -97,6 +101,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
+        AgentSessionFactory agentSessionFactory,
         BotConfig botConfig,
         List<String> tools,
         Runnable destroyCallback,
@@ -111,6 +116,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             dockerConfig,
             vcsConfig,
             knowledgebaseConfig,
+            agentSessionFactory,
             tools,
             destroyCallback,
             existingSessionId
@@ -150,7 +156,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         }
         contextRepoName = event.info().owner() + "/" + Naming.contextRepoName(event.info().repo());
         log.info("Setting context repo name: {}", contextRepoName);
-        claude.setContextRepoName(contextRepoName);
+        agent.setContextRepoName(contextRepoName);
         stateMachine.fire(event);
     }
 
@@ -205,13 +211,13 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 )
             );
 
-            claude.startPlan(prompt);
+            agent.startPlan(prompt);
             syncSessionId();
 
-            // Copy Claude's plan file to the expected path
-            var planSrc = claude.latestPlanFile();
+            // Copy the agent's plan file to the expected path
+            var planSrc = agent.latestPlanFile();
             if (planSrc.isEmpty()) {
-                log.warn("Claude returned empty plan for issue #{}", ctx.number());
+                log.warn("Agent returned empty plan for issue #{}", ctx.number());
                 issueTracker.createIssueComment(
                     info.owner(),
                     info.repo(),
@@ -232,11 +238,8 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             // Extract open questions from the plan
             List<String> openQuestions = List.of();
             try {
-                String extractPrompt = renderer.render(
-                    "refinement_extract.md.j2",
-                    Map.of("plan_file_path", planPath)
-                );
-                PlanResult planResult = claude.send(extractPrompt, PlanResult.class, "haiku");
+                String extractPrompt = renderer.render("refinement_extract.md.j2", Map.of("plan_file_path", planPath));
+                PlanResult planResult = agent.send(extractPrompt, PlanResult.class, "haiku");
                 openQuestions = planResult.openQuestions();
             } catch (Exception ex) {
                 log.warn("Failed to extract open questions for issue #{}", ctx.number(), ex);
@@ -257,12 +260,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                     comment.append("\n- ").append(q);
                 }
             }
-            issueTracker.createIssueComment(
-                info.owner(),
-                info.repo(),
-                ctx.number(),
-                comment.toString()
-            );
+            issueTracker.createIssueComment(info.owner(), info.repo(), ctx.number(), comment.toString());
 
             log.info("Refinement complete for issue #{}", ctx.number());
         } catch (Exception ex) {
@@ -311,7 +309,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 )
             );
 
-            claude.send(prompt);
+            agent.send(prompt);
             syncSessionId();
 
             var pushResult = session.exec("smithy-commit-and-push", "Update plan for #" + ctx.number());
@@ -371,8 +369,8 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 ctx.number()
             );
 
-            // Start build session — new ClaudeSession for build phase
-            newClaudeSession(SmithyWorkflowFactory.BUILD_TOOLS);
+            // Start build session for the build phase
+            newAgentSession(SmithyWorkflowFactory.BUILD_TOOLS);
             String prompt = renderer.render(
                 "building.md.j2",
                 Map.of(
@@ -387,12 +385,12 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 )
             );
 
-            claude.send(prompt);
-            claude.ensureCommitted();
+            agent.send(prompt);
+            agent.ensureCommitted();
             syncSessionId();
 
             // Push
-            PushHelper.pushWithRetry(session, claude, vcsClient, info.owner(), info.repo(), pr.number());
+            PushHelper.pushWithRetry(session, agent, vcsClient, info.owner(), info.repo(), pr.number());
 
             // Request review
             String approver = e.approver();
@@ -598,10 +596,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
     // ── Private helpers ─────────────────────────────────────
 
-    private void newClaudeSession(List<String> tools) {
-        this.claude = new ClaudeSession(session, tools, knowledgebaseConfig);
+    private void newAgentSession(List<String> tools) {
+        this.agent = agentSessionFactory.create(session, tools, knowledgebaseConfig);
         if (contextRepoName != null) {
-            claude.setContextRepoName(contextRepoName);
+            agent.setContextRepoName(contextRepoName);
         }
     }
 
@@ -623,11 +621,11 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             }
 
             log.info("Resuming build session in {}", session.getContainerName());
-            claude.send(prompt);
-            claude.ensureCommitted();
+            agent.send(prompt);
+            agent.ensureCommitted();
             syncSessionId();
 
-            PushHelper.pushWithRetry(session, claude, vcsClient, info.owner(), info.repo(), prNumber);
+            PushHelper.pushWithRetry(session, agent, vcsClient, info.owner(), info.repo(), prNumber);
         } catch (Exception ex) {
             log.error("Resume build failed for issue #{}", issueId, ex);
         }
