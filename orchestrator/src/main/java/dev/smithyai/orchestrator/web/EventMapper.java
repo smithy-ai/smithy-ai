@@ -337,7 +337,8 @@ public class EventMapper {
         String title = issue.get("title").asText();
         String body = issue.path("body").asText("");
         String baseBranch = Naming.resolveBaseBranch(issue.path("ref").asText(""));
-        return new IssueContext(info, number, title, body, baseBranch);
+        String author = issue.path("user").path("login").asText("");
+        return new IssueContext(info, number, title, body, baseBranch, author);
     }
 
     private PrContext extractPr(RepoInfo info, JsonNode pr) {

@@ -397,7 +397,8 @@ public class GitLabEventMapper {
         String body = attrs.path("description").asText("");
         // GitLab doesn't have a direct "ref" field on issues — default to main
         String baseBranch = Naming.resolveBaseBranch("");
-        return new IssueContext(info, number, title, body, baseBranch);
+        String author = attrs.path("author_id").asText("");
+        return new IssueContext(info, number, title, body, baseBranch, author);
     }
 
     private PrContext extractPrFromMr(RepoInfo info, JsonNode mr) {

@@ -100,7 +100,16 @@ public class GitHubEventMapper {
 
         var ctx = extractIssue(payload);
         String commentBody = payload.path("comment").path("body").asText("");
+        if (isUserAssigned(payload, botUser) && isPlanApproval(commentBody)) {
+            return new WorkflowEvent.PlanApproved(ctx, commentUser);
+        }
         return new WorkflowEvent.IssueComment(ctx, commentBody);
+    }
+
+    private static boolean isPlanApproval(String body) {
+        String lower = body.strip().toLowerCase();
+        return lower.equals("approved") || lower.equals("/approve") || lower.equals("lgtm")
+            || lower.equals("looks good") || lower.equals("go ahead");
     }
 
     private WorkflowEvent mapPrConversationFromIssueComment(JsonNode payload, String commentUser) {
@@ -335,7 +344,8 @@ public class GitHubEventMapper {
         String title = issue.path("title").asText("");
         String body = issue.path("body").asText("");
         String baseBranch = Naming.resolveBaseBranch(issue.path("ref").asText(""));
-        return new IssueContext(info, number, title, body, baseBranch);
+        String author = issue.path("user").path("login").asText("");
+        return new IssueContext(info, number, title, body, baseBranch, author);
     }
 
     private PrContext extractPr(RepoInfo info, JsonNode pr) {
