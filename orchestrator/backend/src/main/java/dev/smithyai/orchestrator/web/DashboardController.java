@@ -8,7 +8,9 @@ import java.util.HashSet;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -49,5 +51,33 @@ public class DashboardController {
     @GetMapping("/auth/check")
     public ResponseEntity<Void> authCheck() {
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/dashboard/logs/orchestrator")
+    public String orchestratorLogs(@RequestParam(defaultValue = "200") int tail) {
+        return containerService.fetchOwnLogs(tail);
+    }
+
+    @GetMapping("/dashboard/logs/instance/{containerName}")
+    public ResponseEntity<String> instanceLogs(
+        @PathVariable String containerName,
+        @RequestParam(defaultValue = "200") int tail
+    ) {
+        if (!containerService.isManagedContainer(containerName)) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(containerService.fetchLogs(containerName, tail));
+    }
+
+    @GetMapping("/dashboard/session/{containerName}")
+    public ResponseEntity<String> instanceSession(@PathVariable String containerName) {
+        if (!containerService.isManagedContainer(containerName)) {
+            return ResponseEntity.notFound().build();
+        }
+        var state = containerService.readStateSafe(containerName);
+        if (state.isEmpty() || state.get().sessionId() == null) {
+            return ResponseEntity.ok("");
+        }
+        return ResponseEntity.ok(containerService.fetchSessionTranscript(containerName, state.get().sessionId()));
     }
 }

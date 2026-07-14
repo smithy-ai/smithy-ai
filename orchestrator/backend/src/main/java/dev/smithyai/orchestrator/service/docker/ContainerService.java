@@ -81,6 +81,15 @@ public class ContainerService {
             .toList();
     }
 
+    public boolean isManagedContainer(String containerName) {
+        var result = docker.run(List.of("ps", "-a", "--filter", "label=smithy.managed=true", "--format", "{{.Names}}"));
+        if (result.exitCode() != 0) {
+            log.warn("Failed to list managed containers: {}", result.stderr());
+            return false;
+        }
+        return result.stdout().lines().map(String::strip).anyMatch(containerName::equals);
+    }
+
     public Optional<ContainerState> readStateSafe(String containerName) {
         try {
             byte[] data = copyFromContainer(containerName, STATE_PATH);
@@ -192,14 +201,14 @@ public class ContainerService {
             // Check for failure marker
             var failCheck = docker.run(List.of("exec", name, "test", "-f", "/tmp/smithy-init-failed"));
             if (failCheck.exitCode() == 0) {
-                String logs = fetchLogs(name);
+                String logs = fetchLogs(name, 50);
                 throw new RuntimeException("Container " + name + " init failed. Logs:\n" + logs);
             }
 
             // Check if container is still running
             var inspectResult = docker.run(List.of("inspect", "--format", "{{.State.Running}}", name));
             if (inspectResult.exitCode() != 0 || !"true".equals(inspectResult.stdout().strip())) {
-                String logs = fetchLogs(name);
+                String logs = fetchLogs(name, 50);
                 throw new RuntimeException("Container " + name + " stopped during init. Logs:\n" + logs);
             }
 
@@ -213,13 +222,38 @@ public class ContainerService {
         log.warn("Container {} init did not complete within {}s — proceeding anyway", name, INIT_TIMEOUT_SECONDS);
     }
 
-    private String fetchLogs(String name) {
-        var result = docker.run(List.of("logs", "--tail", "50", name));
+    public String fetchLogs(String name, int tailLines) {
+        var result = docker.run(List.of("logs", "--tail", String.valueOf(tailLines), name));
         String logs = result.stdout();
         if (result.stderr() != null && !result.stderr().isBlank()) {
             logs += "\n" + result.stderr();
         }
         return logs;
+    }
+
+    public String fetchOwnLogs(int tailLines) {
+        String selfId = System.getenv("HOSTNAME");
+        if (selfId == null || selfId.isBlank()) {
+            return "Unable to determine own container id (HOSTNAME not set)";
+        }
+        return fetchLogs(selfId, tailLines);
+    }
+
+    /**
+     * Reads the Claude Code session transcript (JSONL) for a given session id.
+     * Requires the container to be running, since it shells in to read the file.
+     */
+    public String fetchSessionTranscript(String containerName, String sessionId) {
+        var result = docker.run(
+            List.of(
+                "exec",
+                containerName,
+                "sh",
+                "-c",
+                "cat \"$(find /root/.claude/projects -name '" + sessionId + ".jsonl' 2>/dev/null | head -1)\" 2>/dev/null"
+            )
+        );
+        return result.stdout();
     }
 
     void destroy(String containerName) {
