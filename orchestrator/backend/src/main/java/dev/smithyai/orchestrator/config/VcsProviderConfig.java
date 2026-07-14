@@ -6,7 +6,8 @@ public record VcsProviderConfig(
     String provider,
     @JsonProperty("issue-provider") String issueProvider,
     ForgejoProviderConfig forgejo,
-    GitLabProviderConfig gitlab
+    GitLabProviderConfig gitlab,
+    GitHubProviderConfig github
 ) {
     public record ForgejoProviderConfig(
         String url,
@@ -29,6 +30,14 @@ public record VcsProviderConfig(
         }
     }
 
+    public record GitHubProviderConfig(
+        String url,
+        @JsonProperty("external-url") String externalUrl,
+        @JsonProperty("webhook-secret") String webhookSecret,
+        @JsonProperty("smithy-token") String smithyToken,
+        @JsonProperty("architect-token") String architectToken
+    ) {}
+
     public String resolvedProvider() {
         return provider != null && !provider.isBlank() ? provider : "forgejo";
     }
@@ -40,6 +49,10 @@ public record VcsProviderConfig(
     public String resolvedUrl() {
         return switch (resolvedProvider()) {
             case "gitlab" -> gitlab != null ? gitlab.url() : null;
+            case "github" -> {
+                if (github == null || github.url() == null || github.url().isBlank()) yield "https://github.com";
+                yield github.url();
+            }
             default -> forgejo != null ? forgejo.url() : null;
         };
     }
@@ -52,6 +65,12 @@ public record VcsProviderConfig(
                     ? gitlab.externalUrl()
                     : gitlab.url();
             }
+            case "github" -> {
+                if (github == null) yield "https://github.com";
+                if (github.externalUrl() != null && !github.externalUrl().isBlank()) yield github.externalUrl();
+                if (github.url() != null && !github.url().isBlank()) yield github.url();
+                yield "https://github.com";
+            }
             default -> forgejo != null ? forgejo.externalUrl() : null;
         };
     }
@@ -59,6 +78,7 @@ public record VcsProviderConfig(
     public String smithyToken() {
         return switch (resolvedProvider()) {
             case "gitlab" -> gitlab != null ? gitlab.smithyToken() : null;
+            case "github" -> github != null ? github.smithyToken() : null;
             default -> forgejo != null ? forgejo.smithyToken() : null;
         };
     }
@@ -66,6 +86,7 @@ public record VcsProviderConfig(
     public String architectToken() {
         return switch (resolvedProvider()) {
             case "gitlab" -> gitlab != null ? gitlab.architectToken() : null;
+            case "github" -> github != null ? github.architectToken() : null;
             default -> forgejo != null ? forgejo.architectToken() : null;
         };
     }
@@ -73,6 +94,7 @@ public record VcsProviderConfig(
     public String gitAuthUser() {
         return switch (resolvedProvider()) {
             case "gitlab" -> gitlab != null && !gitlab.isOAuth2() ? "private-token" : "oauth2";
+            case "github" -> "x-access-token";
             default -> "token";
         };
     }
@@ -116,8 +138,19 @@ public record VcsProviderConfig(
                     requireNonBlank(forgejo.architectToken(), "vcs.forgejo.architect-token");
                 }
             }
+            case "github" -> {
+                if (github == null) {
+                    throw new IllegalStateException(
+                        configKey + " is 'github' but vcs.github section is missing in orchestrator.yml"
+                    );
+                }
+                requireNonBlank(github.smithyToken(), "vcs.github.smithy-token");
+                if (hasArchitect()) {
+                    requireNonBlank(github.architectToken(), "vcs.github.architect-token");
+                }
+            }
             default -> throw new IllegalStateException(
-                configKey + " is '" + providerName + "' but only 'forgejo' and 'gitlab' are supported"
+                configKey + " is '" + providerName + "' but only 'forgejo', 'gitlab', and 'github' are supported"
             );
         }
     }
