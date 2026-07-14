@@ -192,14 +192,14 @@ public class ContainerService {
             // Check for failure marker
             var failCheck = docker.run(List.of("exec", name, "test", "-f", "/tmp/smithy-init-failed"));
             if (failCheck.exitCode() == 0) {
-                String logs = fetchLogs(name);
+                String logs = fetchLogs(name, 50);
                 throw new RuntimeException("Container " + name + " init failed. Logs:\n" + logs);
             }
 
             // Check if container is still running
             var inspectResult = docker.run(List.of("inspect", "--format", "{{.State.Running}}", name));
             if (inspectResult.exitCode() != 0 || !"true".equals(inspectResult.stdout().strip())) {
-                String logs = fetchLogs(name);
+                String logs = fetchLogs(name, 50);
                 throw new RuntimeException("Container " + name + " stopped during init. Logs:\n" + logs);
             }
 
@@ -213,13 +213,21 @@ public class ContainerService {
         log.warn("Container {} init did not complete within {}s — proceeding anyway", name, INIT_TIMEOUT_SECONDS);
     }
 
-    private String fetchLogs(String name) {
-        var result = docker.run(List.of("logs", "--tail", "50", name));
+    public String fetchLogs(String name, int tailLines) {
+        var result = docker.run(List.of("logs", "--tail", String.valueOf(tailLines), name));
         String logs = result.stdout();
         if (result.stderr() != null && !result.stderr().isBlank()) {
             logs += "\n" + result.stderr();
         }
         return logs;
+    }
+
+    public String fetchOwnLogs(int tailLines) {
+        String selfId = System.getenv("HOSTNAME");
+        if (selfId == null || selfId.isBlank()) {
+            return "Unable to determine own container id (HOSTNAME not set)";
+        }
+        return fetchLogs(selfId, tailLines);
     }
 
     void destroy(String containerName) {
