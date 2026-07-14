@@ -21,7 +21,7 @@ Smithy-AI is configured through environment variables. These map to settings in 
 
 | Variable | Default | Description |
 |---|---|---|
-| `VCS_PROVIDER` | `forgejo` | Git provider: `forgejo` or `gitlab` |
+| `VCS_PROVIDER` | `forgejo` | Git provider: `forgejo`, `gitlab`, or `github` |
 | `ISSUE_PROVIDER` | — | Override issue provider (defaults to `VCS_PROVIDER` value) |
 
 ## Forgejo settings
@@ -33,6 +33,16 @@ Smithy-AI is configured through environment variables. These map to settings in 
 | `WEBHOOK_SECRET` | — | HMAC secret for verifying Forgejo webhook signatures |
 | `SMITHY_FORGEJO_TOKEN` | — | API token for the smithy bot user |
 | `ARCHITECT_FORGEJO_TOKEN` | — | API token for the architect bot user |
+
+## GitHub settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `GITHUB_URL` | — | GitHub instance URL. Leave empty for github.com; set for GitHub Enterprise (e.g. `https://github.example.com`) |
+| `GITHUB_EXTERNAL_URL` | — | Browser-reachable URL (defaults to `GITHUB_URL` or `https://github.com`) |
+| `GITHUB_WEBHOOK_SECRET` | — | HMAC secret for verifying GitHub webhook signatures |
+| `SMITHY_GITHUB_TOKEN` | — | Personal access token for the smithy bot user |
+| `ARCHITECT_GITHUB_TOKEN` | — | Personal access token for the architect bot user |
 
 ## GitLab settings
 

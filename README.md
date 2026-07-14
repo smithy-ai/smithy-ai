@@ -6,7 +6,7 @@ Smithy-AI is an orchestrator for AI-assisted software development. It runs Claud
 
 ## Overview
 
-Smithy-AI coordinates multiple AI agents working alongside human developers through a Jira, Gitlab or Forgejo-based workflow:
+Smithy-AI coordinates multiple AI agents working alongside human developers through a GitHub, GitLab or Forgejo-based workflow:
 
 - **Agent Smithy**: plans and implements features based on issues, creates pull requests, and responds to review feedback.
 - **The Architect**: reviews pull requests against established best practices and maintains the project's knowledge base in a separate context repository.
@@ -64,7 +64,7 @@ python3 scripts/setup_repo.py owner/repo
 
 ## Documentation
 
-- **Setup**: [Demo](https://smithy-ai.github.io/smithy-ai/setup/demo/) · [Forgejo](https://smithy-ai.github.io/smithy-ai/setup/forgejo/) · [GitLab](https://smithy-ai.github.io/smithy-ai/setup/gitlab/)
+- **Setup**: [Demo](https://smithy-ai.github.io/smithy-ai/setup/demo/) · [GitHub](https://smithy-ai.github.io/smithy-ai/setup/github/) · [GitLab](https://smithy-ai.github.io/smithy-ai/setup/gitlab/) · [Forgejo](https://smithy-ai.github.io/smithy-ai/setup/forgejo/)
 - [Usage & Workflow](https://smithy-ai.github.io/smithy-ai/usage/)
 - [Configuration Reference](https://smithy-ai.github.io/smithy-ai/configuration/)
 - [Custom Task Images](https://smithy-ai.github.io/smithy-ai/advanced/custom-task-images/)
