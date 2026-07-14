@@ -34,6 +34,7 @@ public class ContainerService {
     private final String vcsUrl;
     private final String vcsToken;
     private final String claudeOauthToken;
+    private final String claudeApiKey;
     private final String gitAuthUser;
     private final String defaultGitEmail;
 
@@ -50,6 +51,7 @@ public class ContainerService {
         this.vcsUrl = vcsConfig.resolvedUrl();
         this.vcsToken = vcsConfig.smithyToken();
         this.claudeOauthToken = claudeConfig.oauthToken();
+        this.claudeApiKey = claudeConfig.apiKey();
         this.gitAuthUser = vcsConfig.gitAuthUser();
         this.defaultGitEmail = botConfig.resolvedSmithyEmail();
     }
@@ -118,8 +120,14 @@ public class ContainerService {
         }
 
         // Environment
-        args.add("-e");
-        args.add("CLAUDE_CODE_OAUTH_TOKEN=" + claudeOauthToken);
+        if (claudeOauthToken != null && !claudeOauthToken.isBlank()) {
+            args.add("-e");
+            args.add("CLAUDE_CODE_OAUTH_TOKEN=" + claudeOauthToken);
+        }
+        if (claudeApiKey != null && !claudeApiKey.isBlank()) {
+            args.add("-e");
+            args.add("ANTHROPIC_API_KEY=" + claudeApiKey);
+        }
         args.add("-e");
         args.add("VCS_URL=" + vcsUrl);
         args.add("-e");
