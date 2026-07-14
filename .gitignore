@@ -12,6 +12,9 @@ venv/
 .gradle/
 build/
 
+# Node
+node_modules/
+
 # Environment
 .env
 
