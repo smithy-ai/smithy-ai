@@ -102,12 +102,11 @@ public class WebhookController {
             String commitHash = gitSyncService.syncRepository(repo);
             log.info("Git sync completed for {}. Commit: {}", repoFullName, commitHash);
 
-            Map<String, Object> indexResult = indexingService.buildAndSwapIndex(repo);
+            Map<String, Object> indexResult = indexingService.buildAndSwapIndex(repo, commitHash);
             log.info("Index build completed for {}: {}", repoFullName, indexResult);
 
             Map<String, Object> response = new HashMap<>(indexResult);
             response.put("status", "success");
-            response.put("commitHash", commitHash);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Sync failed for repo {}: {}", repoFullName, e.getMessage(), e);
