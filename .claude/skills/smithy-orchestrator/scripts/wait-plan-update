@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# wait-plan-update <group/repo> <issue-number> <interval-s> <timeout-s> <baseline-sha1>
+# Polls the plan file until its hash differs from the baseline (capture the
+# baseline BEFORE posting feedback, or you'll baseline the revised plan and
+# wait forever). Exits 0 on change, 1 on timeout.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: wait-plan-update <group/repo> <issue> <interval> <timeout> <baseline-sha1>}"
+issue="${2:?missing issue number}"
+interval="${3:?missing poll interval (seconds)}"
+timeout="${4:?missing timeout (seconds)}"
+baseline="${5:?missing baseline sha1 (issue-plan ... | shasum | awk '{print \$1}')}"
+
+script_dir="$(dirname "${BASH_SOURCE[0]}")"
+elapsed=0
+while (( elapsed < timeout )); do
+    current="$("$script_dir/issue-plan" "$project" "$issue" 2>/dev/null | shasum | awk '{print $1}')" || current=""
+    if [[ -n "$current" && "$current" != "$baseline" && "$current" != "$(printf '' | shasum | awk '{print $1}')" ]]; then
+        echo "plan updated ($current)"
+        exit 0
+    fi
+    echo "poll ${elapsed}s: unchanged"
+    sleep "$interval"
+    elapsed=$(( elapsed + interval ))
+done
+
+echo "timeout after ${timeout}s: plan unchanged" >&2
+exit 1

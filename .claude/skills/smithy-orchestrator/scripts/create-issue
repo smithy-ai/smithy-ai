@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# create-issue <group/repo> <title> <body> [label ...]
+# Creates the issue, then assigns the smithy bot (assignment is the webhook
+# trigger that starts smithy's refinement). Prints: <iid> <web_url>
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: create-issue <group/repo> <title> <body> [label ...]}"
+title="${2:?missing title}"
+body="${3:?missing body}"
+shift 3
+labels="$(IFS=,; printf '%s' "$*")"
+
+proj_enc="$(encode "$project")"
+
+args=(-X POST "projects/$proj_enc/issues" -f "title=$title" -f "description=$body")
+[[ -n "$labels" ]] && args+=(-f "labels=$labels")
+issue="$(api "${args[@]}")"
+
+iid="$(jq -r '.iid' <<<"$issue")"
+url="$(jq -r '.web_url' <<<"$issue")"
+
+uid="$(api "users?username=$(encode "$SMITHY_BOT")" | jq -r '.[0].id // empty')"
+if [[ -z "$uid" ]]; then
+    echo "error: user '$SMITHY_BOT' not found on $GITLAB_HOST — issue #$iid created UNASSIGNED: $url" >&2
+    exit 1
+fi
+
+api -X PUT "projects/$proj_enc/issues/$iid" -F "assignee_ids=$uid" >/dev/null
+
+echo "$iid $url"

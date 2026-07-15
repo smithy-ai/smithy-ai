@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# mr-for-issue <group/repo> <issue-number>
+# Finds the MR whose source branch is smithy/<n>-*.
+# Prints: "<mr-iid> <state> <draft> <web_url>". Exit 1 if no MR yet.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: mr-for-issue <group/repo> <issue-number>}"
+issue="${2:?missing issue number}"
+
+branch="$(smithy_branch "$project" "$issue")"
+
+mr="$(api "projects/$(encode "$project")/merge_requests?source_branch=$(encode "$branch")&state=all" |
+    jq -r '.[0] // empty')"
+
+if [[ -z "$mr" ]]; then
+    echo "no MR for $project#$issue (branch $branch) yet" >&2
+    exit 1
+fi
+
+jq -r '"\(.iid) \(.state) \(.draft) \(.web_url)"' <<<"$mr"

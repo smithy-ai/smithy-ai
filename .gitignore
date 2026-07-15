@@ -18,6 +18,9 @@ node_modules/
 # Environment
 .env
 
+# smithy-orchestrator skill: local repo manifest
+.claude/skills/smithy-orchestrator/repos.yml
+
 # IDE
 .idea/
 .vscode/

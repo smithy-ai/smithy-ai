@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# issue-plan <group/repo> <issue-number>
+# Prints smithy's current plan (.smithy/plans/<n>.md on the smithy/<n>-* branch)
+# to stdout; source ref to stderr.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: issue-plan <group/repo> <issue-number>}"
+issue="${2:?missing issue number}"
+
+branch="$(smithy_branch "$project" "$issue")"
+plan_path=".smithy/plans/$issue.md"
+
+echo "source: $project @ $branch : $plan_path" >&2
+api "projects/$(encode "$project")/repository/files/$(encode "$plan_path")/raw?ref=$(encode "$branch")"
