@@ -20,8 +20,19 @@ public class ClaudeSession {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration TIMEOUT = Duration.ofMinutes(30);
     private static final String CLAUDE_BINARY = "/usr/bin/claude";
-    private static final String DEFAULT_MODEL = "opus";
     private static final String PLANS_DIR = "/root/.claude/plans";
+
+    /**
+     * Model used when callers don't pass one explicitly. Set once at startup from
+     * claude.model (CLAUDE_MODEL) by {@link dev.smithyai.orchestrator.config.ConfigLoader}.
+     */
+    private static volatile String defaultModel = "opus";
+
+    public static void configureDefaultModel(String model) {
+        if (model != null && !model.isBlank()) {
+            defaultModel = model;
+        }
+    }
 
     @Getter
     private final String sessionId;
@@ -62,7 +73,7 @@ public class ClaudeSession {
     }
 
     public void startPlan(String prompt) {
-        execute(prompt, DEFAULT_MODEL, "plan", false, null);
+        execute(prompt, defaultModel, "plan", false, null);
         started = true;
     }
 
@@ -71,7 +82,7 @@ public class ClaudeSession {
     }
 
     public <T> T send(String prompt, Class<T> resultType) {
-        return send(prompt, resultType, DEFAULT_MODEL);
+        return send(prompt, resultType, defaultModel);
     }
 
     public <T> T send(String prompt, Class<T> resultType, String model) {

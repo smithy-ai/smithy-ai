@@ -16,6 +16,7 @@ Smithy-AI is configured through environment variables. These map to settings in 
 | Variable | Default | Description |
 |---|---|---|
 | `CLAUDE_CODE_OAUTH_TOKEN` | — | OAuth token from `claude setup-token` **(required)** |
+| `CLAUDE_MODEL` | `opus` | Claude model used by agent sessions (e.g. `opus`, `sonnet`) |
 
 ## VCS provider
 
