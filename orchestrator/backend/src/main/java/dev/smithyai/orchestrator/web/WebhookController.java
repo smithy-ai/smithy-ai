@@ -51,7 +51,11 @@ public class WebhookController {
         @RequestHeader(value = "X-Forgejo-Event", required = false) String forgejoEvent,
         @RequestHeader(value = "X-Gitea-Event", required = false) String giteaEvent
     ) {
-        String secret = vcsConfig.forgejo() != null ? vcsConfig.forgejo().webhookSecret() : "";
+        String secret = vcsConfig.forgejo() != null ? vcsConfig.forgejo().webhookSecret() : null;
+        if (secret == null || secret.isBlank()) {
+            log.warn("Webhook rejected: vcs.forgejo.webhook-secret is not configured");
+            return ResponseEntity.status(403).body("Webhook secret not configured");
+        }
         if (!verifySignature(body, signature, secret)) {
             log.warn("Webhook rejected: invalid HMAC signature");
             return ResponseEntity.status(403).body("Invalid signature");
@@ -135,7 +139,11 @@ public class WebhookController {
             return ResponseEntity.status(404).body("GitHub integration not enabled");
         }
 
-        String secret = vcsConfig.github() != null ? vcsConfig.github().webhookSecret() : "";
+        String secret = vcsConfig.github() != null ? vcsConfig.github().webhookSecret() : null;
+        if (secret == null || secret.isBlank()) {
+            log.warn("GitHub webhook rejected: vcs.github.webhook-secret is not configured");
+            return ResponseEntity.status(403).body("Webhook secret not configured");
+        }
         // GitHub sends "sha256=<hex>" — strip the prefix before verifying
         String signatureHex = signature.startsWith("sha256=") ? signature.substring(7) : signature;
         if (!verifySignature(body, signatureHex, secret)) {
