@@ -179,7 +179,7 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
 
     @Override
     public List<ReviewCommentEntry> getReviewComments(String owner, String repo, int prNumber, long reviewId) {
-        var nodes = getList("/repos/%s/%s/pulls/%d/reviews/%d/comments", owner, repo, prNumber, reviewId);
+        var nodes = getList("/repos/%s/%s/pulls/%d/reviews/%d/comments?per_page=100", owner, repo, prNumber, reviewId);
         return nodes.stream().map(this::toReviewCommentEntry).toList();
     }
 
@@ -310,13 +310,14 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
     }
 
     private List<JsonNode> getList(String pathTemplate, Object... args) {
-        var node = get(pathTemplate, args);
-        if (node.isArray()) {
-            var list = new ArrayList<JsonNode>();
-            for (var item : node) list.add(item);
-            return list;
+        var result = new ArrayList<JsonNode>();
+        String url = pathTemplate.formatted(args);
+        while (url != null) {
+            var page = getPage(url);
+            result.addAll(page.items());
+            url = page.nextUrl();
         }
-        return List.of();
+        return result;
     }
 
     private JsonNode post(String pathTemplate, Map<String, Object> body, Object... args) {
