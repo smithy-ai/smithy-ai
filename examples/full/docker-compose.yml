@@ -28,6 +28,7 @@ services:
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-}
       # Claude & Docker
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-opus}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
       - TASK_IMAGE=${TASK_IMAGE:-ghcr.io/smithy-ai/claude-task-default:dev}

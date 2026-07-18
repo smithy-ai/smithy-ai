@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# wait-mr-implemented <group/repo> <mr-iid> [interval-s=15] [timeout-s=3600]
+# Polls until the MR contains code changes (files outside .smithy/) AND the
+# head SHA is stable across two consecutive polls. Smithy opens its MR early —
+# often plan-only — so "MR exists" must not be read as "implemented".
+# Exits 0 when implemented, 1 on timeout or merged/closed before code landed.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: wait-mr-implemented <group/repo> <mr-iid> [interval] [timeout]}"
+mr="${2:?missing MR iid}"
+interval="${3:-15}"
+timeout="${4:-3600}"
+
+proj_enc="$(encode "$project")"
+prev_sha=""
+elapsed=0
+
+while (( elapsed < timeout )); do
+    info="$(api "projects/$proj_enc/merge_requests/$mr" 2>/dev/null)" || info=""
+    sha="$(jq -r '.sha // empty' <<<"$info" 2>/dev/null)" || sha=""
+    state="$(jq -r '.state // "unknown"' <<<"$info" 2>/dev/null)" || state="unknown"
+
+    # Guard against transient API blips: only trust well-formed SHAs.
+    if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+        echo "poll ${elapsed}s: no valid head SHA (transient?)"
+    else
+        code_files="$(api "projects/$proj_enc/merge_requests/$mr/diffs?per_page=100" --paginate 2>/dev/null |
+            jq -r '[.[] | select((.new_path | startswith(".smithy/") | not))] | length' 2>/dev/null)" || code_files=0
+        echo "poll ${elapsed}s: state=$state sha=${sha:0:8} code_files=${code_files:-0}"
+
+        if [[ "$state" == "merged" || "$state" == "closed" ]]; then
+            [[ "${code_files:-0}" -gt 0 ]] && exit 0
+            echo "MR $state without code changes" >&2
+            exit 1
+        fi
+        if [[ "${code_files:-0}" -gt 0 && "$sha" == "$prev_sha" ]]; then
+            echo "implemented: $code_files code files, head stable at ${sha:0:8}"
+            exit 0
+        fi
+        prev_sha="$sha"
+    fi
+
+    sleep "$interval"
+    elapsed=$(( elapsed + interval ))
+done
+
+echo "timeout after ${timeout}s waiting for implementation on MR !$mr" >&2
+exit 1

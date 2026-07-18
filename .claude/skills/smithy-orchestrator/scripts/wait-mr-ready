@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# wait-mr-ready <group/repo> <mr-iid> [interval-s=10] [timeout-s=86400]
+# Polls until the draft flag is removed, or the MR is merged/closed.
+# Un-drafting and merging are the USER's actions — this only observes them.
+# Prints final status line; exit 0 on ready/merged, 1 on closed/timeout.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: wait-mr-ready <group/repo> <mr-iid> [interval] [timeout]}"
+mr="${2:?missing MR iid}"
+interval="${3:-10}"
+timeout="${4:-86400}"
+
+proj_enc="$(encode "$project")"
+elapsed=0
+
+while (( elapsed < timeout )); do
+    info="$(api "projects/$proj_enc/merge_requests/$mr" 2>/dev/null)" || info=""
+    state="$(jq -r '.state // "unknown"' <<<"$info" 2>/dev/null)" || state="unknown"
+    draft="$(jq -r 'if .draft == null then "unknown" else (.draft|tostring) end' <<<"$info" 2>/dev/null)" || draft="unknown"
+
+    echo "poll ${elapsed}s: state=$state draft=$draft"
+
+    case "$state/$draft" in
+        merged/*) echo "merged"; exit 0 ;;
+        closed/*) echo "closed without merge" >&2; exit 1 ;;
+        opened/false) echo "ready (draft removed)"; exit 0 ;;
+    esac
+
+    sleep "$interval"
+    elapsed=$(( elapsed + interval ))
+done
+
+echo "timeout after ${timeout}s on MR !$mr" >&2
+exit 1

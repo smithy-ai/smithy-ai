@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# mr-diff <group/repo> <mr-iid>
+# Prints MR metadata (title, state, CI status, description) followed by the
+# full diff — everything needed to review the MR.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: mr-diff <group/repo> <mr-iid>}"
+mr="${2:?missing MR iid}"
+
+proj_enc="$(encode "$project")"
+
+api "projects/$proj_enc/merge_requests/$mr" | jq -r '
+    "MR !\(.iid): \(.title)",
+    "state: \(.state)  draft: \(.draft)  ci: \(.head_pipeline.status // "none")",
+    "branch: \(.source_branch) -> \(.target_branch)",
+    "url: \(.web_url)",
+    "",
+    "--- description ---",
+    (.description // "(empty)"),
+    "",
+    "--- diff ---"
+'
+
+api "projects/$proj_enc/merge_requests/$mr/diffs?per_page=100" --paginate | jq -r '
+    .[] |
+    "diff --git a/\(.old_path) b/\(.new_path)"
+    + (if .new_file then "\nnew file" elif .deleted_file then "\ndeleted file"
+       elif .renamed_file then "\nrenamed from \(.old_path)" else "" end)
+    + "\n\(.diff)"
+'

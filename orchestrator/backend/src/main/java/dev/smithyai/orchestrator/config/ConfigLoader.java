@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.config;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import dev.smithyai.orchestrator.service.claude.ClaudeSession;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -26,7 +27,12 @@ public class ConfigLoader {
             this.config = mapper.readValue(resolved, SmithyConfig.class);
             config.vcs().validate();
             config.claude().validate();
-            log.info("Loaded orchestrator config (provider={})", config.vcs().resolvedProvider());
+            ClaudeSession.configureDefaultModel(config.claude().resolvedModel());
+            log.info(
+                "Loaded orchestrator config (provider={}, model={})",
+                config.vcs().resolvedProvider(),
+                config.claude().resolvedModel()
+            );
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to parse orchestrator config", e);
         }

@@ -2,9 +2,18 @@ package dev.smithyai.orchestrator.config;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public record ClaudeConfig(@JsonProperty("oauth-token") String oauthToken, @JsonProperty("api-key") String apiKey) {
+public record ClaudeConfig(
+    @JsonProperty("oauth-token") String oauthToken,
+    @JsonProperty("api-key") String apiKey,
+    String model
+) {
     public boolean hasOauthToken() {
         return oauthToken != null && !oauthToken.isBlank();
+    }
+
+    /** Claude model used by agent sessions (e.g. "opus", "sonnet"). */
+    public String resolvedModel() {
+        return model != null && !model.isBlank() ? model : "opus";
     }
 
     public boolean hasApiKey() {
