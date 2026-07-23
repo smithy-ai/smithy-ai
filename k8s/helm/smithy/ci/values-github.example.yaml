@@ -1,0 +1,28 @@
+# Example: GitHub-backed orchestrator, no knowledgebase, exposed via ingress.
+# Install with:
+#   helm install smithy ./k8s/helm/smithy -n smithy --create-namespace \
+#     -f k8s/helm/smithy/ci/values-github.example.yaml \
+#     --set-string secrets.claudeCodeOauthToken=$CLAUDE_CODE_OAUTH_TOKEN \
+#     --set-string secrets.smithyGithubToken=$SMITHY_GITHUB_TOKEN \
+#     --set-string secrets.architectGithubToken=$ARCHITECT_GITHUB_TOKEN \
+#     --set-string secrets.githubWebhookSecret=$GITHUB_WEBHOOK_SECRET
+
+image:
+  tag: dev
+
+config:
+  vcsProvider: github
+  smithyBotUser: smithy-bot
+  architectBotUser: architect-bot
+
+# Secrets are intentionally left blank here — pass them at install time with
+# --set-string or point at an existing secret via secrets.existingSecret.
+secrets: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  host: smithy.example.com
+  tls:
+    enabled: true
+    secretName: smithy-tls

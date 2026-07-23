@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "smithy.orchestrator.fullname" . }}-env
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: orchestrator
+data:
+  VCS_PROVIDER: {{ .Values.config.vcsProvider | quote }}
+  {{- with .Values.config.issueProvider }}
+  ISSUE_PROVIDER: {{ . | quote }}
+  {{- end }}
+  TASK_IMAGE: {{ include "smithy.taskImage" . | quote }}
+  CACHE_VOLUMES: {{ .Values.config.cacheVolumes | quote }}
+  DOCKER_NETWORK: {{ .Values.config.dockerNetwork | quote }}
+
+  SMITHY_BOT_USER: {{ .Values.config.smithyBotUser | quote }}
+  ARCHITECT_BOT_USER: {{ .Values.config.architectBotUser | quote }}
+  {{- with .Values.config.smithyBotEmail }}
+  SMITHY_BOT_EMAIL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.architectBotEmail }}
+  ARCHITECT_BOT_EMAIL: {{ . | quote }}
+  {{- end }}
+
+  {{- if eq .Values.config.vcsProvider "gitlab" }}
+  {{- with .Values.config.gitlabUrl }}
+  GITLAB_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.gitlabExternalUrl }}
+  GITLAB_EXTERNAL_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.gitlabTokenType }}
+  GITLAB_TOKEN_TYPE: {{ . | quote }}
+  {{- end }}
+  {{- end }}
+
+  {{- if eq .Values.config.vcsProvider "forgejo" }}
+  {{- with .Values.config.forgejoUrl }}
+  FORGEJO_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.forgejoExternalUrl }}
+  FORGEJO_EXTERNAL_URL: {{ . | quote }}
+  {{- end }}
+  {{- end }}
+
+  {{- if eq .Values.config.vcsProvider "github" }}
+  {{- with .Values.config.githubUrl }}
+  GITHUB_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.githubExternalUrl }}
+  GITHUB_EXTERNAL_URL: {{ . | quote }}
+  {{- end }}
+  {{- end }}
+
+  KNOWLEDGEBASE_ENABLED: {{ .Values.knowledgebase.enabled | quote }}
+  {{- if .Values.knowledgebase.enabled }}
+  KNOWLEDGEBASE_URL: {{ include "smithy.knowledgebase.url" . | quote }}
+  {{- end }}

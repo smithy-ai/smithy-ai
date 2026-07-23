@@ -1,0 +1,19 @@
+apiVersion: v2
+name: smithy
+description: |
+  Smithy-AI on Kubernetes — deploys the orchestrator (with an in-pod
+  Docker-in-Docker engine for running Claude task containers) and the
+  optional knowledgebase MCP server.
+type: application
+version: 0.1.0
+# Matches the app images the chart deploys by default (override with --set image.tag).
+appVersion: "dev"
+keywords:
+  - smithy-ai
+  - claude
+  - orchestrator
+home: https://github.com/smithy-ai/smithy-ai
+sources:
+  - https://github.com/smithy-ai/smithy-ai
+maintainers:
+  - name: smithy-ai

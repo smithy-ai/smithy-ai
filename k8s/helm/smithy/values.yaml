@@ -1,0 +1,200 @@
+# Default values for the Smithy-AI chart.
+# This is a YAML-formatted file. Values map onto the environment variables that
+# the orchestrator (orchestrator.yml) and knowledgebase (knowledgebase.yml)
+# resolve at startup, so anything documented in examples/*/docker-compose.yml
+# is expressible here.
+
+# -- Image tag applied to orchestrator, knowledgebase and (by default) the task
+#    image. Override per-image below if you need to mix tags.
+image:
+  registry: ghcr.io/smithy-ai
+  tag: dev
+  pullPolicy: IfNotPresent
+# Names of image pull secrets (created out of band) for private registries.
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# ----------------------------------------------------------------------------
+# Orchestrator
+# ----------------------------------------------------------------------------
+orchestrator:
+  image:
+    repository: ""            # defaults to {{ image.registry }}/orchestrator
+    tag: ""                   # defaults to image.tag
+  replicaCount: 1             # keep at 1 — task containers live in this pod's DinD engine
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  # Extra environment variables, injected verbatim (list of {name,value} or
+  # {name,valueFrom}). Use for anything not covered by the typed keys below.
+  extraEnv: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  # The engine that runs Claude task containers. "dind" runs a Docker daemon as
+  # a sidecar inside the orchestrator pod (portable, works on any cluster,
+  # requires a privileged container). "hostSocket" mounts the node's Docker
+  # socket instead (only works on nodes whose runtime is Docker; no privileged
+  # sidecar).
+  engine:
+    mode: dind               # dind | hostSocket
+    dind:
+      image: docker:27-dind
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          memory: 4Gi
+      # emptyDir size for the DinD image/layer store (/var/lib/docker).
+      storage: 20Gi
+    hostSocket:
+      path: /var/run/docker.sock
+
+# ----------------------------------------------------------------------------
+# Non-secret configuration (rendered into a ConfigMap, injected via envFrom).
+# Leave a value empty ("") to fall back to the image's built-in default.
+# ----------------------------------------------------------------------------
+config:
+  # gitlab | forgejo | github
+  vcsProvider: github
+  issueProvider: ""
+
+  # Docker/runtime
+  taskImage: ""              # defaults to {{ image.registry }}/claude-task-default:{{ image.tag }}
+  cacheVolumes: "pnpm,npm"
+  dockerNetwork: smithy-net  # user-defined network created inside DinD for task DNS
+
+  # Bots
+  smithyBotUser: smithy
+  architectBotUser: architect
+  smithyBotEmail: ""
+  architectBotEmail: ""
+
+  # GitLab (only used when vcsProvider=gitlab)
+  gitlabUrl: ""
+  gitlabExternalUrl: ""
+  gitlabTokenType: oauth2
+
+  # Forgejo (only used when vcsProvider=forgejo)
+  forgejoUrl: ""
+  forgejoExternalUrl: ""
+
+  # GitHub (only used when vcsProvider=github)
+  githubUrl: ""
+  githubExternalUrl: ""
+
+# ----------------------------------------------------------------------------
+# Secret configuration (rendered into a Secret, injected via envFrom).
+# Prefer supplying these with `--set-string` / an external secret manager /
+# `existingSecret` rather than committing them to values.yaml.
+# ----------------------------------------------------------------------------
+secrets:
+  # If set, the chart does NOT create a Secret and instead references this one
+  # (which must contain the same env-var keys the chart would have created).
+  existingSecret: ""
+
+  # Claude auth — supply exactly one.
+  claudeCodeOauthToken: ""
+  anthropicApiKey: ""
+
+  # GitLab
+  smithyGitlabToken: ""
+  architectGitlabToken: ""
+  gitlabWebhookSecret: ""
+
+  # Forgejo
+  smithyForgejoToken: ""
+  architectForgejoToken: ""
+  forgejoWebhookSecret: ""      # maps to WEBHOOK_SECRET
+
+  # GitHub
+  smithyGithubToken: ""
+  architectGithubToken: ""
+  githubWebhookSecret: ""
+
+  # Dashboard basic-auth (bcrypt hash), optional
+  adminPasswordHash: ""
+
+# ----------------------------------------------------------------------------
+# Knowledgebase MCP server (optional)
+# ----------------------------------------------------------------------------
+knowledgebase:
+  enabled: false
+  image:
+    repository: ""            # defaults to {{ image.registry }}/knowledgebase
+    tag: ""                   # defaults to image.tag
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  service:
+    type: ClusterIP
+    port: 8000
+
+  # Vector store persistence.
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""          # "" = cluster default
+    accessMode: ReadWriteOnce
+    existingClaim: ""
+
+  # Repositories the KB should index. Rendered into /config/knowledgebase.yml.
+  # Example:
+  #   repositories:
+  #     - name: test/myapp-context
+  #       clone-url: https://github.com/acme/myapp-context.git
+  #       branch: main
+  repositories: []
+  chunkSize: 1000
+  embeddingModel: text-embedding-3-small
+  chatModel: gpt-4o
+
+  # VCS_URL/VCS_TOKEN the KB uses to clone repos (may differ from orchestrator).
+  vcsUrl: ""
+  config:
+    openaiApiKey: ""
+    vcsToken: ""
+    webhookSecret: ""
+    existingSecret: ""        # provide OPENAI_API_KEY/VCS_TOKEN/WEBHOOK_SECRET yourself
+
+  extraEnv: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+# ----------------------------------------------------------------------------
+# Ingress (replaces the Caddy reverse-proxy from docker-compose)
+# ----------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: smithy.example.com
+  # Path routed to the orchestrator service.
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: false
+    secretName: ""            # existing TLS secret; leave empty to let annotations/cert-manager handle it

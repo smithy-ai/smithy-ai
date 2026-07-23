@@ -1,0 +1,19 @@
+{{- if .Values.knowledgebase.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "smithy.knowledgebase.fullname" . }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+spec:
+  type: {{ .Values.knowledgebase.service.type }}
+  selector:
+    {{- include "smithy.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+  ports:
+    - name: http
+      port: {{ .Values.knowledgebase.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

@@ -1,0 +1,41 @@
+# Example: GitLab-backed orchestrator with the knowledgebase enabled and
+# persisted, exposed via ingress.
+# Install with:
+#   helm install smithy ./k8s/helm/smithy -n smithy --create-namespace \
+#     -f k8s/helm/smithy/ci/values-full.example.yaml \
+#     --set-string secrets.claudeCodeOauthToken=$CLAUDE_CODE_OAUTH_TOKEN \
+#     --set-string secrets.smithyGitlabToken=$SMITHY_GITLAB_TOKEN \
+#     --set-string secrets.gitlabWebhookSecret=$GITLAB_WEBHOOK_SECRET \
+#     --set-string knowledgebase.config.openaiApiKey=$OPENAI_API_KEY \
+#     --set-string knowledgebase.config.vcsToken=$SMITHY_GITLAB_TOKEN
+
+image:
+  tag: dev
+
+config:
+  vcsProvider: gitlab
+  gitlabUrl: https://gitlab.example.com
+  gitlabExternalUrl: https://gitlab.example.com
+  gitlabTokenType: oauth2
+
+secrets: {}
+
+knowledgebase:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+    # storageClass: fast-ssd
+  vcsUrl: https://gitlab.example.com
+  repositories:
+    - name: myorg/myapp-context
+      cloneUrl: https://gitlab.example.com/myorg/myapp-context.git
+      branch: main
+
+ingress:
+  enabled: true
+  className: nginx
+  host: smithy.example.com
+  tls:
+    enabled: true
+    secretName: smithy-tls

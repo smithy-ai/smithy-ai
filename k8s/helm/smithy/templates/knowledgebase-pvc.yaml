@@ -1,0 +1,18 @@
+{{- if and .Values.knowledgebase.enabled .Values.knowledgebase.persistence.enabled (not .Values.knowledgebase.persistence.existingClaim) -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "smithy.knowledgebase.fullname" . }}-vectorstore
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+spec:
+  accessModes:
+    - {{ .Values.knowledgebase.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.knowledgebase.persistence.size }}
+  {{- if .Values.knowledgebase.persistence.storageClass }}
+  storageClassName: {{ .Values.knowledgebase.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}

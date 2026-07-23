@@ -1,0 +1,38 @@
+Smithy-AI has been deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Engine mode: {{ .Values.orchestrator.engine.mode }}
+{{- if eq .Values.orchestrator.engine.mode "dind" }}
+  Task containers run inside a Docker-in-Docker sidecar in the orchestrator pod
+  (privileged). The pod uses the "{{ .Values.config.dockerNetwork }}" Docker network.
+{{- else }}
+  Task containers run against the node Docker socket at
+  {{ .Values.orchestrator.engine.hostSocket.path }} (node runtime must be Docker).
+{{- end }}
+
+VCS provider: {{ .Values.config.vcsProvider }}
+Task image:   {{ include "smithy.taskImage" . }}
+{{- if .Values.knowledgebase.enabled }}
+Knowledgebase: enabled at {{ include "smithy.knowledgebase.url" . }}
+{{- else }}
+Knowledgebase: disabled
+{{- end }}
+
+1. Watch the orchestrator come up:
+
+   kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "smithy.orchestrator.fullname" . }}
+
+2. Reach the dashboard / webhook endpoint:
+{{- if .Values.ingress.enabled }}
+
+   http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}{{ .Values.ingress.path }}
+{{- else }}
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "smithy.orchestrator.fullname" . }} 8080:{{ .Values.orchestrator.service.port }}
+   # then open http://localhost:8080
+{{- end }}
+
+{{- if and (not .Values.secrets.existingSecret) (not .Values.secrets.claudeCodeOauthToken) (not .Values.secrets.anthropicApiKey) }}
+
+WARNING: neither secrets.claudeCodeOauthToken nor secrets.anthropicApiKey is set.
+         The orchestrator will fail to start until one is provided.
+{{- end }}

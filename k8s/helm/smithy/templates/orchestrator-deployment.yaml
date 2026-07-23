@@ -1,0 +1,163 @@
+{{- $dind := eq .Values.orchestrator.engine.mode "dind" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "smithy.orchestrator.fullname" . }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: orchestrator
+spec:
+  # Task containers are stateful and live inside this pod's engine, so a single
+  # replica is required. Do not scale horizontally.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "smithy.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: orchestrator
+  template:
+    metadata:
+      labels:
+        {{- include "smithy.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: orchestrator
+      annotations:
+        # Roll the pod when config/secret content changes.
+        checksum/config: {{ include (print $.Template.BasePath "/orchestrator-configmap.yaml") . | sha256sum }}
+        {{- if not .Values.secrets.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/orchestrator-secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.orchestrator.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "smithy.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- if $dind }}
+        # Docker-in-Docker engine, run as a native sidecar (restartPolicy: Always)
+        # so it starts before — and stays up alongside — the orchestrator.
+        - name: dind
+          image: {{ .Values.orchestrator.engine.dind.image | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          restartPolicy: Always
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          args:
+            - --host=unix:///var/run/docker.sock
+          volumeMounts:
+            - name: docker-sock
+              mountPath: /var/run
+            - name: dind-storage
+              mountPath: /var/lib/docker
+          resources:
+            {{- toYaml .Values.orchestrator.engine.dind.resources | nindent 12 }}
+          startupProbe:
+            exec:
+              command: ["docker", "info"]
+            periodSeconds: 3
+            failureThreshold: 40
+        {{- end }}
+        # Ensure the user-defined Docker network exists before the orchestrator
+        # starts (task containers need it for name-based DNS).
+        - name: network-setup
+          image: docker:27-cli
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              for i in $(seq 1 60); do
+                docker info >/dev/null 2>&1 && break
+                echo "waiting for docker engine..."; sleep 2
+              done
+              docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1 \
+                || docker network create "$DOCKER_NETWORK"
+              echo "network $DOCKER_NETWORK ready"
+          env:
+            - name: DOCKER_HOST
+              value: unix:///var/run/docker.sock
+            - name: DOCKER_NETWORK
+              value: {{ .Values.config.dockerNetwork | quote }}
+          volumeMounts:
+            {{- if $dind }}
+            - name: docker-sock
+              mountPath: /var/run
+            {{- else }}
+            - name: host-docker-sock
+              mountPath: /var/run/docker.sock
+            {{- end }}
+      containers:
+        - name: orchestrator
+          image: {{ include "smithy.orchestrator.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DOCKER_HOST
+              value: unix:///var/run/docker.sock
+            {{- with .Values.orchestrator.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "smithy.orchestrator.fullname" . }}-env
+            - secretRef:
+                name: {{ .Values.secrets.existingSecret | default (printf "%s-secret" (include "smithy.orchestrator.fullname" .)) }}
+          volumeMounts:
+            {{- if $dind }}
+            - name: docker-sock
+              mountPath: /var/run
+            {{- else }}
+            - name: host-docker-sock
+              mountPath: /var/run/docker.sock
+            {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 15
+            failureThreshold: 4
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.orchestrator.resources | nindent 12 }}
+      volumes:
+        {{- if $dind }}
+        - name: docker-sock
+          emptyDir: {}
+        - name: dind-storage
+          emptyDir:
+            sizeLimit: {{ .Values.orchestrator.engine.dind.storage }}
+        {{- else }}
+        - name: host-docker-sock
+          hostPath:
+            path: {{ .Values.orchestrator.engine.hostSocket.path }}
+            type: Socket
+        {{- end }}
+      {{- with .Values.orchestrator.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestrator.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestrator.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

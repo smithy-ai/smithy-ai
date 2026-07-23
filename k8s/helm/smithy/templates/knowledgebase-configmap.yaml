@@ -1,0 +1,24 @@
+{{- if .Values.knowledgebase.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "smithy.knowledgebase.fullname" . }}-config
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+data:
+  # Merged on top of the image's built-in knowledgebase.yml. Only the keys set
+  # here override the defaults; everything else (env-driven values) is untouched.
+  knowledgebase.yml: |
+    chunk-size: {{ .Values.knowledgebase.chunkSize }}
+    {{- if .Values.knowledgebase.repositories }}
+    repositories:
+      {{- range .Values.knowledgebase.repositories }}
+      - name: {{ .name | quote }}
+        clone-url: {{ .cloneUrl | default (index . "clone-url") | quote }}
+        branch: {{ .branch | default "main" | quote }}
+      {{- end }}
+    {{- else }}
+    repositories: []
+    {{- end }}
+{{- end }}

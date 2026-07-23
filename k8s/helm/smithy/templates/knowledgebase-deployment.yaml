@@ -1,0 +1,103 @@
+{{- if .Values.knowledgebase.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "smithy.knowledgebase.fullname" . }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+spec:
+  replicas: {{ .Values.knowledgebase.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "smithy.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: knowledgebase
+  template:
+    metadata:
+      labels:
+        {{- include "smithy.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: knowledgebase
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/knowledgebase-configmap.yaml") . | sha256sum }}
+        {{- with .Values.knowledgebase.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "smithy.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: knowledgebase
+          image: {{ include "smithy.knowledgebase.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: SERVER_PORT
+              value: "8000"
+            {{- with .Values.knowledgebase.vcsUrl }}
+            - name: VCS_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: EMBEDDING_MODEL
+              value: {{ .Values.knowledgebase.embeddingModel | quote }}
+            - name: CHAT_MODEL
+              value: {{ .Values.knowledgebase.chatModel | quote }}
+            {{- with .Values.knowledgebase.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.knowledgebase.config.existingSecret | default (printf "%s-secret" (include "smithy.knowledgebase.fullname" .)) }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: vectorstore
+              mountPath: /app/vectorstore
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 15
+            failureThreshold: 4
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.knowledgebase.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "smithy.knowledgebase.fullname" . }}-config
+        - name: vectorstore
+          {{- if .Values.knowledgebase.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.knowledgebase.persistence.existingClaim | default (printf "%s-vectorstore" (include "smithy.knowledgebase.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.knowledgebase.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.knowledgebase.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.knowledgebase.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
