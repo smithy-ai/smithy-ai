@@ -1,0 +1,23 @@
+# Optional knowledgebase add-on. Enabled by uncommenting it under `components:`
+# in ../../kustomization.yaml. Mirrors the `knowledgebase` compose profile.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml # remove this line if you don't need external webhook access
+
+configMapGenerator:
+  # The repositories-to-index config file, mounted at /config/knowledgebase.yml.
+  - name: knowledgebase-config
+    files:
+      - knowledgebase.yml
+
+secretGenerator:
+  # Copy secret.env.example to secret.env and fill it in (kept in this dir because
+  # Kustomize components may only read files at or below their own path).
+  - name: knowledgebase-secrets
+    envs:
+      - secret.env

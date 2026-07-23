@@ -1,0 +1,5 @@
+# Real config/secret env files live alongside the manifests but must never be
+# committed. Only the *.example templates are tracked.
+secrets/*.env
+!secrets/*.example
+components/knowledgebase/secret.env

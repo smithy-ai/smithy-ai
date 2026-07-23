@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: smithy-dind-storage
+  labels:
+    app.kubernetes.io/name: orchestrator
+    app.kubernetes.io/part-of: smithy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Holds the task image, ephemeral task containers, and the pnpm/npm/maven/gradle
+      # cache volumes that live inside the dind daemon. Bump if you cache large images.
+      storage: 20Gi
+  # storageClassName: standard   # uncomment/edit to pin a StorageClass

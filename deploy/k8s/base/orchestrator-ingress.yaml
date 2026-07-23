@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orchestrator
+  labels:
+    app.kubernetes.io/name: orchestrator
+    app.kubernetes.io/part-of: smithy
+  annotations:
+    # This replaces the Caddy reverse-proxy from docker-compose. Adjust for your
+    # ingress controller. Example uses ingress-nginx + cert-manager.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - smithy.example.com # <-- EDIT: your public hostname
+      secretName: smithy-tls
+  rules:
+    - host: smithy.example.com # <-- EDIT: your public hostname
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orchestrator
+                port:
+                  name: http

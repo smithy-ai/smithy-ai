@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledgebase
+  labels:
+    app.kubernetes.io/name: knowledgebase
+    app.kubernetes.io/part-of: smithy
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: knowledgebase
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

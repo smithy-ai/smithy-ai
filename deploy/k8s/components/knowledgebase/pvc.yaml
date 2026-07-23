@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowledgebase-vectorstore
+  labels:
+    app.kubernetes.io/name: knowledgebase
+    app.kubernetes.io/part-of: smithy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: standard

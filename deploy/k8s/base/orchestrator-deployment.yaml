@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  labels:
+    app.kubernetes.io/name: orchestrator
+    app.kubernetes.io/part-of: smithy
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate): only one dind daemon may own the PVC and the
+  # managed task containers at a time. The orchestrator itself is stateless and
+  # recovers running work by re-listing labelled containers on startup.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orchestrator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orchestrator
+        app.kubernetes.io/part-of: smithy
+    spec:
+      containers:
+        # ── Orchestrator (Spring Boot) ───────────────────────────────────────
+        - name: orchestrator
+          image: ghcr.io/smithy-ai/orchestrator:dev
+          imagePullPolicy: IfNotPresent
+          # Wait for the dind sidecar, ensure the task network exists, then boot.
+          # This replaces the implicit `networks: [smithy-net]` from docker-compose.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for the Docker daemon (dind sidecar) at $DOCKER_HOST ..."
+              until docker info >/dev/null 2>&1; do sleep 1; done
+              echo "Docker is up. Ensuring network '$DOCKER_NETWORK' exists ..."
+              docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1 \
+                || docker network create "$DOCKER_NETWORK"
+              exec java -jar app.jar
+          envFrom:
+            - configMapRef:
+                name: orchestrator-config
+            - secretRef:
+                name: orchestrator-secrets
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+        # ── Docker-in-Docker sidecar (runs the task containers) ──────────────
+        - name: dind
+          image: docker:27-dind
+          securityContext:
+            privileged: true
+          env:
+            # Disable TLS: the daemon only listens on the pod-local loopback,
+            # which is not reachable from outside the pod.
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          args:
+            - --host=unix:///var/run/docker.sock
+            - --host=tcp://127.0.0.1:2375
+          readinessProbe:
+            exec:
+              command: ["docker", "info"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: dind-storage
+              mountPath: /var/lib/docker
+      volumes:
+        - name: dind-storage
+          persistentVolumeClaim:
+            claimName: smithy-dind-storage

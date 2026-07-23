@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: knowledgebase
+  labels:
+    app.kubernetes.io/name: knowledgebase
+    app.kubernetes.io/part-of: smithy
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+spec:
+  # Only needed if your git provider must reach the knowledgebase to trigger
+  # re-indexing via webhooks. The orchestrator reaches it in-cluster regardless.
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - kb.example.com # <-- EDIT: your public hostname for the knowledgebase
+      secretName: knowledgebase-tls
+  rules:
+    - host: kb.example.com # <-- EDIT
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: knowledgebase
+                port:
+                  name: http

@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: smithy
+
+resources:
+  - base
+
+# Uncomment to deploy the optional knowledgebase alongside the orchestrator
+# (also set KNOWLEDGEBASE_ENABLED=true in secrets/orchestrator.config.env):
+# components:
+#   - components/knowledgebase
+
+# Pin all images to a single tag here ("dev", "latest", or a semver).
+images:
+  - name: ghcr.io/smithy-ai/orchestrator
+    newTag: dev
+  - name: ghcr.io/smithy-ai/knowledgebase
+    newTag: dev
+
+# Non-secret config -> ConfigMap (injected via envFrom).
+configMapGenerator:
+  - name: orchestrator-config
+    envs:
+      - secrets/orchestrator.config.env
+
+# Secrets -> Kubernetes Secret (injected via envFrom).
+secretGenerator:
+  - name: orchestrator-secrets
+    envs:
+      - secrets/orchestrator.secret.env
