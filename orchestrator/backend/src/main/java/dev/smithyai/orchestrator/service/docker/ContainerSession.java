@@ -13,14 +13,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ContainerSession {
 
-    private final ContainerService service;
+    private final ContainerRuntime service;
 
     @Getter
     private final String containerName;
 
     private ContainerState cachedState;
 
-    public ContainerSession(String containerName, ContainerService service) {
+    public ContainerSession(String containerName, ContainerRuntime service) {
         this.containerName = containerName;
         this.service = service;
     }

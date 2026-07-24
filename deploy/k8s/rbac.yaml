@@ -1,0 +1,32 @@
+# Namespaced RBAC letting the orchestrator manage task Pods in its own namespace.
+# No ClusterRole is used — the grant is scoped to the smithy namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: smithy
+  labels:
+    app.kubernetes.io/name: smithy
+    app.kubernetes.io/part-of: smithy
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: smithy
+  labels:
+    app.kubernetes.io/name: smithy
+    app.kubernetes.io/part-of: smithy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: smithy
+subjects:
+  - kind: ServiceAccount
+    name: smithy
+    namespace: smithy

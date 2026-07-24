@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "smithy.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+data:
+  # Runtime
+  SMITHY_RUNTIME: {{ .Values.runtime.type | quote }}
+  KUBERNETES_NAMESPACE: {{ include "smithy.taskNamespace" . | quote }}
+  TASK_IMAGE: {{ .Values.runtime.kubernetes.taskImage | quote }}
+  {{- with .Values.runtime.kubernetes.taskServiceAccount }}
+  TASK_SERVICE_ACCOUNT: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.runtime.kubernetes.imagePullSecret }}
+  TASK_IMAGE_PULL_SECRET: {{ . | quote }}
+  {{- end }}
+
+  # VCS provider selection + non-secret URLs
+  VCS_PROVIDER: {{ .Values.config.vcs.provider | quote }}
+  FORGEJO_URL: {{ .Values.config.vcs.forgejo.url | quote }}
+  FORGEJO_EXTERNAL_URL: {{ .Values.config.vcs.forgejo.externalUrl | quote }}
+  GITLAB_URL: {{ .Values.config.vcs.gitlab.url | quote }}
+  GITLAB_EXTERNAL_URL: {{ .Values.config.vcs.gitlab.externalUrl | quote }}
+  GITLAB_TOKEN_TYPE: {{ .Values.config.vcs.gitlab.tokenType | quote }}
+  GITHUB_URL: {{ .Values.config.vcs.github.url | quote }}
+  GITHUB_EXTERNAL_URL: {{ .Values.config.vcs.github.externalUrl | quote }}
+
+  # Knowledgebase
+  KNOWLEDGEBASE_ENABLED: {{ .Values.config.knowledgebase.enabled | quote }}
+  KNOWLEDGEBASE_URL: {{ .Values.config.knowledgebase.url | quote }}
+  KNOWLEDGEBASE_TOOL_NAME: {{ .Values.config.knowledgebase.toolName | quote }}
+
+  # Bots
+  SMITHY_BOT_USER: {{ .Values.config.bots.smithy.user | quote }}
+  SMITHY_BOT_EMAIL: {{ .Values.config.bots.smithy.email | quote }}
+  ARCHITECT_BOT_USER: {{ .Values.config.bots.architect.user | quote }}
+  ARCHITECT_BOT_EMAIL: {{ .Values.config.bots.architect.email | quote }}

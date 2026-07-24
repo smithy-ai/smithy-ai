@@ -62,6 +62,28 @@ python3 scripts/setup_instance.py
 python3 scripts/setup_repo.py owner/repo
 ```
 
+## Running on Kubernetes
+
+For a cluster deployment, the orchestrator runs in `kubernetes` runtime mode and
+launches each task as a Pod. A Helm chart and a Kustomize base are provided under
+[`deploy/`](deploy/README.md), including namespaced RBAC for task Pods and
+optional bundled Forgejo and knowledgebase.
+
+```bash
+helm install smithy deploy/helm/smithy -n smithy --create-namespace -f my-values.yaml
+```
+
+Or with Kustomize (edit `deploy/k8s/secret.yaml` first):
+
+```bash
+kubectl apply -k deploy/k8s
+```
+
+See [`deploy/README.md`](deploy/README.md) for required secrets, runtime
+selection (`SMITHY_RUNTIME=kubernetes`), RBAC, bring-your-own-VCS vs bundled
+Forgejo, the knowledgebase, and exposing the service via Ingress or
+`kubectl port-forward svc/smithy 8080:8080`.
+
 ## Documentation
 
 - **Setup**: [Demo](https://smithy-ai.github.io/smithy-ai/setup/demo/) · [GitHub](https://smithy-ai.github.io/smithy-ai/setup/github/) · [GitLab](https://smithy-ai.github.io/smithy-ai/setup/gitlab/) · [Forgejo](https://smithy-ai.github.io/smithy-ai/setup/forgejo/)

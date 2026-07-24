@@ -1,3 +1,17 @@
+runtime:
+  # Task-container backend: 'docker' (shell out to the docker CLI) or 'kubernetes' (launch task Pods).
+  type: ${SMITHY_RUNTIME:docker}
+  kubernetes:
+    namespace: ${KUBERNETES_NAMESPACE:smithy}
+    task-service-account: ${TASK_SERVICE_ACCOUNT:}
+    image-pull-secret: ${TASK_IMAGE_PULL_SECRET:}
+    task-cpu-request: ${TASK_CPU_REQUEST:250m}
+    task-memory-request: ${TASK_MEMORY_REQUEST:512Mi}
+    task-cpu-limit: ${TASK_CPU_LIMIT:}
+    task-memory-limit: ${TASK_MEMORY_LIMIT:}
+    cache-persistence: ${TASK_CACHE_PERSISTENCE:false}
+    storage-class: ${TASK_STORAGE_CLASS:}
+
 docker:
   command: ${DOCKER_COMMAND:docker}
   network: ${DOCKER_NETWORK:forgejo-net}

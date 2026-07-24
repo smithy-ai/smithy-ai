@@ -1,0 +1,140 @@
+{{- if .Values.knowledgebase.enabled -}}
+{{- $name := printf "%s-knowledgebase" (include "smithy.fullname" .) -}}
+{{- $vcsUrl := .Values.knowledgebase.vcsUrl | default .Values.config.vcs.forgejo.url -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "smithy.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: knowledgebase
+  template:
+    metadata:
+      labels:
+        {{- include "smithy.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: knowledgebase
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: knowledgebase
+          image: "{{ .Values.knowledgebase.image.repository }}:{{ .Values.knowledgebase.image.tag }}"
+          imagePullPolicy: {{ .Values.knowledgebase.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}
+                  key: OPENAI_API_KEY
+            - name: VCS_URL
+              value: {{ $vcsUrl | quote }}
+            - name: VCS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}
+                  key: VCS_TOKEN
+            - name: WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}
+                  key: WEBHOOK_SECRET
+          volumeMounts:
+            - name: vectorstore
+              mountPath: /app/vectorstore
+            - name: config
+              mountPath: /config
+              readOnly: true
+          {{- with .Values.knowledgebase.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}
+        - name: vectorstore
+        {{- if .Values.knowledgebase.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $name }}
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+type: Opaque
+stringData:
+  OPENAI_API_KEY: {{ .Values.knowledgebase.openaiApiKey | quote }}
+  VCS_TOKEN: {{ .Values.knowledgebase.vcsToken | default .Values.secrets.forgejo.smithyToken | quote }}
+  WEBHOOK_SECRET: {{ .Values.knowledgebase.webhookSecret | default .Values.secrets.forgejo.webhookSecret | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+data:
+  # Minimal placeholder config. Replace with your repository list; see the
+  # knowledgebase docs for the schema.
+  knowledgebase.yml: |
+    repositories: []
+{{- if .Values.knowledgebase.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.knowledgebase.persistence.size }}
+  {{- with .Values.knowledgebase.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledgebase
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+spec:
+  type: {{ .Values.knowledgebase.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.knowledgebase.service.port }}
+      targetPort: http
+  selector:
+    {{- include "smithy.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: knowledgebase
+{{- end }}

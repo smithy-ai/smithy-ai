@@ -1,0 +1,99 @@
+{{- if .Values.forgejo.enabled -}}
+{{- $name := printf "%s-forgejo" (include "smithy.fullname" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: forgejo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "smithy.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: forgejo
+  template:
+    metadata:
+      labels:
+        {{- include "smithy.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: forgejo
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: forgejo
+          image: "{{ .Values.forgejo.image.repository }}:{{ .Values.forgejo.image.tag }}"
+          imagePullPolicy: {{ .Values.forgejo.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+            - name: ssh
+              containerPort: 22
+          env:
+            - name: FORGEJO__webhook__ALLOWED_HOST_LIST
+              value: "*"
+            - name: FORGEJO__actions__ENABLED
+              value: "true"
+            - name: FORGEJO__ui__DEFAULT_SHOW_FULL_NAME
+              value: "true"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- with .Values.forgejo.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: data
+        {{- if .Values.forgejo.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $name }}
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+{{- if .Values.forgejo.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: forgejo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.forgejo.persistence.size }}
+  {{- with .Values.forgejo.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forgejo
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "smithy.labels" . | nindent 4 }}
+    app.kubernetes.io/component: forgejo
+spec:
+  type: {{ .Values.forgejo.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.forgejo.service.httpPort }}
+      targetPort: http
+    - name: ssh
+      port: {{ .Values.forgejo.service.sshPort }}
+      targetPort: ssh
+  selector:
+    {{- include "smithy.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: forgejo
+{{- end }}

@@ -14,11 +14,17 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
+/**
+ * {@link ContainerRuntime} backed by the {@code docker} CLI. Preserves the original behavior of the
+ * orchestrator's Docker Compose deployment: task work runs in long-lived containers created with
+ * {@code docker create}/{@code start} and driven via {@code docker exec}/{@code logs}/{@code rm}.
+ *
+ * <p>Wired only when {@code runtime.type=docker} (see
+ * {@link dev.smithyai.orchestrator.config.RuntimeConfiguration}).
+ */
 @Slf4j
-@Component
-public class ContainerService {
+public class DockerContainerRuntime implements ContainerRuntime {
 
     private static final String STATE_PATH = "/tmp/smithy-state.json";
     static final ObjectMapper MAPPER = new ObjectMapper()
@@ -38,7 +44,7 @@ public class ContainerService {
     private final String gitAuthUser;
     private final String defaultGitEmail;
 
-    public ContainerService(
+    public DockerContainerRuntime(
         DockerConfig dockerConfig,
         ClaudeConfig claudeConfig,
         VcsProviderConfig vcsConfig,
@@ -58,15 +64,18 @@ public class ContainerService {
 
     // ── Public API ───────────────────────────────────────────
 
+    @Override
     public ContainerSession createSession(String name) {
         return new ContainerSession(name, this);
     }
 
+    @Override
     public boolean containerExists(String containerName) {
         var result = docker.run(List.of("inspect", containerName));
         return result.exitCode() == 0;
     }
 
+    @Override
     public List<String> listManagedContainers() {
         var result = docker.run(List.of("ps", "--filter", "label=smithy.managed=true", "--format", "{{.Names}}"));
         if (result.exitCode() != 0) {
@@ -81,6 +90,7 @@ public class ContainerService {
             .toList();
     }
 
+    @Override
     public boolean isManagedContainer(String containerName) {
         var result = docker.run(List.of("ps", "-a", "--filter", "label=smithy.managed=true", "--format", "{{.Names}}"));
         if (result.exitCode() != 0) {
@@ -90,6 +100,7 @@ public class ContainerService {
         return result.stdout().lines().map(String::strip).anyMatch(containerName::equals);
     }
 
+    @Override
     public Optional<ContainerState> readStateSafe(String containerName) {
         try {
             byte[] data = copyFromContainer(containerName, STATE_PATH);
@@ -102,7 +113,8 @@ public class ContainerService {
 
     // ── Container lifecycle ──────────────────────────────────
 
-    void create(String name, ContainerConfig init) {
+    @Override
+    public void create(String name, ContainerConfig init) {
         var args = new ArrayList<String>();
         args.add("create");
         args.add("--name");
@@ -222,6 +234,7 @@ public class ContainerService {
         log.warn("Container {} init did not complete within {}s — proceeding anyway", name, INIT_TIMEOUT_SECONDS);
     }
 
+    @Override
     public String fetchLogs(String name, int tailLines) {
         var result = docker.run(List.of("logs", "--tail", String.valueOf(tailLines), name));
         String logs = result.stdout();
@@ -231,6 +244,7 @@ public class ContainerService {
         return logs;
     }
 
+    @Override
     public String fetchOwnLogs(int tailLines) {
         String selfId = System.getenv("HOSTNAME");
         if (selfId == null || selfId.isBlank()) {
@@ -243,6 +257,7 @@ public class ContainerService {
      * Reads the Claude Code session transcript (JSONL) for a given session id.
      * Requires the container to be running, since it shells in to read the file.
      */
+    @Override
     public String fetchSessionTranscript(String containerName, String sessionId) {
         var result = docker.run(
             List.of(
@@ -256,7 +271,8 @@ public class ContainerService {
         return result.stdout();
     }
 
-    void destroy(String containerName) {
+    @Override
+    public void destroy(String containerName) {
         docker.run(List.of("stop", containerName));
         docker.run(List.of("rm", "-f", containerName));
         log.info("Destroyed container {}", containerName);
@@ -264,7 +280,8 @@ public class ContainerService {
 
     // ── Exec ─────────────────────────────────────────────────
 
-    ExecResult exec(
+    @Override
+    public ExecResult exec(
         String containerName,
         List<String> command,
         Map<String, String> environment,
@@ -297,7 +314,8 @@ public class ContainerService {
 
     // ── State ────────────────────────────────────────────────
 
-    ContainerState readState(String containerName) {
+    @Override
+    public ContainerState readState(String containerName) {
         try {
             byte[] data = copyFromContainer(containerName, STATE_PATH);
             return MAPPER.readValue(data, ContainerState.class);
@@ -306,7 +324,8 @@ public class ContainerService {
         }
     }
 
-    void writeState(String containerName, ContainerState state) {
+    @Override
+    public void writeState(String containerName, ContainerState state) {
         try {
             byte[] data = MAPPER.writeValueAsBytes(state);
             copyToContainer(containerName, "/tmp", data, "smithy-state.json");
@@ -317,11 +336,13 @@ public class ContainerService {
 
     // ── File transfer ────────────────────────────────────────
 
-    byte[] copyFromContainer(String containerName, String path) {
+    @Override
+    public byte[] copyFromContainer(String containerName, String path) {
         return docker.runForBytes(List.of("exec", containerName, "cat", path), Duration.ofSeconds(30));
     }
 
-    void copyToContainer(String containerName, String destDir, byte[] data, String filename) {
+    @Override
+    public void copyToContainer(String containerName, String destDir, byte[] data, String filename) {
         // Shell-quote the path to prevent injection
         String safePath = destDir + "/" + filename;
         var result = docker.run(

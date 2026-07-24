@@ -6,7 +6,7 @@ import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
-import dev.smithyai.orchestrator.service.docker.ContainerService;
+import dev.smithyai.orchestrator.service.docker.ContainerRuntime;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
@@ -26,7 +26,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     public static final List<String> REFINE_TOOLS = List.of("Read", "Write", "Glob", "Grep", "Bash");
     public static final List<String> BUILD_TOOLS = List.of("Read", "Edit", "Write", "Bash");
 
-    private final ContainerService containerService;
+    private final ContainerRuntime containerService;
     private final DockerConfig dockerConfig;
     private final VcsProviderConfig vcsConfig;
     private final KnowledgebaseConfig knowledgebaseConfig;
@@ -40,7 +40,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
-        ContainerService containerService,
+        ContainerRuntime containerService,
         PromptRenderer renderer,
         @Qualifier("smithyVcs") VcsClient vcsClient,
         @Qualifier("smithyIssueTracker") IssueTrackerClient issueTracker

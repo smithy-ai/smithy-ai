@@ -33,6 +33,11 @@ public class ConfigLoader {
     }
 
     @Bean
+    public RuntimeConfig runtimeConfig() {
+        return config.runtime() != null ? config.runtime() : RuntimeConfig.defaults();
+    }
+
+    @Bean
     public DockerConfig dockerConfig() {
         return config.docker();
     }

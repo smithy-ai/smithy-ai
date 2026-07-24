@@ -1,0 +1,26 @@
+apiVersion: v2
+name: smithy
+description: >-
+  Smithy-AI orchestrator — a Spring Boot service that turns VCS issues and
+  webhooks into autonomous coding tasks. On Kubernetes it launches each task as
+  a Pod, so it ships with namespaced RBAC to manage those Pods. Optional bundled
+  Forgejo and knowledgebase MCP server for a self-contained dev deployment.
+type: application
+
+# The chart's own version. Bump on any change to the templates/values.
+version: 0.1.0
+
+# The version of the orchestrator application this chart deploys by default.
+# Overridable via image.tag in values.yaml.
+appVersion: "dev"
+
+home: https://github.com/smithy-ai/smithy-ai
+sources:
+  - https://github.com/smithy-ai/smithy-ai
+keywords:
+  - smithy
+  - orchestrator
+  - ai
+  - coding-agent
+maintainers:
+  - name: smithy-ai

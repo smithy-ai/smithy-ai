@@ -1,0 +1,230 @@
+# Default values for the smithy chart.
+# This is a YAML-formatted file. Override any of these with `-f my-values.yaml`
+# or `--set key=value` at install time.
+
+# -- Number of orchestrator replicas. The orchestrator holds no shared state of
+# its own (task state lives in the task Pods), but running more than one replica
+# means webhooks may be delivered to any replica; keep at 1 unless you have set
+# up a coordination strategy.
+replicaCount: 1
+
+image:
+  # -- Orchestrator container image repository. Published by CI.
+  repository: ghcr.io/smithy-ai/orchestrator
+  # -- Image tag. Overrides the chart appVersion when set.
+  tag: dev
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Optional list of imagePullSecrets applied to every workload Pod in this
+# chart (orchestrator, forgejo, knowledgebase). Format: [{name: my-secret}].
+imagePullSecrets: []
+
+# -- Override the chart name used in resource names.
+nameOverride: ""
+# -- Override the fully qualified app name used in resource names.
+fullnameOverride: ""
+
+# -- Resource requests/limits for the orchestrator container.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+service:
+  # -- Kubernetes Service type for the orchestrator.
+  type: ClusterIP
+  # -- Service port. The orchestrator listens on 8080.
+  port: 8080
+
+# ----------------------------------------------------------------------------
+# Runtime — how the orchestrator launches tasks.
+# ----------------------------------------------------------------------------
+runtime:
+  # -- Task runtime: "kubernetes" (launch each task as a Pod, the default and
+  # only supported mode on a cluster) or "docker" (only meaningful when the
+  # orchestrator can reach a Docker socket — not used in this chart).
+  type: kubernetes
+
+  kubernetes:
+    # -- Namespace in which task Pods are created. Empty string means the
+    # orchestrator uses its own namespace (the release namespace), which is the
+    # recommended setup and what the bundled RBAC Role grants access to.
+    namespace: ""
+    # -- Image used for task Pods (the Claude task runtime).
+    taskImage: ghcr.io/smithy-ai/claude-task-default:dev
+    # -- ServiceAccount name assigned to task Pods. Empty string means the
+    # cluster default ServiceAccount is used for task Pods.
+    taskServiceAccount: ""
+    # -- Optional imagePullSecret name passed to task Pods so they can pull the
+    # task image from a private registry.
+    imagePullSecret: ""
+
+# ----------------------------------------------------------------------------
+# Non-secret application config (rendered into a ConfigMap, injected via envFrom)
+# ----------------------------------------------------------------------------
+config:
+  vcs:
+    # -- VCS provider: forgejo | gitlab | github.
+    provider: forgejo
+    forgejo:
+      # -- Internal URL the orchestrator uses to reach Forgejo.
+      url: http://forgejo:3000
+      # -- External URL used in links shown to users / in webhook registration.
+      externalUrl: http://localhost:3000
+    gitlab:
+      url: ""
+      externalUrl: ""
+      # -- GitLab token type (e.g. oauth2 or pat).
+      tokenType: ""
+    github:
+      url: ""
+      externalUrl: ""
+  bots:
+    smithy:
+      # -- Username of the Smithy bot account in the VCS.
+      user: smithy
+      # -- Git commit email for the Smithy bot.
+      email: ""
+    architect:
+      # -- Username of the Architect bot account in the VCS.
+      user: architect
+      # -- Git commit email for the Architect bot.
+      email: ""
+  knowledgebase:
+    # -- Point the orchestrator at a knowledgebase MCP server. This toggle only
+    # tells the orchestrator to use one; set knowledgebase.enabled (bottom of
+    # this file) to also deploy the bundled knowledgebase in this release.
+    enabled: false
+    # -- MCP endpoint of the knowledgebase. Defaults to the bundled service.
+    url: http://knowledgebase:8000/mcp
+    # -- MCP tool name exposed by the knowledgebase.
+    toolName: searchKnowledge
+
+# ----------------------------------------------------------------------------
+# Secrets (rendered into a Secret, injected via envFrom) — DO NOT commit real
+# values. Prefer `existingSecret` in production and manage the Secret out of band.
+# ----------------------------------------------------------------------------
+secrets:
+  # -- Name of a pre-existing Secret to use instead of templating one from the
+  # values below. When set, the chart will NOT render its own Secret; the named
+  # Secret must contain the same keys the orchestrator expects (see
+  # templates/secret.yaml for the key names).
+  existingSecret: ""
+
+  # Claude credentials — set at least one.
+  # -- Claude Code OAuth token (from `claude setup-token`).
+  claudeCodeOauthToken: ""
+  # -- Anthropic API key (alternative to the OAuth token).
+  anthropicApiKey: ""
+
+  # VCS credentials — set the ones matching config.vcs.provider.
+  forgejo:
+    # -- Webhook HMAC secret for Forgejo webhooks.
+    webhookSecret: ""
+    # -- Smithy bot Forgejo access token.
+    smithyToken: ""
+    # -- Architect bot Forgejo access token.
+    architectToken: ""
+  gitlab:
+    webhookSecret: ""
+    smithyToken: ""
+    architectToken: ""
+  github:
+    webhookSecret: ""
+    smithyToken: ""
+    architectToken: ""
+
+serviceAccount:
+  # -- Create a ServiceAccount for the orchestrator.
+  create: true
+  # -- Name of the orchestrator ServiceAccount. Generated from the release name
+  # when empty.
+  name: ""
+  # -- Extra annotations for the ServiceAccount.
+  annotations: {}
+
+rbac:
+  # -- Create a namespaced Role + RoleBinding granting the orchestrator the
+  # permissions it needs to launch and manage task Pods. No ClusterRole is used.
+  create: true
+
+ingress:
+  # -- Expose the orchestrator via an Ingress.
+  enabled: false
+  # -- IngressClass name.
+  className: ""
+  # -- Extra annotations (e.g. cert-manager, nginx tweaks).
+  annotations: {}
+  # -- Hostname to route to the orchestrator.
+  host: smithy.example.com
+  # -- Path prefix.
+  path: /
+  # -- Kubernetes Ingress pathType.
+  pathType: Prefix
+  tls:
+    # -- Enable TLS for the host above.
+    enabled: false
+    # -- Secret holding the TLS cert/key for the host.
+    secretName: ""
+
+# ----------------------------------------------------------------------------
+# Bundled Forgejo (dev only). Enable for a self-contained stack without an
+# external VCS. Not intended for production.
+# ----------------------------------------------------------------------------
+forgejo:
+  # -- Deploy a bundled Forgejo instance.
+  enabled: false
+  image:
+    repository: codeberg.org/forgejo/forgejo
+    tag: "14"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    # -- HTTP port.
+    httpPort: 3000
+    # -- SSH port.
+    sshPort: 22
+  persistence:
+    # -- Persist /data on a PVC.
+    enabled: true
+    size: 10Gi
+    # -- StorageClass; empty uses the cluster default.
+    storageClass: ""
+  resources: {}
+
+# ----------------------------------------------------------------------------
+# Bundled knowledgebase MCP server (optional). Enable to deploy it in-cluster;
+# also set config.knowledgebase.enabled so the orchestrator uses it.
+# ----------------------------------------------------------------------------
+knowledgebase:
+  # -- Deploy the bundled knowledgebase MCP server.
+  enabled: false
+  image:
+    repository: ghcr.io/smithy-ai/knowledgebase
+    tag: dev
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    # -- Port the knowledgebase listens on.
+    port: 8000
+  # -- OpenAI API key used by the knowledgebase for embeddings (secret).
+  openaiApiKey: ""
+  # -- VCS base URL the knowledgebase indexes from. Defaults to the configured
+  # Forgejo url when empty.
+  vcsUrl: ""
+  # -- VCS access token for the knowledgebase. Defaults to the Smithy token when
+  # empty.
+  vcsToken: ""
+  # -- Webhook secret for the knowledgebase. Defaults to the provider webhook
+  # secret when empty.
+  webhookSecret: ""
+  persistence:
+    # -- Persist /app/vectorstore on a PVC.
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  resources: {}

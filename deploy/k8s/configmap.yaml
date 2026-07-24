@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smithy-config
+  labels:
+    app.kubernetes.io/name: smithy
+    app.kubernetes.io/part-of: smithy
+data:
+  # Runtime — launch each task as a Pod in this namespace.
+  SMITHY_RUNTIME: "kubernetes"
+  KUBERNETES_NAMESPACE: "smithy"
+  TASK_IMAGE: "ghcr.io/smithy-ai/claude-task-default:dev"
+
+  # VCS provider selection + non-secret URLs. Default provider is forgejo;
+  # edit these for your VCS (or switch VCS_PROVIDER to gitlab/github and fill
+  # the matching URLs).
+  VCS_PROVIDER: "forgejo"
+  FORGEJO_URL: "http://forgejo:3000"
+  FORGEJO_EXTERNAL_URL: "http://localhost:3000"
+  GITLAB_URL: ""
+  GITLAB_EXTERNAL_URL: ""
+  GITLAB_TOKEN_TYPE: ""
+  GITHUB_URL: ""
+  GITHUB_EXTERNAL_URL: ""
+
+  # Knowledgebase (disabled by default).
+  KNOWLEDGEBASE_ENABLED: "false"
+  KNOWLEDGEBASE_URL: "http://knowledgebase:8000/mcp"
+  KNOWLEDGEBASE_TOOL_NAME: "searchKnowledge"
+
+  # Bots.
+  SMITHY_BOT_USER: "smithy"
+  SMITHY_BOT_EMAIL: ""
+  ARCHITECT_BOT_USER: "architect"
+  ARCHITECT_BOT_EMAIL: ""

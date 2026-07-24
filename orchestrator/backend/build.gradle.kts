@@ -28,7 +28,11 @@ dependencies {
     implementation("com.github.victools:jsonschema-generator:4.38.0")
     implementation("com.github.victools:jsonschema-module-jackson:4.38.0")
 
+    // Kubernetes task runtime (used when runtime.type=kubernetes)
+    implementation("io.fabric8:kubernetes-client:7.3.1")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("io.fabric8:kubernetes-server-mock:7.3.1")
 }
 
 spotless {

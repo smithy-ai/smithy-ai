@@ -1,0 +1,54 @@
+Smithy-AI orchestrator has been deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+1. Check the rollout:
+
+   kubectl rollout status deployment/{{ include "smithy.fullname" . }} -n {{ .Release.Namespace }}
+
+2. Reach the orchestrator (health at GET /api/health, dashboard at /):
+
+{{- if .Values.ingress.enabled }}
+
+   http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}{{ .Values.ingress.path }}
+{{- else }}
+
+   The Service is type {{ .Values.service.type }}. Port-forward to reach it locally:
+
+   kubectl port-forward svc/{{ include "smithy.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
+
+   Then open http://localhost:8080/ (dashboard) or curl http://localhost:8080/api/health
+{{- end }}
+
+3. Runtime:
+
+   SMITHY_RUNTIME is set to "{{ .Values.runtime.type }}". Task Pods are created in
+   namespace "{{ include "smithy.taskNamespace" . }}" using image
+   "{{ .Values.runtime.kubernetes.taskImage }}".
+{{- if .Values.rbac.create }}
+   A namespaced Role + RoleBinding grant the orchestrator ServiceAccount
+   ({{ include "smithy.serviceAccountName" . }}) permission to manage those Pods
+   (pods, pods/log get/list/watch/create/delete and pods/exec create).
+{{- else }}
+   NOTE: rbac.create is false. Ensure the ServiceAccount
+   "{{ include "smithy.serviceAccountName" . }}" has pods / pods/log / pods/exec
+   permissions in namespace "{{ include "smithy.taskNamespace" . }}", or task
+   launching will fail.
+{{- end }}
+
+4. Secrets:
+
+{{- if .Values.secrets.existingSecret }}
+   Using existing Secret "{{ .Values.secrets.existingSecret }}". Make sure it
+   contains the expected keys (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY, plus
+   the {{ .Values.config.vcs.provider }} token/webhook keys).
+{{- else }}
+   {{- if and (not .Values.secrets.claudeCodeOauthToken) (not .Values.secrets.anthropicApiKey) }}
+   WARNING: neither claudeCodeOauthToken nor anthropicApiKey is set. The
+   orchestrator cannot run Claude tasks without one. Set it via -f values.yaml or
+   --set secrets.claudeCodeOauthToken=... and upgrade.
+   {{- else }}
+   Credentials were templated into Secret "{{ include "smithy.secretName" . }}".
+   For production, prefer secrets.existingSecret and manage the Secret out of band.
+   {{- end }}
+{{- end }}
+
+See deploy/README.md for the full configuration guide.

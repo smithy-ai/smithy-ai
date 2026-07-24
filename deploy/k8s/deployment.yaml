@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smithy
+  labels:
+    app.kubernetes.io/name: smithy
+    app.kubernetes.io/part-of: smithy
+    app.kubernetes.io/component: orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: smithy
+      app.kubernetes.io/component: orchestrator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: smithy
+        app.kubernetes.io/component: orchestrator
+    spec:
+      serviceAccountName: smithy
+      containers:
+        - name: orchestrator
+          image: ghcr.io/smithy-ai/orchestrator:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SMITHY_RUNTIME
+              value: "kubernetes"
+            - name: KUBERNETES_NAMESPACE
+              value: "smithy"
+          envFrom:
+            - configMapRef:
+                name: smithy-config
+            - secretRef:
+                name: smithy-secrets
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

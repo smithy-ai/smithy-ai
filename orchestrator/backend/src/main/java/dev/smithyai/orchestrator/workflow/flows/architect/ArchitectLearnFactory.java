@@ -5,7 +5,7 @@ import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
-import dev.smithyai.orchestrator.service.docker.ContainerService;
+import dev.smithyai.orchestrator.service.docker.ContainerRuntime;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
@@ -24,7 +24,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
 
     public static final List<String> TOOLS = List.of("Read", "Glob", "Grep", "Edit", "Write", "Bash");
 
-    private final ContainerService containerService;
+    private final ContainerRuntime containerService;
     private final DockerConfig dockerConfig;
     private final VcsProviderConfig vcsConfig;
     private final PromptRenderer renderer;
@@ -36,7 +36,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
         DockerConfig dockerConfig,
         VcsProviderConfig vcsConfig,
         BotConfig botConfig,
-        ContainerService containerService,
+        ContainerRuntime containerService,
         PromptRenderer renderer,
         @Qualifier("architectVcs") VcsClient vcsClient,
         @Qualifier("architectIssueTracker") IssueTrackerClient issueTracker

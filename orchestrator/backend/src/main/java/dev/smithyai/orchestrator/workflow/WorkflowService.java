@@ -1,7 +1,7 @@
 package dev.smithyai.orchestrator.workflow;
 
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
-import dev.smithyai.orchestrator.service.docker.ContainerService;
+import dev.smithyai.orchestrator.service.docker.ContainerRuntime;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
@@ -16,9 +16,9 @@ import org.springframework.stereotype.Component;
 public class WorkflowService {
 
     private final List<AbstractWorkflowFactory<?>> factories;
-    private final ContainerService containerService;
+    private final ContainerRuntime containerService;
 
-    public WorkflowService(List<AbstractWorkflowFactory<?>> factories, ContainerService containerService) {
+    public WorkflowService(List<AbstractWorkflowFactory<?>> factories, ContainerRuntime containerService) {
         this.factories = factories;
         this.containerService = containerService;
         log.info("WorkflowService initialized with {} workflow factories", factories.size());

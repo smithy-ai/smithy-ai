@@ -1,6 +1,6 @@
 package dev.smithyai.orchestrator.web;
 
-import dev.smithyai.orchestrator.service.docker.ContainerService;
+import dev.smithyai.orchestrator.service.docker.ContainerRuntime;
 import dev.smithyai.orchestrator.web.dto.InstanceDto;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import java.util.ArrayList;
@@ -18,9 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     private final List<AbstractWorkflowFactory<?>> factories;
-    private final ContainerService containerService;
+    private final ContainerRuntime containerService;
 
-    public DashboardController(List<AbstractWorkflowFactory<?>> factories, ContainerService containerService) {
+    public DashboardController(List<AbstractWorkflowFactory<?>> factories, ContainerRuntime containerService) {
         this.factories = factories;
         this.containerService = containerService;
     }
