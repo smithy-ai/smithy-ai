@@ -2,13 +2,20 @@ package dev.smithyai.orchestrator.web;
 
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.web.dto.InstanceDto;
+import dev.smithyai.orchestrator.web.dto.MessageRequest;
+import dev.smithyai.orchestrator.web.dto.TakeoverDto;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
+import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,7 +48,8 @@ public class DashboardController {
                     state.lastProcessedAt(),
                     state.ciPaused(),
                     state.ciRetryCount(),
-                    runningContainers.contains(instance.containerName())
+                    runningContainers.contains(instance.containerName()),
+                    instance.isHumanControlled()
                 ));
             }
         }
@@ -79,5 +87,67 @@ public class DashboardController {
             return ResponseEntity.ok("");
         }
         return ResponseEntity.ok(containerService.fetchSessionTranscript(containerName, state.get().sessionId()));
+    }
+
+    // ── Human takeover ───────────────────────────────────────
+
+    @GetMapping("/dashboard/takeover/{containerName}")
+    public ResponseEntity<TakeoverDto> takeoverStatus(@PathVariable String containerName) {
+        var instance = findInstance(containerName);
+        if (instance == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(new TakeoverDto(instance.isHumanControlled(), null));
+    }
+
+    @PostMapping("/dashboard/takeover/{containerName}")
+    public ResponseEntity<TakeoverDto> takeoverHeartbeat(@PathVariable String containerName) {
+        var instance = findInstance(containerName);
+        if (instance == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Instant expiresAt = instance.takeoverHeartbeat();
+        return ResponseEntity.ok(new TakeoverDto(true, expiresAt));
+    }
+
+    @DeleteMapping("/dashboard/takeover/{containerName}")
+    public ResponseEntity<Void> releaseTakeover(@PathVariable String containerName) {
+        var instance = findInstance(containerName);
+        if (instance == null) {
+            return ResponseEntity.notFound().build();
+        }
+        instance.releaseTakeover();
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/dashboard/takeover/{containerName}/message")
+    public ResponseEntity<String> sendTakeoverMessage(
+        @PathVariable String containerName,
+        @RequestBody MessageRequest request
+    ) {
+        var instance = findInstance(containerName);
+        if (instance == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (request.text() == null || request.text().isBlank()) {
+            return ResponseEntity.badRequest().body("Message text is required");
+        }
+        if (!instance.isHumanControlled()) {
+            return ResponseEntity.status(409).body("No active takeover for this instance");
+        }
+        // Keep the lease alive while Claude processes the message
+        instance.takeoverHeartbeat();
+        String reply = instance.sendHumanMessage(request.text());
+        return ResponseEntity.ok(reply);
+    }
+
+    private AbstractWorkflowInstance findInstance(String containerName) {
+        for (var factory : factories) {
+            AbstractWorkflowInstance instance = factory.getInstance(containerName);
+            if (instance != null) {
+                return instance;
+            }
+        }
+        return null;
     }
 }

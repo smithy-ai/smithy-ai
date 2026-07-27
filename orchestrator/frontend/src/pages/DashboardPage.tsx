@@ -119,9 +119,16 @@ export function DashboardPage() {
                           )}
                         </Table.Td>
                         <Table.Td>
-                          <Badge color={inst.running ? "green" : "red"}>
-                            {inst.running ? "Running" : "Stopped"}
-                          </Badge>
+                          <Group gap="xs">
+                            <Badge color={inst.running ? "green" : "red"}>
+                              {inst.running ? "Running" : "Stopped"}
+                            </Badge>
+                            {inst.humanControlled && (
+                              <Badge color="orange" variant="light">
+                                Human
+                              </Badge>
+                            )}
+                          </Group>
                         </Table.Td>
                       </Table.Tr>
                     ))}

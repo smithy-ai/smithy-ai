@@ -9,5 +9,6 @@ public record InstanceDto(
     Instant lastProcessedAt,
     boolean ciPaused,
     int ciRetryCount,
-    boolean running
+    boolean running,
+    boolean humanControlled
 ) {}
