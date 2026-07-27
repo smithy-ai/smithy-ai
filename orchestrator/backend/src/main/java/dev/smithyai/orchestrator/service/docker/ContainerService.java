@@ -81,6 +81,40 @@ public class ContainerService {
             .toList();
     }
 
+    public List<String> listAllManagedContainers() {
+        var result = docker.run(
+            List.of("ps", "-a", "--filter", "label=smithy.managed=true", "--format", "{{.Names}}")
+        );
+        if (result.exitCode() != 0) {
+            log.warn("Failed to list managed containers: {}", result.stderr());
+            return List.of();
+        }
+        return result
+            .stdout()
+            .lines()
+            .map(String::strip)
+            .filter(s -> !s.isBlank())
+            .toList();
+    }
+
+    public boolean ensureRunning(String containerName) {
+        var inspectResult = docker.run(List.of("inspect", "--format", "{{.State.Running}}", containerName));
+        if (inspectResult.exitCode() != 0) {
+            log.warn("Failed to inspect container {}: {}", containerName, inspectResult.stderr());
+            return false;
+        }
+        if ("true".equals(inspectResult.stdout().strip())) {
+            return true;
+        }
+        log.info("Container {} is stopped, starting it", containerName);
+        var startResult = docker.run(List.of("start", containerName));
+        if (startResult.exitCode() != 0) {
+            log.warn("Failed to start container {}: {}", containerName, startResult.stderr());
+            return false;
+        }
+        return true;
+    }
+
     public boolean isManagedContainer(String containerName) {
         var result = docker.run(List.of("ps", "-a", "--filter", "label=smithy.managed=true", "--format", "{{.Names}}"));
         if (result.exitCode() != 0) {
@@ -109,6 +143,8 @@ public class ContainerService {
         args.add(name);
         args.add("--network");
         args.add(network);
+        args.add("--restart");
+        args.add("unless-stopped");
 
         // Labels
         args.add("--label");

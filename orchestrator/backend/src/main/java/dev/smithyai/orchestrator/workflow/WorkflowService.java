@@ -26,7 +26,7 @@ public class WorkflowService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void recoverInstances() {
-        var containers = containerService.listManagedContainers();
+        var containers = containerService.listAllManagedContainers();
         if (containers.isEmpty()) {
             log.info("No managed containers found for recovery");
             return;
@@ -37,6 +37,10 @@ public class WorkflowService {
 
         for (var containerName : containers) {
             try {
+                if (!containerService.ensureRunning(containerName)) {
+                    log.warn("Skipping recovery of {} — container could not be started", containerName);
+                    continue;
+                }
                 var stateOpt = containerService.readStateSafe(containerName);
                 if (stateOpt.isEmpty()) {
                     log.warn("Skipping recovery of {} — could not read state", containerName);
