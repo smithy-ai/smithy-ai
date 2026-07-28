@@ -117,7 +117,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     @Override
     public ArchitectLearnInstance recoverInstance(String containerName, ContainerState state) {
         LearnStage stage = LearnStage.fromValue(state.stage());
-        var session = containerService.createSession(containerName);
+        var session = containerService.createSession(containerName, state);
         return new ArchitectLearnInstance(
             session,
             vcsClient,

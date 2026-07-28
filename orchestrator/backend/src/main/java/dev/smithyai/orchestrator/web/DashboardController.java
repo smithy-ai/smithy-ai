@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RestController
 @RequestMapping("/api")
 public class DashboardController {
@@ -40,17 +42,32 @@ public class DashboardController {
         for (var factory : factories) {
             for (var entry : factory.allInstances().entrySet()) {
                 var instance = entry.getValue();
-                var state = instance.session().getState();
-                result.add(new InstanceDto(
-                    instance.containerName(),
-                    state.workflowType().value(),
-                    state.stage(),
-                    state.lastProcessedAt(),
-                    state.ciPaused(),
-                    state.ciRetryCount(),
-                    runningContainers.contains(instance.containerName()),
-                    instance.isHumanControlled()
-                ));
+                boolean running = runningContainers.contains(instance.containerName());
+                try {
+                    var state = instance.session().getState();
+                    result.add(new InstanceDto(
+                        instance.containerName(),
+                        state.workflowType().value(),
+                        state.stage(),
+                        state.lastProcessedAt(),
+                        state.ciPaused(),
+                        state.ciRetryCount(),
+                        running,
+                        instance.isHumanControlled()
+                    ));
+                } catch (Exception e) {
+                    log.warn("Could not read state for {}: {}", instance.containerName(), e.getMessage());
+                    result.add(new InstanceDto(
+                        instance.containerName(),
+                        null,
+                        null,
+                        null,
+                        false,
+                        0,
+                        running,
+                        instance.isHumanControlled()
+                    ));
+                }
             }
         }
         return result;

@@ -102,7 +102,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     @Override
     public ArchitectReviewInstance recoverInstance(String containerName, ContainerState state) {
         ReviewStage stage = ReviewStage.fromValue(state.stage());
-        var session = containerService.createSession(containerName);
+        var session = containerService.createSession(containerName, state);
         return new ArchitectReviewInstance(
             session,
             vcsClient,

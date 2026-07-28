@@ -107,7 +107,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     public SmithyWorkflowInstance recoverInstance(String containerName, ContainerState state) {
         Stage stage = Stage.fromValue(state.stage());
         List<String> tools = stage == Stage.BUILD ? BUILD_TOOLS : REFINE_TOOLS;
-        var session = containerService.createSession(containerName);
+        var session = containerService.createSession(containerName, state);
         return new SmithyWorkflowInstance(
             session,
             vcsClient,

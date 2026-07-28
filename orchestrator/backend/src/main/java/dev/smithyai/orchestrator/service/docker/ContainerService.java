@@ -62,6 +62,14 @@ public class ContainerService {
         return new ContainerSession(name, this);
     }
 
+    /**
+     * Create a session pre-seeded with state already read during recovery, so
+     * callers of getState() don't need the container to be running.
+     */
+    public ContainerSession createSession(String name, ContainerState seedState) {
+        return new ContainerSession(name, this, seedState);
+    }
+
     public boolean containerExists(String containerName) {
         var result = docker.run(List.of("inspect", containerName));
         return result.exitCode() == 0;

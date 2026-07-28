@@ -21,8 +21,13 @@ public class ContainerSession {
     private ContainerState cachedState;
 
     public ContainerSession(String containerName, ContainerService service) {
+        this(containerName, service, null);
+    }
+
+    public ContainerSession(String containerName, ContainerService service, ContainerState seedState) {
         this.containerName = containerName;
         this.service = service;
+        this.cachedState = seedState;
     }
 
     // ── Container init ──────────────────────────────────────
