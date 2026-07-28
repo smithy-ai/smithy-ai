@@ -40,6 +40,25 @@ public abstract class AbstractWorkflowFactory<T extends AbstractWorkflowInstance
     protected abstract T createInstance(String key, WorkflowEvent event);
 
     /**
+     * Get an existing instance or recover one from a live container's state,
+     * under the create lock so concurrent events cannot recover the same
+     * container twice. Returns null if this factory cannot recover it.
+     */
+    public T getOrRecoverInstance(String key, ContainerState state) {
+        createLock.lock();
+        try {
+            var existing = instances.get(key);
+            if (existing != null) return existing;
+            if (!canRecover(key, state)) return null;
+            var instance = recoverInstance(key, state);
+            instances.put(key, instance);
+            return instance;
+        } finally {
+            createLock.unlock();
+        }
+    }
+
+    /**
      * Whether this factory can recover a workflow instance from the given container and state.
      */
     public abstract boolean canRecover(String containerName, ContainerState state);

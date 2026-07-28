@@ -2,7 +2,6 @@ package dev.smithyai.orchestrator.workflow;
 
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
-import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
 import java.util.List;
@@ -51,7 +50,7 @@ public class WorkflowService {
                 boolean matched = false;
                 for (var factory : factories) {
                     if (factory.canRecover(containerName, state)) {
-                        recoverFromFactory(factory, containerName, state);
+                        factory.getOrRecoverInstance(containerName, state);
                         log.info(
                             "Recovered instance {} (stage={}, workflow={})",
                             containerName,
@@ -79,15 +78,6 @@ public class WorkflowService {
         log.info("Recovery complete: {}/{} containers recovered", recovered, containers.size());
     }
 
-    private <T extends AbstractWorkflowInstance> void recoverFromFactory(
-        AbstractWorkflowFactory<T> factory,
-        String containerName,
-        ContainerState state
-    ) {
-        T instance = factory.recoverInstance(containerName, state);
-        factory.registerInstance(containerName, instance);
-    }
-
     public void onEvent(WorkflowEvent event) {
         for (var type : factories) {
             var action = type.decideEventAction(event);
@@ -104,8 +94,11 @@ public class WorkflowService {
                 instance.onEvent(event);
             }
             case EventAction.Dispatch d -> {
-                var instance = factory.getInstance(d.key());
-                if (instance != null && instance.exists()) {
+                AbstractWorkflowInstance instance = factory.getInstance(d.key());
+                if (instance == null) {
+                    instance = recoverOnDemand(factory, d.key());
+                }
+                if (instance != null && containerService.ensureRunning(d.key())) {
                     log.debug(
                         "[{}] Dispatch event {} to key={}",
                         factoryName,
@@ -131,5 +124,30 @@ public class WorkflowService {
                 log.debug("[{}] Ignoring event {}", factoryName, event.getClass().getSimpleName());
             }
         }
+    }
+
+    /**
+     * Attempt to recover an instance from its (possibly stopped) container when
+     * an event arrives for a key with no registered instance — e.g. after an
+     * orchestrator redeploy that missed the startup recovery pass.
+     */
+    private AbstractWorkflowInstance recoverOnDemand(AbstractWorkflowFactory<?> factory, String key) {
+        if (!containerService.isManagedContainer(key)) {
+            return null;
+        }
+        if (!containerService.ensureRunning(key)) {
+            log.warn("Cannot lazily recover {} — container could not be started", key);
+            return null;
+        }
+        var stateOpt = containerService.readStateSafe(key);
+        if (stateOpt.isEmpty()) {
+            log.warn("Cannot lazily recover {} — could not read state", key);
+            return null;
+        }
+        var instance = factory.getOrRecoverInstance(key, stateOpt.get());
+        if (instance != null) {
+            log.info("Lazily recovered instance {} (stage={}) on incoming event", key, stateOpt.get().stage());
+        }
+        return instance;
     }
 }
