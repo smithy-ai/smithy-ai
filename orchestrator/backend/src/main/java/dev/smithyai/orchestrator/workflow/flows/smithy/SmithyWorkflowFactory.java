@@ -2,8 +2,10 @@ package dev.smithyai.orchestrator.workflow.flows.smithy;
 
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.ForemanConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
+import dev.smithyai.orchestrator.workflow.flows.foreman.ForemanWorkflowFactory;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
@@ -31,6 +33,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final VcsProviderConfig vcsConfig;
     private final KnowledgebaseConfig knowledgebaseConfig;
     private final BotConfig botConfig;
+    private final ForemanConfig foremanConfig;
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
@@ -40,6 +43,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
+        ForemanConfig foremanConfig,
         ContainerService containerService,
         PromptRenderer renderer,
         @Qualifier("smithyVcs") VcsClient vcsClient,
@@ -49,6 +53,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         this.vcsConfig = vcsConfig;
         this.knowledgebaseConfig = knowledgebaseConfig;
         this.botConfig = botConfig;
+        this.foremanConfig = foremanConfig;
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
@@ -57,6 +62,15 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
 
     @Override
     public EventAction decideEventAction(WorkflowEvent event) {
+        // Tracker-key stories (e.g. ECD-4309) belong to the foreman when enabled
+        if (
+            foremanConfig.enabled() &&
+            event instanceof WorkflowEvent.IssueScoped scoped &&
+            ForemanWorkflowFactory.isTrackerKey(scoped.ctx().issueRef())
+        ) {
+            return EventAction.IGNORE;
+        }
+
         var key = containerKey(event);
         if (key == null) return EventAction.IGNORE;
 

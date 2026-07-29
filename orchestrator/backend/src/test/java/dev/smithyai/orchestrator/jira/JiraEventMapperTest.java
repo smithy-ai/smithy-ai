@@ -36,7 +36,7 @@ class JiraEventMapperTest {
             "https://gitlab.example.com/" + inv.getArgument(0) + "/" + inv.getArgument(1) + ".git"
         );
         when(vcs.baseUrl()).thenReturn("https://gitlab.example.com");
-        return new JiraEventMapper(vcsConfig, vcs, issueTracker);
+        return new JiraEventMapper(vcsConfig, vcs, issueTracker, false);
     }
 
     private String issueJson(String assigneeId, String repoFieldValue) {

@@ -24,11 +24,18 @@ public class JiraEventMapper {
     private final JiraProviderConfig jira;
     private final VcsClient smithyVcs;
     private final IssueTrackerClient issueTracker;
+    private final boolean foremanEnabled;
 
-    public JiraEventMapper(VcsProviderConfig vcsConfig, VcsClient smithyVcs, IssueTrackerClient issueTracker) {
+    public JiraEventMapper(
+        VcsProviderConfig vcsConfig,
+        VcsClient smithyVcs,
+        IssueTrackerClient issueTracker,
+        boolean foremanEnabled
+    ) {
         this.jira = vcsConfig.jira();
         this.smithyVcs = smithyVcs;
         this.issueTracker = issueTracker;
+        this.foremanEnabled = foremanEnabled;
         log.info(
             "JiraEventMapper initialized: botAccountId='{}', repoField='{}', approvalLabel='{}'",
             jira.botAccountId(),
@@ -144,6 +151,19 @@ public class JiraEventMapper {
         String repoField = jira.repoField();
         String repoValue = repoField != null && !repoField.isBlank() ? fields.path(repoField).asText("") : "";
         if (repoValue.isBlank()) {
+            if (foremanEnabled) {
+                // The foreman plans the repo set itself; a placeholder RepoInfo
+                // carries the story through routing (Jira ignores owner/repo).
+                String projectKey = key.contains("-") ? key.substring(0, key.indexOf('-')).toLowerCase() : "jira";
+                var info = new RepoInfo(projectKey, "story", "");
+                return new IssueContext(
+                    info,
+                    key,
+                    fields.path("summary").asText(""),
+                    fields.path("description").asText(""),
+                    ""
+                );
+            }
             log.warn("Jira issue {} has no repository field value ({}), ignoring", key, repoField);
             if (commentOnMissingRepo) {
                 try {

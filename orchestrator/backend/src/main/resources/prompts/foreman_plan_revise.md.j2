@@ -1,0 +1,11 @@
+A human replied to your feature plan for story {{ story_ref }} ("{{ story_title }}"):
+
+{{ feedback }}
+
+Revise the plan accordingly. Re-read code in the workspace clones where the feedback makes that
+necessary. Keep everything that wasn't questioned. The same rules apply as before: only manifest
+repositories, high-level issue bodies with explicit cross-component touchpoints, ordering via
+zero-based dependsOn indexes, at most {{ max_issues }} issues.
+
+Return the COMPLETE revised plan as structured output (summary, issues, openQuestions) — it replaces
+the previous plan entirely.

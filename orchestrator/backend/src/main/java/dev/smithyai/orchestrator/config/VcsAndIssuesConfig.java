@@ -94,13 +94,14 @@ public class VcsAndIssuesConfig {
     @Nullable
     public JiraEventMapper jiraEventMapper(
         VcsProviderConfig vcs,
+        ForemanConfig foremanConfig,
         @Qualifier("smithyVcs") VcsClient smithyVcs,
         @Qualifier("smithyIssueTracker") IssueTrackerClient smithyIssueTracker
     ) {
         if (!"jira".equals(vcs.resolvedIssueProvider())) {
             return null;
         }
-        return new JiraEventMapper(vcs, smithyVcs, smithyIssueTracker);
+        return new JiraEventMapper(vcs, smithyVcs, smithyIssueTracker, foremanConfig.enabled());
     }
 
     private VcsClient createVcsClient(VcsProviderConfig vcs, String provider, boolean architect) {
