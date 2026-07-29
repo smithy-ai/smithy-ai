@@ -181,6 +181,7 @@ public class GitLabEventMapper {
 
         String commentBody = attrs.path("note").asText("");
         String type = attrs.path("type").asText("");
+        long noteId = attrs.path("id").asLong(0);
 
         // DiffNote → review comment
         if ("DiffNote".equals(type)) {
@@ -188,18 +189,18 @@ public class GitLabEventMapper {
             String path = position.path("new_path").asText("");
             int line = position.path("new_line").asInt(0);
             var cd = new CommentData(commentUser, commentBody, path, line);
-            return new WorkflowEvent.PrReviewComment(prc, List.of(cd));
+            return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId);
         }
 
         // Regular note → conversation comment
         String repoFull = payload.path("project").path("path_with_namespace").asText("");
         if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody, noteId);
         }
 
         String headBranch = mr.path("source_branch").asText("");
         if (Naming.isSmithyBranch(headBranch)) {
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody, noteId);
         }
 
         return null;

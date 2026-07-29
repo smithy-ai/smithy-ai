@@ -412,6 +412,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     }
 
     private void handlePrReviewComment(WorkflowEvent.PrReviewComment e) {
+        acknowledgeComment(e.prc(), e.commentId());
         int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
         var commentDicts = new ArrayList<Map<String, Object>>();
         for (var cd : e.comments()) {
@@ -425,6 +426,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     }
 
     private void handlePrConversationComment(WorkflowEvent.PrConversationComment e) {
+        acknowledgeComment(e.prc(), e.commentId());
         int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
 
         // CI-fix approval check (only meaningful when the container still exists)
@@ -608,12 +610,25 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         }
     }
 
+    /**
+     * Best-effort "seen it" reaction on the comment that triggered the event,
+     * posted before the (potentially long) build resume starts.
+     */
+    private void acknowledgeComment(PrContext prc, long commentId) {
+        if (commentId <= 0) return;
+        try {
+            vcsClient.reactToPrComment(prc.info().owner(), prc.info().repo(), prc.number(), commentId, "eyes");
+        } catch (Exception ex) {
+            log.debug("Failed to react to comment {} on PR #{}: {}", commentId, prc.number(), ex.getMessage());
+        }
+    }
+
     private void resumeBuild(RepoInfo info, int issueId, Integer prNumber, String prompt, boolean skipAssignmentCheck) {
-        resumeBuild(null, info, issueId, prNumber, prompt, skipAssignmentCheck);
+        resumeBuild(null, info, issueId, prNumber, prompt, skipAssignmentCheck, false);
     }
 
     private void resumeBuild(PrContext prc, int issueId, String prompt, boolean skipAssignmentCheck) {
-        resumeBuild(prc, prc.info(), issueId, prc.number(), prompt, skipAssignmentCheck);
+        resumeBuild(prc, prc.info(), issueId, prc.number(), prompt, skipAssignmentCheck, true);
     }
 
     private void resumeBuild(
@@ -622,7 +637,8 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         int issueId,
         Integer prNumber,
         String prompt,
-        boolean skipAssignmentCheck
+        boolean skipAssignmentCheck,
+        boolean postReply
     ) {
         try {
             if (!skipAssignmentCheck && prNumber != null) {
@@ -655,11 +671,19 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             } else {
                 log.info("Resuming build session in {}", session.getContainerName());
             }
-            claude.send(prompt);
+            String reply = claude.send(prompt);
             claude.ensureCommitted();
             syncSessionId();
 
             PushHelper.pushWithRetry(session, claude, vcsClient, info.owner(), info.repo(), prNumber);
+
+            if (postReply && prNumber != null && reply != null && !reply.isBlank()) {
+                try {
+                    vcsClient.createPrComment(info.owner(), info.repo(), prNumber, reply);
+                } catch (Exception ex) {
+                    log.warn("Failed to post reply comment on PR #{}", prNumber, ex);
+                }
+            }
         } catch (Exception ex) {
             log.error("Resume build failed for issue #{}", issueId, ex);
         }

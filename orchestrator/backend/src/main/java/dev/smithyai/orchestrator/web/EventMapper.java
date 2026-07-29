@@ -111,7 +111,12 @@ public class EventMapper {
         String repoFull = payload.path("repository").path("full_name").asText("");
         if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             var prc = extractPr(info, payload.path("issue"));
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+            return new WorkflowEvent.PrConversationComment(
+                prc,
+                commentUser,
+                commentBody,
+                payload.path("comment").path("id").asLong(0)
+            );
         }
 
         // Smithy: needs head branch from API to determine if smithy branch
@@ -132,7 +137,12 @@ public class EventMapper {
                         headBranch,
                         pr.baseRef()
                     );
-                    return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+                    return new WorkflowEvent.PrConversationComment(
+                        prc,
+                        commentUser,
+                        commentBody,
+                        payload.path("comment").path("id").asLong(0)
+                    );
                 }
             }
         } catch (Exception e) {
@@ -258,10 +268,11 @@ public class EventMapper {
 
         // Context repo PR comments → route to architect
         String repoFull = payload.path("repository").path("full_name").asText("");
+        long commentId = payload.path("comment").path("id").asLong(0);
         if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             var prc = extractPr(info, pr);
             var cd = commentFromPayload(payload);
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body());
+            return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body(), commentId);
         }
 
         // Smithy: review comment on smithy branch PR
@@ -270,7 +281,7 @@ public class EventMapper {
             if (issueId != null) {
                 var prc = extractPr(info, pr);
                 var cd = commentFromPayload(payload);
-                return new WorkflowEvent.PrReviewComment(prc, List.of(cd));
+                return new WorkflowEvent.PrReviewComment(prc, List.of(cd), commentId);
             }
         }
 

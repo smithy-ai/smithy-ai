@@ -21,6 +21,12 @@ public interface VcsClient {
 
     void createPrComment(String owner, String repo, int prNumber, String body);
 
+    /**
+     * React to a PR comment with an emoji (e.g. "eyes" as an acknowledgment).
+     * Best-effort: providers without reaction support may leave this a no-op.
+     */
+    default void reactToPrComment(String owner, String repo, int prNumber, long commentId, String reaction) {}
+
     // Reviews
     void createPullReview(
         String owner,

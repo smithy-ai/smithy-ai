@@ -178,6 +178,17 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public void reactToPrComment(String owner, String repo, int prNumber, long commentId, String reaction) {
+        post(
+            "/projects/%s/merge_requests/%d/notes/%d/award_emoji",
+            Map.of("name", reaction),
+            projectId(owner, repo),
+            prNumber,
+            commentId
+        );
+    }
+
+    @Override
     public List<CommentEntry> getPrComments(String owner, String repo, int prNumber) {
         return List.of(); // All MR notes are already returned by getPrReviews()
     }

@@ -37,9 +37,10 @@ public sealed interface WorkflowEvent {
     record HumanPush(RepoInfo info, String branch) implements WorkflowEvent {}
 
     // ── PrScoped ────────────────────────────────
-    record PrConversationComment(PrContext prc, String commentUser, String commentBody) implements PrScoped {}
+    record PrConversationComment(PrContext prc, String commentUser, String commentBody, long commentId)
+        implements PrScoped {}
 
-    record PrReviewComment(PrContext prc, List<CommentData> comments) implements PrScoped {}
+    record PrReviewComment(PrContext prc, List<CommentData> comments, long commentId) implements PrScoped {}
 
     record ReviewSubmitted(PrContext prc, long reviewId, String reviewBody, String reviewer) implements PrScoped {}
 

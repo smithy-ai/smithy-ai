@@ -111,7 +111,12 @@ public class GitHubEventMapper {
         String repoFull = payload.path("repository").path("full_name").asText("");
         if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             var prc = extractPrFromIssue(info, payload.path("issue"));
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+            return new WorkflowEvent.PrConversationComment(
+                prc,
+                commentUser,
+                commentBody,
+                payload.path("comment").path("id").asLong(0)
+            );
         }
 
         try {
@@ -131,7 +136,12 @@ public class GitHubEventMapper {
                         headBranch,
                         pr.baseRef()
                     );
-                    return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+                    return new WorkflowEvent.PrConversationComment(
+                        prc,
+                        commentUser,
+                        commentBody,
+                        payload.path("comment").path("id").asLong(0)
+                    );
                 }
             }
         } catch (Exception e) {
@@ -273,7 +283,12 @@ public class GitHubEventMapper {
         if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             var info = repoInfo(payload);
             var prc = extractPr(info, pr);
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, comment.path("body").asText(""));
+            return new WorkflowEvent.PrConversationComment(
+                prc,
+                commentUser,
+                comment.path("body").asText(""),
+                comment.path("id").asLong(0)
+            );
         }
 
         // GitHub also emits these for comments that are included in a submitted review.
