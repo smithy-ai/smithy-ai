@@ -8,6 +8,7 @@ import dev.smithyai.orchestrator.service.vcs.gitlab.GitLabClient;
 import dev.smithyai.orchestrator.service.vcs.jira.JiraClient;
 import dev.smithyai.orchestrator.web.GitHubEventMapper;
 import dev.smithyai.orchestrator.web.GitLabEventMapper;
+import dev.smithyai.orchestrator.web.JiraEventMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -87,6 +88,19 @@ public class VcsAndIssuesConfig {
             return null;
         }
         return new GitHubEventMapper(botConfig, vcs, smithyVcs);
+    }
+
+    @Bean
+    @Nullable
+    public JiraEventMapper jiraEventMapper(
+        VcsProviderConfig vcs,
+        @Qualifier("smithyVcs") VcsClient smithyVcs,
+        @Qualifier("smithyIssueTracker") IssueTrackerClient smithyIssueTracker
+    ) {
+        if (!"jira".equals(vcs.resolvedIssueProvider())) {
+            return null;
+        }
+        return new JiraEventMapper(vcs, smithyVcs, smithyIssueTracker);
     }
 
     private VcsClient createVcsClient(VcsProviderConfig vcs, String provider, boolean architect) {

@@ -27,6 +27,7 @@ public class WebhookController {
     private final EventMapper eventMapper;
     private final GitLabEventMapper gitLabEventMapper;
     private final GitHubEventMapper gitHubEventMapper;
+    private final JiraEventMapper jiraEventMapper;
 
     public WebhookController(
         VcsProviderConfig vcsConfig,
@@ -34,7 +35,8 @@ public class WebhookController {
         ObjectMapper mapper,
         EventMapper eventMapper,
         @Nullable GitLabEventMapper gitLabEventMapper,
-        @Nullable GitHubEventMapper gitHubEventMapper
+        @Nullable GitHubEventMapper gitHubEventMapper,
+        @Nullable JiraEventMapper jiraEventMapper
     ) {
         this.vcsConfig = vcsConfig;
         this.workflowService = workflowService;
@@ -42,6 +44,7 @@ public class WebhookController {
         this.eventMapper = eventMapper;
         this.gitLabEventMapper = gitLabEventMapper;
         this.gitHubEventMapper = gitHubEventMapper;
+        this.jiraEventMapper = jiraEventMapper;
     }
 
     @PostMapping("/webhooks/forgejo")
@@ -162,6 +165,51 @@ public class WebhookController {
             return ResponseEntity.ok("");
         } catch (Exception e) {
             log.error("Failed to process GitHub webhook", e);
+            return ResponseEntity.internalServerError().body("Error");
+        }
+    }
+
+    /**
+     * Jira Cloud system webhooks cannot send custom headers, so the shared
+     * secret may arrive either as an X-Jira-Token header (Automation rules)
+     * or as a ?token= query parameter (system webhooks).
+     */
+    @PostMapping("/webhooks/jira")
+    public ResponseEntity<String> handleJiraWebhook(
+        @RequestBody byte[] body,
+        @RequestHeader(value = "X-Jira-Token", defaultValue = "") String headerToken,
+        @RequestParam(value = "token", defaultValue = "") String queryToken
+    ) {
+        if (jiraEventMapper == null) {
+            return ResponseEntity.status(404).body("Jira integration not enabled");
+        }
+
+        String secret = vcsConfig.jira() != null ? vcsConfig.jira().webhookSecret() : null;
+        String token = !headerToken.isBlank() ? headerToken : queryToken;
+        if (
+            secret == null ||
+            secret.isBlank() ||
+            !MessageDigest.isEqual(secret.getBytes(StandardCharsets.UTF_8), token.getBytes(StandardCharsets.UTF_8))
+        ) {
+            log.warn("Jira webhook rejected: invalid token");
+            return ResponseEntity.status(403).body("Invalid token");
+        }
+
+        try {
+            JsonNode payload = mapper.readTree(body);
+            String webhookEvent = payload.path("webhookEvent").asText("");
+            log.info("Jira webhook received: {}", webhookEvent);
+
+            WorkflowEvent event = jiraEventMapper.map(payload);
+            if (event != null) {
+                log.debug("Parsed Jira event: {}", event.getClass().getSimpleName());
+                workflowService.onEvent(event);
+            } else {
+                log.debug("No event produced for Jira {}", webhookEvent);
+            }
+            return ResponseEntity.ok("");
+        } catch (Exception e) {
+            log.error("Failed to process Jira webhook", e);
             return ResponseEntity.internalServerError().body("Error");
         }
     }
