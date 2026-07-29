@@ -46,29 +46,29 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
     // ── IssueTrackerClient ───────────────────────────────────
 
     @Override
-    public IssueData getIssue(String owner, String repo, int number) {
-        var node = get("/repos/%s/%s/issues/%d", owner, repo, number);
+    public IssueData getIssue(String owner, String repo, String issueRef) {
+        var node = get("/repos/%s/%s/issues/%s", owner, repo, issueRef);
         return toIssueData(node);
     }
 
     @Override
-    public List<CommentEntry> getIssueComments(String owner, String repo, int number) {
-        return fetchPaged("/repos/%s/%s/issues/%d/comments?per_page=100".formatted(owner, repo, number));
+    public List<CommentEntry> getIssueComments(String owner, String repo, String issueRef) {
+        return fetchPaged("/repos/%s/%s/issues/%s/comments?per_page=100".formatted(owner, repo, issueRef));
     }
 
     @Override
-    public CommentEntry createIssueComment(String owner, String repo, int number, String body) {
-        var node = post("/repos/%s/%s/issues/%d/comments", Map.of("body", body), owner, repo, number);
+    public CommentEntry createIssueComment(String owner, String repo, String issueRef, String body) {
+        var node = post("/repos/%s/%s/issues/%s/comments", Map.of("body", body), owner, repo, issueRef);
         return toCommentEntry(node);
     }
 
     @Override
-    public void setIssueAssignees(String owner, String repo, int number, List<String> assignees) {
-        patch("/repos/%s/%s/issues/%d", Map.of("assignees", assignees), owner, repo, number);
+    public void setIssueAssignees(String owner, String repo, String issueRef, List<String> assignees) {
+        patch("/repos/%s/%s/issues/%s", Map.of("assignees", assignees), owner, repo, issueRef);
     }
 
     @Override
-    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, int number) {
+    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, String issueRef) {
         return List.of();
     }
 
@@ -389,7 +389,7 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
             for (var l : node.get("labels")) labels.add(l.path("name").asText(""));
         }
         return new IssueData(
-            node.path("number").asInt(),
+            node.path("number").asText(""),
             node.path("title").asText(""),
             node.path("body").asText(""),
             node.path("state").asText("open"),

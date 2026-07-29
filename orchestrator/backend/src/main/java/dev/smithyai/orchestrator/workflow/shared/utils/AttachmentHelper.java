@@ -19,20 +19,20 @@ public final class AttachmentHelper {
         ContainerSession session,
         String owner,
         String repo,
-        int issueNumber
+        String issueRef
     ) {
         var allAttachments = new ArrayList<AttachmentInfo>();
 
         // Issue-level attachments
         try {
-            allAttachments.addAll(client.getIssueAttachments(owner, repo, issueNumber));
+            allAttachments.addAll(client.getIssueAttachments(owner, repo, issueRef));
         } catch (Exception e) {
-            log.warn("Failed to fetch issue attachments for #{}", issueNumber, e);
+            log.warn("Failed to fetch issue attachments for #{}", issueRef, e);
         }
 
         // Comment-level attachments
         try {
-            var comments = client.getIssueComments(owner, repo, issueNumber);
+            var comments = client.getIssueComments(owner, repo, issueRef);
             for (var comment : comments) {
                 try {
                     allAttachments.addAll(client.getCommentAttachments(owner, repo, comment.id()));
@@ -41,7 +41,7 @@ public final class AttachmentHelper {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to fetch comments for issue #{}", issueNumber, e);
+            log.warn("Failed to fetch comments for issue #{}", issueRef, e);
         }
 
         if (allAttachments.isEmpty()) return List.of();
@@ -72,7 +72,7 @@ public final class AttachmentHelper {
                 paths.add(containerPath);
                 log.debug("Injected attachment {} into {}", filename, session.getContainerName());
             } catch (Exception e) {
-                log.warn("Failed to download/inject attachment {} for issue #{}", attachment.name(), issueNumber, e);
+                log.warn("Failed to download/inject attachment {} for issue #{}", attachment.name(), issueRef, e);
             }
         }
 
@@ -81,7 +81,7 @@ public final class AttachmentHelper {
                 "Injected {} attachment(s) into {} for issue #{}",
                 paths.size(),
                 session.getContainerName(),
-                issueNumber
+                issueRef
             );
         }
         return paths;

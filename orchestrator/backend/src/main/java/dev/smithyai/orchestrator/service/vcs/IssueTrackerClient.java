@@ -6,15 +6,15 @@ import dev.smithyai.orchestrator.service.vcs.dto.IssueData;
 import java.util.List;
 
 public interface IssueTrackerClient {
-    IssueData getIssue(String owner, String repo, int number);
+    IssueData getIssue(String owner, String repo, String issueRef);
 
-    List<CommentEntry> getIssueComments(String owner, String repo, int number);
+    List<CommentEntry> getIssueComments(String owner, String repo, String issueRef);
 
-    CommentEntry createIssueComment(String owner, String repo, int number, String body);
+    CommentEntry createIssueComment(String owner, String repo, String issueRef, String body);
 
-    void setIssueAssignees(String owner, String repo, int number, List<String> assignees);
+    void setIssueAssignees(String owner, String repo, String issueRef, List<String> assignees);
 
-    List<AttachmentInfo> getIssueAttachments(String owner, String repo, int number);
+    List<AttachmentInfo> getIssueAttachments(String owner, String repo, String issueRef);
 
     List<AttachmentInfo> getCommentAttachments(String owner, String repo, long commentId);
 

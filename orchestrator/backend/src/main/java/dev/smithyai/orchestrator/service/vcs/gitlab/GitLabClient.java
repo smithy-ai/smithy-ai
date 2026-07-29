@@ -47,8 +47,8 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     // ── IssueTrackerClient ───────────────────────────────────
 
     @Override
-    public IssueData getIssue(String owner, String repo, int number) {
-        var node = get("/projects/%s/issues/%d", projectId(owner, repo), number);
+    public IssueData getIssue(String owner, String repo, String issueRef) {
+        var node = get("/projects/%s/issues/%s", projectId(owner, repo), issueRef);
         List<String> assignees = new ArrayList<>();
         if (node.has("assignees") && node.get("assignees").isArray()) {
             for (var a : node.get("assignees")) {
@@ -62,7 +62,7 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
             }
         }
         return new IssueData(
-            node.path("iid").asInt(),
+            node.path("iid").asText(""),
             node.path("title").asText(""),
             node.path("description").asText(""),
             node.path("state").asText("opened"),
@@ -73,8 +73,8 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
-    public List<CommentEntry> getIssueComments(String owner, String repo, int number) {
-        var nodes = getList("/projects/%s/issues/%d/notes?sort=asc", projectId(owner, repo), number);
+    public List<CommentEntry> getIssueComments(String owner, String repo, String issueRef) {
+        var nodes = getList("/projects/%s/issues/%s/notes?sort=asc", projectId(owner, repo), issueRef);
         var result = new ArrayList<CommentEntry>();
         for (var n : nodes) {
             if (n.path("system").asBoolean(false)) continue; // Skip system notes
@@ -91,8 +91,8 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
-    public CommentEntry createIssueComment(String owner, String repo, int number, String body) {
-        var node = post("/projects/%s/issues/%d/notes", Map.of("body", body), projectId(owner, repo), number);
+    public CommentEntry createIssueComment(String owner, String repo, String issueRef, String body) {
+        var node = post("/projects/%s/issues/%s/notes", Map.of("body", body), projectId(owner, repo), issueRef);
         return new CommentEntry(
             node.path("id").asLong(),
             node.path("author").path("username").asText(""),
@@ -102,13 +102,13 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
-    public void setIssueAssignees(String owner, String repo, int number, List<String> assignees) {
+    public void setIssueAssignees(String owner, String repo, String issueRef, List<String> assignees) {
         List<Integer> ids = resolveUserIds(assignees);
-        put("/projects/%s/issues/%d", Map.of("assignee_ids", ids), projectId(owner, repo), number);
+        put("/projects/%s/issues/%s", Map.of("assignee_ids", ids), projectId(owner, repo), issueRef);
     }
 
     @Override
-    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, int number) {
+    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, String issueRef) {
         // GitLab doesn't have a dedicated attachments API for issues.
         // Attachments are embedded as markdown links in issue description/comments.
         // Return empty — attachment support is non-critical for GitLab.

@@ -164,11 +164,11 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 return;
             }
 
-            String branch = Naming.branchName(ctx.number(), ctx.title());
-            String planPath = Naming.planFilePath(ctx.number());
+            String branch = Naming.branchName(ctx.issueRef(), ctx.title());
+            String planPath = Naming.planFilePath(ctx.issueRef());
             var info = ctx.info();
 
-            log.info("Creating refine container {} for issue #{}", session.getContainerName(), ctx.number());
+            log.info("Creating refine container {} for issue {}", session.getContainerName(), ctx.issueRef());
             var containerConfig = ContainerConfig.builder()
                 .cloneUrl(info.cloneUrl())
                 .branch(branch)
@@ -185,15 +185,15 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 session,
                 info.owner(),
                 info.repo(),
-                ctx.number()
+                ctx.issueRef()
             );
 
             // Render and invoke plan
             String prompt = renderer.render(
                 "refinement.md.j2",
                 Map.of(
-                    "issue_number",
-                    ctx.number(),
+                    "issue_ref",
+                    ctx.issueRef(),
                     "issue_title",
                     ctx.title(),
                     "issue_body",
@@ -211,11 +211,11 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             // Copy Claude's plan file to the expected path
             var planSrc = claude.latestPlanFile();
             if (planSrc.isEmpty()) {
-                log.warn("Claude returned empty plan for issue #{}", ctx.number());
+                log.warn("Claude returned empty plan for issue {}", ctx.issueRef());
                 issueTracker.createIssueComment(
                     info.owner(),
                     info.repo(),
-                    ctx.number(),
+                    ctx.issueRef(),
                     "Failed to generate a development plan — please add a comment with more context and smithy will retry."
                 );
                 return;
@@ -239,10 +239,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 PlanResult planResult = claude.send(extractPrompt, PlanResult.class, "haiku");
                 openQuestions = planResult.openQuestions();
             } catch (Exception ex) {
-                log.warn("Failed to extract open questions for issue #{}", ctx.number(), ex);
+                log.warn("Failed to extract open questions for issue {}", ctx.issueRef(), ex);
             }
 
-            var pushResult = session.exec("smithy-commit-and-push", "Development plan for #" + ctx.number());
+            var pushResult = session.exec("smithy-commit-and-push", "Development plan for " + Naming.displayRef(ctx.issueRef()));
             if (pushResult.exitCode() != 0) {
                 throw new RuntimeException("Failed to commit and push plan: " + pushResult.stderr());
             }
@@ -260,13 +260,13 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             issueTracker.createIssueComment(
                 info.owner(),
                 info.repo(),
-                ctx.number(),
+                ctx.issueRef(),
                 comment.toString()
             );
 
-            log.info("Refinement complete for issue #{}", ctx.number());
+            log.info("Refinement complete for issue {}", ctx.issueRef());
         } catch (Exception ex) {
-            log.error("Refinement task failed for issue #{}", ctx.number(), ex);
+            log.error("Refinement task failed for issue {}", ctx.issueRef(), ex);
         }
     }
 
@@ -294,18 +294,18 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 session,
                 info.owner(),
                 info.repo(),
-                ctx.number()
+                ctx.issueRef()
             );
 
             String prompt = renderer.render(
                 "refinement_comment.md.j2",
                 Map.of(
-                    "issue_number",
-                    ctx.number(),
+                    "issue_ref",
+                    ctx.issueRef(),
                     "comment_body",
                     e.commentBody(),
                     "plan_file_path",
-                    Naming.planFilePath(ctx.number()),
+                    Naming.planFilePath(ctx.issueRef()),
                     "attachments",
                     attachments
                 )
@@ -314,12 +314,12 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             claude.send(prompt);
             syncSessionId();
 
-            var pushResult = session.exec("smithy-commit-and-push", "Update plan for #" + ctx.number());
+            var pushResult = session.exec("smithy-commit-and-push", "Update plan for " + Naming.displayRef(ctx.issueRef()));
             if (pushResult.exitCode() != 0) {
                 log.warn("smithy-commit-and-push failed in {}: {}", session.getContainerName(), pushResult.stderr());
             }
         } catch (Exception ex) {
-            log.error("Resume refinement failed for issue #{}", ctx.number(), ex);
+            log.error("Resume refinement failed for issue {}", ctx.issueRef(), ex);
         }
     }
 
@@ -328,8 +328,8 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         try {
             session.updateState(s -> s.withStage("build").touch());
 
-            String branch = Naming.branchName(ctx.number(), ctx.title());
-            String planPath = Naming.planFilePath(ctx.number());
+            String branch = Naming.branchName(ctx.issueRef(), ctx.title());
+            String planPath = Naming.planFilePath(ctx.issueRef());
             var info = ctx.info();
 
             String effectiveBase = ctx.baseBranch();
@@ -355,10 +355,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 ctx.title(),
                 branch,
                 effectiveBase,
-                "fixes #" + ctx.number(),
+                "fixes " + Naming.displayRef(ctx.issueRef()),
                 true
             );
-            log.info("Created draft PR #{} for issue #{}", pr.number(), ctx.number());
+            log.info("Created draft PR #{} for issue {}", pr.number(), ctx.issueRef());
 
             vcsClient.setPrAssignees(info.owner(), info.repo(), pr.number(), List.of(botUser));
 
@@ -368,7 +368,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 session,
                 info.owner(),
                 info.repo(),
-                ctx.number()
+                ctx.issueRef()
             );
 
             // Start build session — new ClaudeSession for build phase
@@ -376,8 +376,8 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             String prompt = renderer.render(
                 "building.md.j2",
                 Map.of(
-                    "issue_number",
-                    ctx.number(),
+                    "issue_ref",
+                    ctx.issueRef(),
                     "issue_title",
                     ctx.title(),
                     "plan_file_path",
@@ -405,42 +405,42 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 }
             }
 
-            log.info("Building started for issue #{}", ctx.number());
+            log.info("Building started for issue {}", ctx.issueRef());
         } catch (Exception ex) {
-            log.error("Transition to building failed for issue #{}", ctx.number(), ex);
+            log.error("Transition to building failed for issue {}", ctx.issueRef(), ex);
         }
     }
 
     private void handlePrReviewComment(WorkflowEvent.PrReviewComment e) {
         acknowledgeComment(e.prc(), e.commentId());
-        int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
+        String issueRef = Naming.parseIssueRefFromBranch(e.prc().headBranch());
         var commentDicts = new ArrayList<Map<String, Object>>();
         for (var cd : e.comments()) {
             commentDicts.add(cd.toMap());
         }
         String prompt = renderer.render(
             "review_comment.md.j2",
-            Map.of("pr_number", e.prc().number(), "issue_number", issueId, "comments", commentDicts)
+            Map.of("pr_number", e.prc().number(), "issue_ref", issueRef, "comments", commentDicts)
         );
-        resumeBuild(e.prc(), issueId, prompt, false);
+        resumeBuild(e.prc(), issueRef, prompt, false);
     }
 
     private void handlePrConversationComment(WorkflowEvent.PrConversationComment e) {
         acknowledgeComment(e.prc(), e.commentId());
-        int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
+        String issueRef = Naming.parseIssueRefFromBranch(e.prc().headBranch());
 
         // CI-fix approval check (only meaningful when the container still exists)
         if (session.exists()) {
             ContainerState state = session.readState();
             if (state.ciPaused() && e.commentBody().contains("\uD83D\uDC4D")) {
                 session.updateState(ContainerState::resetCi);
-                log.info("CI fix approved for issue #{}, resuming", issueId);
+                log.info("CI fix approved for issue {}, resuming", issueRef);
 
                 String ciPrompt = renderer.render(
                     "ci_failure.md.j2",
-                    Map.of("pr_number", e.prc().number(), "issue_number", issueId, "workflow_id", "")
+                    Map.of("pr_number", e.prc().number(), "issue_ref", issueRef, "workflow_id", "")
                 );
-                resumeBuild(e.prc(), issueId, ciPrompt, true);
+                resumeBuild(e.prc(), issueRef, ciPrompt, true);
                 return;
             }
         }
@@ -449,14 +449,14 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         var commentDicts = List.of(cd.toMap());
         String prompt = renderer.render(
             "review_comment.md.j2",
-            Map.of("pr_number", e.prc().number(), "issue_number", issueId, "comments", commentDicts)
+            Map.of("pr_number", e.prc().number(), "issue_ref", issueRef, "comments", commentDicts)
         );
 
-        resumeBuild(e.prc(), issueId, prompt, false);
+        resumeBuild(e.prc(), issueRef, prompt, false);
     }
 
     private void handleReviewSubmitted(WorkflowEvent.ReviewSubmitted e) {
-        int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
+        String issueRef = Naming.parseIssueRefFromBranch(e.prc().headBranch());
         var info = e.prc().info();
         int prNumber = e.prc().number();
 
@@ -495,11 +495,11 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
             String prompt = renderer.render(
                 "review_comment.md.j2",
-                Map.of("pr_number", prNumber, "issue_number", issueId, "comments", commentDicts)
+                Map.of("pr_number", prNumber, "issue_ref", issueRef, "comments", commentDicts)
             );
-            resumeBuild(e.prc(), issueId, prompt, false);
+            resumeBuild(e.prc(), issueRef, prompt, false);
         } catch (Exception ex) {
-            log.error("Fetch and resume review failed for issue #{}", issueId, ex);
+            log.error("Fetch and resume review failed for issue {}", issueRef, ex);
         }
     }
 
@@ -534,7 +534,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     }
 
     private void handlePrFinalized(WorkflowEvent.PrFinalized e) {
-        int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
+        String issueRef = Naming.parseIssueRefFromBranch(e.prc().headBranch());
         try {
             var cleanupResult = session.exec("smithy-cleanup-branch");
             if (cleanupResult.exitCode() != 0) {
@@ -542,16 +542,16 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             }
             destroy();
 
-            log.info("Issue #{} transitioned to Review", issueId);
+            log.info("Issue #{} transitioned to Review", issueRef);
         } catch (Exception ex) {
-            log.error("Transition to review failed for issue #{}", issueId, ex);
+            log.error("Transition to review failed for issue {}", issueRef, ex);
         }
     }
 
     private void handleCiFailure(WorkflowEvent.CiFailure e) {
         var ciRun = e.ciRun();
         var info = e.info();
-        int issueId = Naming.parseIssueIdFromBranch(ciRun.headBranch());
+        String issueRef = Naming.parseIssueRefFromBranch(ciRun.headBranch());
 
         if (!session.exists()) {
             log.debug("Container {} missing, ignoring CI failure", session.getContainerName());
@@ -560,7 +560,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
         ContainerState state = session.readState();
         if (state.ciPaused()) {
-            log.info("CI fixing paused for issue #{}, waiting for approval", issueId);
+            log.info("CI fixing paused for issue {}, waiting for approval", issueRef);
             return;
         }
 
@@ -576,7 +576,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                     "Reached maximum 5 CI fix attempts. Continue debugging? Reply with \uD83D\uDC4D for OK"
                 );
             }
-            log.info("CI fix attempts exhausted for issue #{}, pausing", issueId);
+            log.info("CI fix attempts exhausted for issue {}, pausing", issueRef);
             return;
         }
         session.writeState(state);
@@ -586,13 +586,13 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             Map.of(
                 "pr_number",
                 ciRun.prNumber() != null ? ciRun.prNumber() : 0,
-                "issue_number",
-                issueId,
+                "issue_ref",
+                issueRef,
                 "workflow_id",
                 e.workflowName()
             )
         );
-        resumeBuild(info, issueId, ciRun.prNumber(), ciPrompt, true);
+        resumeBuild(info, issueRef, ciRun.prNumber(), ciPrompt, true);
     }
 
     private void handleCiRecovery(WorkflowEvent.CiRecovery e) {
@@ -623,18 +623,18 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         }
     }
 
-    private void resumeBuild(RepoInfo info, int issueId, Integer prNumber, String prompt, boolean skipAssignmentCheck) {
-        resumeBuild(null, info, issueId, prNumber, prompt, skipAssignmentCheck, false);
+    private void resumeBuild(RepoInfo info, String issueRef, Integer prNumber, String prompt, boolean skipAssignmentCheck) {
+        resumeBuild(null, info, issueRef, prNumber, prompt, skipAssignmentCheck, false);
     }
 
-    private void resumeBuild(PrContext prc, int issueId, String prompt, boolean skipAssignmentCheck) {
-        resumeBuild(prc, prc.info(), issueId, prc.number(), prompt, skipAssignmentCheck, true);
+    private void resumeBuild(PrContext prc, String issueRef, String prompt, boolean skipAssignmentCheck) {
+        resumeBuild(prc, prc.info(), issueRef, prc.number(), prompt, skipAssignmentCheck, true);
     }
 
     private void resumeBuild(
         PrContext prc,
         RepoInfo info,
-        int issueId,
+        String issueRef,
         Integer prNumber,
         String prompt,
         boolean skipAssignmentCheck,
@@ -685,7 +685,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 }
             }
         } catch (Exception ex) {
-            log.error("Resume build failed for issue #{}", issueId, ex);
+            log.error("Resume build failed for issue {}", issueRef, ex);
         }
     }
 }

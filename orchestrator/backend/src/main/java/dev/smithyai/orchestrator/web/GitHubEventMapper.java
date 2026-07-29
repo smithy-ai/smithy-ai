@@ -125,8 +125,8 @@ public class GitHubEventMapper {
             String headBranch = pr.headRef();
 
             if (Naming.isSmithyBranch(headBranch)) {
-                Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-                if (issueId != null) {
+                String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+                if (issueRef != null) {
                     var prc = new PrContext(
                         info,
                         prNumber,
@@ -201,8 +201,8 @@ public class GitHubEventMapper {
     private WorkflowEvent mapPrReadyForReview(JsonNode payload) {
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         var info = repoInfo(payload);
         var prc = extractPr(info, pr);
@@ -229,8 +229,8 @@ public class GitHubEventMapper {
         String headBranch = pr.path("head").path("ref").asText("");
         if (!Naming.isSmithyBranch(headBranch)) return null;
 
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         var assignees = pr.path("assignees");
         if (assignees.isArray()) {
@@ -257,8 +257,8 @@ public class GitHubEventMapper {
         String headBranch = pr.path("head").path("ref").asText("");
         if (!Naming.isSmithyBranch(headBranch)) return null;
 
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         var info = repoInfo(payload);
         long reviewId = review.path("id").asLong();
@@ -346,11 +346,11 @@ public class GitHubEventMapper {
     private IssueContext extractIssue(JsonNode payload) {
         var info = repoInfo(payload);
         var issue = payload.path("issue");
-        int number = issue.path("number").asInt();
+        String issueRef = issue.path("number").asText("");
         String title = issue.path("title").asText("");
         String body = issue.path("body").asText("");
         String baseBranch = Naming.resolveBaseBranch(issue.path("ref").asText(""));
-        return new IssueContext(info, number, title, body, baseBranch);
+        return new IssueContext(info, issueRef, title, body, baseBranch);
     }
 
     private PrContext extractPr(RepoInfo info, JsonNode pr) {

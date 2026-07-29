@@ -124,9 +124,9 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
         int lookupPr = e.prc().number();
         if (info.repo().endsWith("-context")) {
             lookupRepo = info.repo().substring(0, info.repo().length() - 8);
-            Integer sourcePrId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
-            if (sourcePrId != null) {
-                lookupPr = sourcePrId;
+            String sourcePrRef = Naming.parseIssueRefFromBranch(e.prc().headBranch());
+            if (sourcePrRef != null) {
+                lookupPr = Integer.parseInt(sourcePrRef);
             }
         }
         return architectContainerName(info.owner(), lookupRepo, prefix + lookupPr);

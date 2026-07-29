@@ -1,4 +1,4 @@
-The CI workflow failed on PR #{{ pr_number }} for issue #{{ issue_number }}.
+The CI workflow failed on PR #{{ pr_number }} for issue {{ issue_ref }}.
 
 Workflow: {{ workflow_id }}
 
@@ -8,4 +8,4 @@ Run the project's test suite and linter locally to reproduce the failure,
 then fix the code. `git add` and `git commit` all changes before finishing.
 Do not leave any uncommitted work.
 
-Do NOT reference the issue number (e.g. `#{{ issue_number }}`) in commit messages — the commits are visible in the PR, and issue references clutter the issue timeline. Do NOT push — the orchestrator handles pushing.
+Do NOT reference the issue number (e.g. `{{ issue_ref }}`) in commit messages — the commits are visible in the PR, and issue references clutter the issue timeline. Do NOT push — the orchestrator handles pushing.

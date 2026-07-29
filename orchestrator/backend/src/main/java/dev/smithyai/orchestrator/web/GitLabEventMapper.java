@@ -393,12 +393,12 @@ public class GitLabEventMapper {
     }
 
     private IssueContext extractIssueFromAttrs(RepoInfo info, JsonNode attrs) {
-        int number = attrs.path("iid").asInt(attrs.path("number").asInt());
+        String issueRef = attrs.path("iid").asText(attrs.path("number").asText(""));
         String title = attrs.path("title").asText("");
         String body = attrs.path("description").asText("");
         // GitLab doesn't have a direct "ref" field on issues — default to main
         String baseBranch = Naming.resolveBaseBranch("");
-        return new IssueContext(info, number, title, body, baseBranch);
+        return new IssueContext(info, issueRef, title, body, baseBranch);
     }
 
     private PrContext extractPrFromMr(RepoInfo info, JsonNode mr) {

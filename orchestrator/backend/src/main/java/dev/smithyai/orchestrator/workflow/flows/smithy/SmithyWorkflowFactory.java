@@ -163,18 +163,14 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
 
     private static String containerKey(WorkflowEvent event) {
         var info = event.info();
-        Integer issueId = switch (event) {
-            case WorkflowEvent.IssueScoped e -> e.ctx().number();
-            case WorkflowEvent.PrScoped e -> Naming.parseIssueIdFromBranch(e.prc().headBranch());
-            case WorkflowEvent.HumanPush e -> Naming.parseIssueIdFromBranch(e.branch());
-            case WorkflowEvent.CiFailure e -> Naming.parseIssueIdFromBranch(e.ciRun().headBranch());
-            case WorkflowEvent.CiRecovery e -> Naming.parseIssueIdFromBranch(e.ciRun().headBranch());
+        String issueRef = switch (event) {
+            case WorkflowEvent.IssueScoped e -> e.ctx().issueRef();
+            case WorkflowEvent.PrScoped e -> Naming.parseIssueRefFromBranch(e.prc().headBranch());
+            case WorkflowEvent.HumanPush e -> Naming.parseIssueRefFromBranch(e.branch());
+            case WorkflowEvent.CiFailure e -> Naming.parseIssueRefFromBranch(e.ciRun().headBranch());
+            case WorkflowEvent.CiRecovery e -> Naming.parseIssueRefFromBranch(e.ciRun().headBranch());
             default -> null;
         };
-        return issueId != null ? containerName(info.owner(), info.repo(), issueId) : null;
-    }
-
-    private static String containerName(String owner, String repo, int issueId) {
-        return Naming.containerName("smithy", owner, repo, String.valueOf(issueId));
+        return issueRef != null ? Naming.containerName("smithy", info.owner(), info.repo(), issueRef) : null;
     }
 }

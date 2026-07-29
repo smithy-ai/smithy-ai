@@ -12,9 +12,13 @@ import java.util.regex.Pattern;
 
 public final class Naming {
 
-    public static final Pattern CONTAINER_RE = Pattern.compile("^(smithy|architect)\\.([^.]+)\\.([^.]+)\\.(.+)$");
-    public static final Pattern ID_RE = Pattern.compile("^(\\d+)(?:\\.(refine|build))?$");
-    private static final Pattern ISSUE_ID_RE = Pattern.compile("^(?:smithy|architect)/(\\d+)-");
+    public static final Pattern CONTAINER_RE = Pattern.compile(
+        "^(smithy|architect|foreman)\\.([^.]+)\\.([^.]+)\\.(.+)$"
+    );
+    public static final Pattern ID_RE = Pattern.compile("^([A-Za-z0-9-]+)(?:\\.(refine|build))?$");
+    // Issue ref in a branch: a plain number ("123") or an issue-tracker key ("ECD-4309").
+    // Keys are uppercase, slugs lowercase, so the boundary is unambiguous.
+    private static final Pattern ISSUE_REF_RE = Pattern.compile("^(?:smithy|architect)/((?:[A-Z][A-Z0-9_]*-)?\\d+)-");
 
     private Naming() {}
 
@@ -22,30 +26,35 @@ public final class Naming {
         return branch.startsWith("smithy/");
     }
 
-    public static String branchName(int issueId, String title) {
+    public static String branchName(String issueRef, String title) {
         String slug = title.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
         if (slug.length() > 40) slug = slug.substring(0, 40);
-        return "smithy/" + issueId + "-" + slug;
+        return "smithy/" + issueRef + "-" + slug;
     }
 
     public static String repoSlug(String owner, String repo) {
         return owner + "/" + repo;
     }
 
-    public static String planFilePath(int issueId) {
-        return ".smithy/plans/" + issueId + ".md";
+    public static String planFilePath(String issueRef) {
+        return ".smithy/plans/" + issueRef + ".md";
     }
 
     public static String resolveBaseBranch(String issueRef) {
         return (issueRef != null && !issueRef.isBlank()) ? issueRef : "";
     }
 
-    public static Integer parseIssueIdFromBranch(String branch) {
-        Matcher m = ISSUE_ID_RE.matcher(branch);
-        if (m.find()) {
-            return Integer.parseInt(m.group(1));
-        }
-        return null;
+    public static String parseIssueRefFromBranch(String branch) {
+        Matcher m = ISSUE_REF_RE.matcher(branch);
+        return m.find() ? m.group(1) : null;
+    }
+
+    /**
+     * Human/provider-facing form of an issue ref: numeric refs get the "#"
+     * prefix that GitLab/GitHub/Forgejo auto-link; tracker keys stay bare.
+     */
+    public static String displayRef(String issueRef) {
+        return issueRef.chars().allMatch(Character::isDigit) ? "#" + issueRef : issueRef;
     }
 
     public static String containerName(String type, String owner, String repo, String identifier) {

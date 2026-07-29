@@ -126,8 +126,8 @@ public class EventMapper {
             String headBranch = pr.headRef();
 
             if (Naming.isSmithyBranch(headBranch)) {
-                Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-                if (issueId != null) {
+                String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+                if (issueRef != null) {
                     var prc = new PrContext(
                         info,
                         prNumber,
@@ -204,8 +204,8 @@ public class EventMapper {
 
         var info = repoInfo(payload);
         String headBranch = pr.path("head").path("ref").asText("");
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         var prc = extractPr(info, pr);
         return new WorkflowEvent.PrFinalized(prc);
@@ -233,8 +233,8 @@ public class EventMapper {
         String headBranch = pr.path("head").path("ref").asText("");
         if (!Naming.isSmithyBranch(headBranch)) return null;
 
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         var assignees = pr.path("assignees");
         boolean smithyAssigned = false;
@@ -277,8 +277,8 @@ public class EventMapper {
 
         // Smithy: review comment on smithy branch PR
         if (Naming.isSmithyBranch(headBranch)) {
-            Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-            if (issueId != null) {
+            String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+            if (issueRef != null) {
                 var prc = extractPr(info, pr);
                 var cd = commentFromPayload(payload);
                 return new WorkflowEvent.PrReviewComment(prc, List.of(cd), commentId);
@@ -302,8 +302,8 @@ public class EventMapper {
         var info = repoInfo(payload);
 
         if (!Naming.isSmithyBranch(headBranch)) return null;
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         long reviewId = review.path("id").asLong();
         String reviewBody = review.path("body").asText("");
@@ -344,11 +344,11 @@ public class EventMapper {
     private IssueContext extractIssue(JsonNode payload) {
         var info = repoInfo(payload);
         var issue = payload.get("issue");
-        int number = issue.get("number").asInt();
+        String issueRef = issue.get("number").asText();
         String title = issue.get("title").asText();
         String body = issue.path("body").asText("");
         String baseBranch = Naming.resolveBaseBranch(issue.path("ref").asText(""));
-        return new IssueContext(info, number, title, body, baseBranch);
+        return new IssueContext(info, issueRef, title, body, baseBranch);
     }
 
     private PrContext extractPr(RepoInfo info, JsonNode pr) {

@@ -1,4 +1,4 @@
-A reviewer has left comments on PR #{{ pr_number }} for issue #{{ issue_number }}.
+A reviewer has left comments on PR #{{ pr_number }} for issue {{ issue_ref }}.
 
 ## All Review Comments
 
@@ -12,7 +12,7 @@ A reviewer has left comments on PR #{{ pr_number }} for issue #{{ issue_number }
 
 Address each review comment. Make the necessary code changes, then **`git add` and `git commit` all changes before finishing.** Do not leave any uncommitted work.
 
-Do NOT reference the issue number (e.g. `#{{ issue_number }}`) in commit messages — the commits are visible in the PR, and issue references clutter the issue timeline.
+Do NOT reference the issue number (e.g. `{{ issue_ref }}`) in commit messages — the commits are visible in the PR, and issue references clutter the issue timeline.
 Do NOT push — the orchestrator handles pushing.
 
 Your final message will be posted on the PR as a reply to the reviewer. Write it for them: briefly state, per comment, what you changed (or why you disagree, if you didn't make a change). Keep it concise — no restating of the comments, no file dumps.

@@ -69,7 +69,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             }
             case WorkflowEvent.PrClosed e -> {
                 if (!e.info().repo().endsWith("-context")) yield EventAction.IGNORE;
-                Integer sourcePrId = Naming.parseIssueIdFromBranch(e.headBranch());
+                String sourcePrId = Naming.parseIssueRefFromBranch(e.headBranch());
                 if (sourcePrId == null) yield EventAction.IGNORE;
                 String sourceRepo = e.info().repo().substring(0, e.info().repo().length() - 8);
                 String key = ArchitectReviewFactory.architectContainerName(

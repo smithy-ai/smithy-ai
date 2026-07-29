@@ -64,35 +64,40 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     // ── IssueTrackerClient ───────────────────────────────────
 
     @Override
-    public IssueData getIssue(String owner, String repo, int number) {
-        Issue issue = api(() -> issueApi.issueGetIssue(owner, repo, (long) number));
+    public IssueData getIssue(String owner, String repo, String issueRef) {
+        long number = Long.parseLong(issueRef);
+        Issue issue = api(() -> issueApi.issueGetIssue(owner, repo, number));
         return toIssueData(issue);
     }
 
     @Override
-    public List<CommentEntry> getIssueComments(String owner, String repo, int number) {
-        List<Comment> comments = api(() -> issueApi.issueGetComments(owner, repo, (long) number, null, null));
+    public List<CommentEntry> getIssueComments(String owner, String repo, String issueRef) {
+        long number = Long.parseLong(issueRef);
+        List<Comment> comments = api(() -> issueApi.issueGetComments(owner, repo, number, null, null));
         return comments.stream().map(this::toCommentEntry).toList();
     }
 
     @Override
-    public CommentEntry createIssueComment(String owner, String repo, int number, String body) {
+    public CommentEntry createIssueComment(String owner, String repo, String issueRef, String body) {
+        long number = Long.parseLong(issueRef);
         Comment comment = api(() ->
-            issueApi.issueCreateComment(owner, repo, (long) number, new CreateIssueCommentOption().body(body))
+            issueApi.issueCreateComment(owner, repo, number, new CreateIssueCommentOption().body(body))
         );
         return toCommentEntry(comment);
     }
 
     @Override
-    public void setIssueAssignees(String owner, String repo, int issueNumber, List<String> assignees) {
+    public void setIssueAssignees(String owner, String repo, String issueRef, List<String> assignees) {
+        long number = Long.parseLong(issueRef);
         var opt = new EditIssueOption();
         opt.setAssignees(assignees);
-        apiVoid(() -> issueApi.issueEditIssue(owner, repo, (long) issueNumber, opt));
+        apiVoid(() -> issueApi.issueEditIssue(owner, repo, number, opt));
     }
 
     @Override
-    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, int number) {
-        List<Attachment> attachments = api(() -> issueApi.issueListIssueAttachments(owner, repo, (long) number));
+    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, String issueRef) {
+        long number = Long.parseLong(issueRef);
+        List<Attachment> attachments = api(() -> issueApi.issueListIssueAttachments(owner, repo, number));
         return attachments.stream().map(this::toAttachmentInfo).toList();
     }
 
@@ -163,7 +168,7 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
 
     @Override
     public List<CommentEntry> getPrComments(String owner, String repo, int prNumber) {
-        return getIssueComments(owner, repo, prNumber);
+        return getIssueComments(owner, repo, String.valueOf(prNumber));
     }
 
     // ── VcsClient: Reviews ───────────────────────────────────
@@ -233,7 +238,7 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     @Override
     public void setPrAssignees(String owner, String repo, int prNumber, List<String> assignees) {
         // In Forgejo, PR assignees are set via the issue API
-        setIssueAssignees(owner, repo, prNumber, assignees);
+        setIssueAssignees(owner, repo, String.valueOf(prNumber), assignees);
     }
 
     @Override
@@ -297,7 +302,7 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
         List<String> labelNames =
             issue.getLabels() != null ? issue.getLabels().stream().map(Label::getName).toList() : List.of();
         return new IssueData(
-            issue.getNumber().intValue(),
+            String.valueOf(issue.getNumber()),
             issue.getTitle(),
             issue.getBody(),
             issue.getState() != null ? issue.getState() : "open",
