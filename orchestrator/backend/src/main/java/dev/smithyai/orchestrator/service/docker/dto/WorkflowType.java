@@ -5,7 +5,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum WorkflowType {
     SMITHY("smithy"),
-    ARCHITECT("architect");
+    ARCHITECT("architect"),
+    FOREMAN("foreman");
 
     private final String value;
 

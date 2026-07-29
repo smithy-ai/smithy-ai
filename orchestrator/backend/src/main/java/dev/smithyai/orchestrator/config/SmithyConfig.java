@@ -5,5 +5,6 @@ public record SmithyConfig(
     ClaudeConfig claude,
     VcsProviderConfig vcs,
     BotConfig bots,
-    KnowledgebaseConfig knowledgebase
+    KnowledgebaseConfig knowledgebase,
+    ForemanConfig foreman
 ) {}

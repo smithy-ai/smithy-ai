@@ -55,6 +55,13 @@ public interface VcsClient {
     // Repository
     boolean repoExists(String owner, String repo);
 
+    /**
+     * Read a file's raw content from a branch, or null if it doesn't exist.
+     */
+    default String getRawFile(String owner, String repo, String branch, String path) {
+        throw new UnsupportedOperationException("getRawFile not supported by " + getClass().getSimpleName());
+    }
+
     // URL helpers (provider-specific URL patterns)
     String fileBrowseUrl(String repoHtmlUrl, String branch, String path);
 

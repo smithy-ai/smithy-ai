@@ -65,6 +65,13 @@ public class ConfigLoader {
             : new KnowledgebaseConfig(false, null, null);
     }
 
+    @Bean
+    public ForemanConfig foremanConfig() {
+        var foreman = config.foreman() != null ? config.foreman() : new ForemanConfig(false, null, null, null);
+        foreman.validate();
+        return foreman;
+    }
+
     private static String loadRawYaml(Environment env) {
         // 1. Check for explicit config path via env var or CLI arg
         String configPath = env.getProperty("ORCHESTRATOR_CONFIG", env.getProperty("config", (String) null));

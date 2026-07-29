@@ -102,6 +102,31 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public IssueData createIssue(String owner, String repo, String title, String body, List<String> labels) {
+        var payload = new HashMap<String, Object>();
+        payload.put("title", title);
+        payload.put("description", body);
+        if (labels != null && !labels.isEmpty()) {
+            payload.put("labels", String.join(",", labels));
+        }
+        var node = post("/projects/%s/issues", payload, projectId(owner, repo));
+        return new IssueData(
+            node.path("iid").asText(""),
+            node.path("title").asText(""),
+            node.path("description").asText(""),
+            node.path("state").asText("opened"),
+            List.of(),
+            "",
+            labels != null ? labels : List.of()
+        );
+    }
+
+    @Override
+    public void addIssueLabel(String owner, String repo, String issueRef, String label) {
+        put("/projects/%s/issues/%s", Map.of("add_labels", label), projectId(owner, repo), issueRef);
+    }
+
+    @Override
     public void setIssueAssignees(String owner, String repo, String issueRef, List<String> assignees) {
         List<Integer> ids = resolveUserIds(assignees);
         put("/projects/%s/issues/%s", Map.of("assignee_ids", ids), projectId(owner, repo), issueRef);
@@ -402,6 +427,31 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public String baseUrl() {
         return baseUrl;
+    }
+
+    @Override
+    public String getRawFile(String owner, String repo, String branch, String path) {
+        String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
+        String url =
+            baseUrl +
+            "/api/v4/projects/%s/repository/files/%s/raw?ref=%s".formatted(
+                projectId(owner, repo),
+                encodedPath,
+                URLEncoder.encode(branch, StandardCharsets.UTF_8)
+            );
+        try {
+            var request = HttpRequest.newBuilder().uri(URI.create(url)).header(authHeaderName, authHeaderValue).GET().build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 404) {
+                return null;
+            }
+            if (response.statusCode() >= 400) {
+                throw new RuntimeException("GitLab API error %d reading %s@%s".formatted(response.statusCode(), path, branch));
+            }
+            return response.body();
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("GitLab API request failed: raw file " + path, e);
+        }
     }
 
     // ── HTTP helpers ─────────────────────────────────────────

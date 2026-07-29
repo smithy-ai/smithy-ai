@@ -45,6 +45,12 @@ vcs:
     plan-approved-label: ${JIRA_PLAN_APPROVED_LABEL:plan-approved}
     plan-approved-status: ${JIRA_PLAN_APPROVED_STATUS:}
 
+foreman:
+  enabled: ${FOREMAN_ENABLED:false}
+  manifest-path: ${REPOS_MANIFEST:/config/repos.yml}
+  max-issues: ${FOREMAN_MAX_ISSUES:10}
+  autonomy: ${FOREMAN_AUTONOMY:auto}
+
 knowledgebase:
   enabled: ${KNOWLEDGEBASE_ENABLED:false}
   url: ${KNOWLEDGEBASE_URL:http://knowledgebase:8000/mcp}
