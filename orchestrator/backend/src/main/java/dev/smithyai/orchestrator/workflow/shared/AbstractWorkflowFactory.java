@@ -59,6 +59,36 @@ public abstract class AbstractWorkflowFactory<T extends AbstractWorkflowInstance
     }
 
     /**
+     * Get an existing instance or resurrect one from scratch for an event whose
+     * container no longer exists (e.g. it was destroyed or manually removed),
+     * under the create lock. Returns null if this factory cannot resurrect
+     * an instance for the given event.
+     */
+    public T getOrResurrectInstance(String key, WorkflowEvent event) {
+        createLock.lock();
+        try {
+            var existing = instances.get(key);
+            if (existing != null) return existing;
+            var instance = resurrectInstance(key, event);
+            if (instance != null) {
+                instances.put(key, instance);
+            }
+            return instance;
+        } finally {
+            createLock.unlock();
+        }
+    }
+
+    /**
+     * Recreate a workflow instance from scratch for an event whose container no
+     * longer exists. The instance is responsible for recreating its container
+     * when it handles the event. Returns null if unsupported for this event.
+     */
+    protected T resurrectInstance(String key, WorkflowEvent event) {
+        return null;
+    }
+
+    /**
      * Whether this factory can recover a workflow instance from the given container and state.
      */
     public abstract boolean canRecover(String containerName, ContainerState state);

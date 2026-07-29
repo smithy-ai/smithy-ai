@@ -98,7 +98,23 @@ public class WorkflowService {
                 if (instance == null) {
                     instance = recoverOnDemand(factory, d.key());
                 }
-                if (instance != null && containerService.ensureRunning(d.key())) {
+                if (instance == null) {
+                    // Container is gone entirely — let the factory rebuild from the event
+                    instance = factory.getOrResurrectInstance(d.key(), event);
+                    if (instance != null) {
+                        log.info(
+                            "[{}] Resurrected instance key={} for {}",
+                            factoryName,
+                            d.key(),
+                            event.getClass().getSimpleName()
+                        );
+                        instance.onEvent(event);
+                        return;
+                    }
+                }
+                // A registered instance whose container was removed is still dispatched:
+                // handlers either recreate the container or ignore the event.
+                if (instance != null && (containerService.ensureRunning(d.key()) || !instance.exists())) {
                     log.debug(
                         "[{}] Dispatch event {} to key={}",
                         factoryName,

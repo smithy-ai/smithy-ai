@@ -95,6 +95,32 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     }
 
     @Override
+    protected SmithyWorkflowInstance resurrectInstance(String key, WorkflowEvent event) {
+        boolean prComment =
+            event instanceof WorkflowEvent.PrConversationComment ||
+            event instanceof WorkflowEvent.PrReviewComment ||
+            event instanceof WorkflowEvent.ReviewSubmitted;
+        if (!prComment) return null;
+
+        log.info("Resurrecting {} in build stage for {}", key, event.getClass().getSimpleName());
+        var session = containerService.createSession(key);
+        return new SmithyWorkflowInstance(
+            session,
+            vcsClient,
+            issueTracker,
+            renderer,
+            dockerConfig,
+            vcsConfig,
+            knowledgebaseConfig,
+            botConfig,
+            augmentTools(BUILD_TOOLS),
+            () -> removeInstance(key),
+            Stage.BUILD,
+            null
+        );
+    }
+
+    @Override
     public boolean canRecover(String containerName, ContainerState state) {
         return (
             containerName.startsWith("smithy.") &&

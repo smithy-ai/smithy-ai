@@ -412,7 +412,6 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     }
 
     private void handlePrReviewComment(WorkflowEvent.PrReviewComment e) {
-        session.updateState(ContainerState::touch);
         int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
         var commentDicts = new ArrayList<Map<String, Object>>();
         for (var cd : e.comments()) {
@@ -422,25 +421,26 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             "review_comment.md.j2",
             Map.of("pr_number", e.prc().number(), "issue_number", issueId, "comments", commentDicts)
         );
-        resumeBuild(e.prc().info(), issueId, e.prc().number(), prompt, false);
+        resumeBuild(e.prc(), issueId, prompt, false);
     }
 
     private void handlePrConversationComment(WorkflowEvent.PrConversationComment e) {
         int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
 
-        // CI-fix approval check
-        ContainerState state = session.readState();
-        if (state.ciPaused() && e.commentBody().contains("\uD83D\uDC4D")) {
-            session.updateState(ContainerState::resetCi);
-            log.info("CI fix approved for issue #{}, resuming", issueId);
+        // CI-fix approval check (only meaningful when the container still exists)
+        if (session.exists()) {
+            ContainerState state = session.readState();
+            if (state.ciPaused() && e.commentBody().contains("\uD83D\uDC4D")) {
+                session.updateState(ContainerState::resetCi);
+                log.info("CI fix approved for issue #{}, resuming", issueId);
 
-            String ciPrompt = renderer.render(
-                "ci_failure.md.j2",
-                Map.of("pr_number", e.prc().number(), "issue_number", issueId, "workflow_id", "")
-            );
-            session.updateState(ContainerState::touch);
-            resumeBuild(e.prc().info(), issueId, e.prc().number(), ciPrompt, true);
-            return;
+                String ciPrompt = renderer.render(
+                    "ci_failure.md.j2",
+                    Map.of("pr_number", e.prc().number(), "issue_number", issueId, "workflow_id", "")
+                );
+                resumeBuild(e.prc(), issueId, ciPrompt, true);
+                return;
+            }
         }
 
         var cd = CommentData.conversation(e.commentUser(), e.commentBody());
@@ -450,12 +450,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             Map.of("pr_number", e.prc().number(), "issue_number", issueId, "comments", commentDicts)
         );
 
-        session.updateState(ContainerState::touch);
-        resumeBuild(e.prc().info(), issueId, e.prc().number(), prompt, false);
+        resumeBuild(e.prc(), issueId, prompt, false);
     }
 
     private void handleReviewSubmitted(WorkflowEvent.ReviewSubmitted e) {
-        session.updateState(ContainerState::touch);
         int issueId = Naming.parseIssueIdFromBranch(e.prc().headBranch());
         var info = e.prc().info();
         int prNumber = e.prc().number();
@@ -497,7 +495,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 "review_comment.md.j2",
                 Map.of("pr_number", prNumber, "issue_number", issueId, "comments", commentDicts)
             );
-            resumeBuild(info, issueId, prNumber, prompt, false);
+            resumeBuild(e.prc(), issueId, prompt, false);
         } catch (Exception ex) {
             log.error("Fetch and resume review failed for issue #{}", issueId, ex);
         }
@@ -553,6 +551,11 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         var info = e.info();
         int issueId = Naming.parseIssueIdFromBranch(ciRun.headBranch());
 
+        if (!session.exists()) {
+            log.debug("Container {} missing, ignoring CI failure", session.getContainerName());
+            return;
+        }
+
         ContainerState state = session.readState();
         if (state.ciPaused()) {
             log.info("CI fixing paused for issue #{}, waiting for approval", issueId);
@@ -587,11 +590,11 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 e.workflowName()
             )
         );
-        session.updateState(ContainerState::touch);
         resumeBuild(info, issueId, ciRun.prNumber(), ciPrompt, true);
     }
 
     private void handleCiRecovery(WorkflowEvent.CiRecovery e) {
+        if (!session.exists()) return;
         session.updateState(ContainerState::resetCi);
         log.info("CI recovered for branch {}, reset failure counter", e.ciRun().headBranch());
     }
@@ -606,9 +609,22 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     }
 
     private void resumeBuild(RepoInfo info, int issueId, Integer prNumber, String prompt, boolean skipAssignmentCheck) {
-        try {
-            if (!session.exists()) return;
+        resumeBuild(null, info, issueId, prNumber, prompt, skipAssignmentCheck);
+    }
 
+    private void resumeBuild(PrContext prc, int issueId, String prompt, boolean skipAssignmentCheck) {
+        resumeBuild(prc, prc.info(), issueId, prc.number(), prompt, skipAssignmentCheck);
+    }
+
+    private void resumeBuild(
+        PrContext prc,
+        RepoInfo info,
+        int issueId,
+        Integer prNumber,
+        String prompt,
+        boolean skipAssignmentCheck
+    ) {
+        try {
             if (!skipAssignmentCheck && prNumber != null) {
                 if (!vcsClient.isAssigned(info.owner(), info.repo(), prNumber, botUser)) {
                     log.info("Smithy unassigned from PR #{}, skipping resume build", prNumber);
@@ -616,13 +632,29 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 }
             }
 
+            if (!session.exists()) {
+                // Without PR context (e.g. CI events) there is no branch to rebuild from.
+                if (prc == null) return;
+                log.info("Recreating build container {} for PR #{}", session.getContainerName(), prNumber);
+                var containerConfig = ContainerConfig.builder()
+                    .cloneUrl(info.cloneUrl())
+                    .branch(prc.headBranch())
+                    .sourceBranch(prc.baseBranch())
+                    .cacheVolumes(dockerConfig.getCacheVolumeMap())
+                    .workflowType(WorkflowType.SMITHY)
+                    .build();
+                session.initContainer(containerConfig, Stage.BUILD.value());
+                // Fresh container has no Claude transcript — a stale session id must not be resumed
+                newClaudeSession(SmithyWorkflowFactory.BUILD_TOOLS);
+            }
+            session.updateState(ContainerState::touch);
+
             ContainerState state = session.readState();
             if (state.sessionId() == null) {
-                log.warn("No session ID for {}, cannot resume", session.getContainerName());
-                return;
+                log.info("No prior Claude session in {}, starting a fresh build session", session.getContainerName());
+            } else {
+                log.info("Resuming build session in {}", session.getContainerName());
             }
-
-            log.info("Resuming build session in {}", session.getContainerName());
             claude.send(prompt);
             claude.ensureCommitted();
             syncSessionId();
