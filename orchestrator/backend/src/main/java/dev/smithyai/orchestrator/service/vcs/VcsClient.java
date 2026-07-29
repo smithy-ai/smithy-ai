@@ -62,6 +62,14 @@ public interface VcsClient {
         throw new UnsupportedOperationException("getRawFile not supported by " + getClass().getSimpleName());
     }
 
+    /**
+     * Find the first branch whose name starts with the given prefix, or null.
+     * Used to locate smithy's work branch ("smithy/<ref>-<slug>") from an issue ref.
+     */
+    default String findBranchByPrefix(String owner, String repo, String prefix) {
+        throw new UnsupportedOperationException("findBranchByPrefix not supported by " + getClass().getSimpleName());
+    }
+
     // URL helpers (provider-specific URL patterns)
     String fileBrowseUrl(String repoHtmlUrl, String branch, String path);
 

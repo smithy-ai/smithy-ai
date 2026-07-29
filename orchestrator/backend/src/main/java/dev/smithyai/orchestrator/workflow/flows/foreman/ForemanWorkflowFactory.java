@@ -16,6 +16,7 @@ import dev.smithyai.orchestrator.workflow.EventAction;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -68,6 +69,12 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
         }
     }
 
+    /**
+     * Which foreman owns each child issue, keyed "owner/repo#issueRef".
+     * Populated on fan-out and rebuilt from container state on recovery.
+     */
+    private final ConcurrentHashMap<String, String> childIndex = new ConcurrentHashMap<>();
+
     /** A tracker key like ECD-4309, as opposed to a numeric VCS issue ref. */
     public static boolean isTrackerKey(String issueRef) {
         return issueRef != null && !issueRef.chars().allMatch(Character::isDigit);
@@ -76,6 +83,26 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
     @Override
     public EventAction decideEventAction(WorkflowEvent event) {
         if (!foremanConfig.enabled()) return EventAction.IGNORE;
+
+        // Child observation: bot activity and merges on issues/branches the
+        // foreman created route to the owning feature instance.
+        switch (event) {
+            case WorkflowEvent.BotPlanPosted e -> {
+                return dispatchForChild(e.ctx().info().owner(), e.ctx().info().repo(), e.ctx().issueRef());
+            }
+            case WorkflowEvent.BotPush e -> {
+                String ref = Naming.parseIssueRefFromBranch(e.branch());
+                if (ref == null) return EventAction.IGNORE;
+                return dispatchForChild(e.info().owner(), e.info().repo(), ref);
+            }
+            case WorkflowEvent.PrMerged e -> {
+                String ref = Naming.parseIssueRefFromBranch(e.prc().headBranch());
+                if (ref == null) return EventAction.IGNORE;
+                return dispatchForChild(e.prc().info().owner(), e.prc().info().repo(), ref);
+            }
+            default -> {}
+        }
+
         if (!(event instanceof WorkflowEvent.IssueScoped scoped)) return EventAction.IGNORE;
         String ref = scoped.ctx().issueRef();
         if (!isTrackerKey(ref)) return EventAction.IGNORE;
@@ -87,6 +114,15 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
             case WorkflowEvent.IssueComment _, WorkflowEvent.PlanApproved _ -> new EventAction.Dispatch(key);
             default -> EventAction.IGNORE;
         };
+    }
+
+    private EventAction dispatchForChild(String owner, String repo, String issueRef) {
+        String foremanKey = childIndex.get(childKey(owner + "/" + repo, issueRef));
+        return foremanKey != null ? new EventAction.Dispatch(foremanKey) : EventAction.IGNORE;
+    }
+
+    private static String childKey(String project, String issueRef) {
+        return project + "#" + issueRef;
     }
 
     @Override
@@ -112,7 +148,18 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
         } catch (IllegalArgumentException e) {
             stage = ForemanStage.AWAITING_APPROVAL;
         }
-        return newInstance(containerName, stage, state.sessionId());
+        var instance = newInstance(containerName, stage, state.sessionId());
+        if (stage == ForemanStage.EXECUTING) {
+            // Rebuild the child routing index from the container's persisted state
+            var childrenState = instance.loadChildren();
+            if (childrenState != null) {
+                for (var child : childrenState.children()) {
+                    childIndex.put(childKey(child.project(), child.issueRef()), containerName);
+                }
+                log.info("Foreman {} recovered with {} children", containerName, childrenState.children().size());
+            }
+        }
+        return instance;
     }
 
     private ForemanWorkflowInstance newInstance(String key, ForemanStage stage, String sessionId) {
@@ -128,7 +175,11 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
             foremanConfig,
             manifest,
             botConfig,
-            () -> removeInstance(key),
+            (project, issueRef) -> childIndex.put(childKey(project, issueRef), key),
+            () -> {
+                removeInstance(key);
+                childIndex.values().removeIf(key::equals);
+            },
             stage,
             sessionId
         );

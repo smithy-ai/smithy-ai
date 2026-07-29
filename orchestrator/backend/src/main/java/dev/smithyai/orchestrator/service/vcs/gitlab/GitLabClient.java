@@ -454,6 +454,20 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         }
     }
 
+    @Override
+    public String findBranchByPrefix(String owner, String repo, String prefix) {
+        var nodes = getList(
+            "/projects/%s/repository/branches?search=%s",
+            projectId(owner, repo),
+            URLEncoder.encode("^" + prefix, StandardCharsets.UTF_8)
+        );
+        for (var n : nodes) {
+            String name = n.path("name").asText("");
+            if (name.startsWith(prefix)) return name;
+        }
+        return null;
+    }
+
     // ── HTTP helpers ─────────────────────────────────────────
 
     private String projectId(String owner, String repo) {

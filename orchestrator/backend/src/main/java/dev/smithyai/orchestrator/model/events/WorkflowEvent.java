@@ -33,8 +33,14 @@ public sealed interface WorkflowEvent {
 
     record PlanApproved(IssueContext ctx, String approver) implements IssueScoped {}
 
+    /** A comment authored by the smithy bot itself on an issue — consumed by the foreman only. */
+    record BotPlanPosted(IssueContext ctx, String commentBody) implements IssueScoped {}
+
     // ── Standalone push ─────────────────────────
     record HumanPush(RepoInfo info, String branch) implements WorkflowEvent {}
+
+    /** A push authored by the smithy bot on one of its branches — consumed by the foreman only. */
+    record BotPush(RepoInfo info, String branch) implements WorkflowEvent {}
 
     // ── PrScoped ────────────────────────────────
     record PrConversationComment(PrContext prc, String commentUser, String commentBody, long commentId)

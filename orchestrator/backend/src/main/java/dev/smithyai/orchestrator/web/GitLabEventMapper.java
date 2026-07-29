@@ -145,6 +145,10 @@ public class GitLabEventMapper {
         var info = repoInfo(payload);
         var ctx = extractIssueFromAttrs(info, attrs);
         String approver = payload.path("user").path("username").asText("");
+        if (botUser.equals(approver)) {
+            // Foreman-added label: no human to request a review from later
+            approver = "";
+        }
         return new WorkflowEvent.PlanApproved(ctx, approver);
     }
 
@@ -157,7 +161,15 @@ public class GitLabEventMapper {
             .path("author")
             .path("username")
             .asText(payload.path("user").path("username").asText(""));
-        if (botUser.equals(commentUser)) return null;
+        if (botUser.equals(commentUser)) {
+            // The bot's own issue comments (its plan post) feed the foreman
+            if ("Issue".equals(noteableType)) {
+                var info = repoInfo(payload);
+                var ctx = extractIssueFromAttrs(info, payload.path("issue"));
+                return new WorkflowEvent.BotPlanPosted(ctx, attrs.path("note").asText(""));
+            }
+            return null;
+        }
 
         return switch (noteableType) {
             case "Issue" -> mapIssueNote(payload, attrs, commentUser);
@@ -224,9 +236,11 @@ public class GitLabEventMapper {
                 }
             }
         }
-        if (!isHuman) return null;
-
         var info = repoInfo(payload);
+        if (!isHuman) {
+            // Bot pushes (plan commits, revisions) feed the foreman's review loop
+            return new WorkflowEvent.BotPush(info, branch);
+        }
         return new WorkflowEvent.HumanPush(info, branch);
     }
 

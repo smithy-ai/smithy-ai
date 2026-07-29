@@ -57,7 +57,11 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         this.containerService = containerService;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
-        this.issueTracker = issueTracker;
+        // In foreman mode smithy's issues are child issues on the VCS itself
+        // (numeric refs), not stories on the external tracker — so talk to the
+        // VCS about them even when the issue provider is e.g. Jira.
+        this.issueTracker =
+            foremanConfig.enabled() && vcsClient instanceof IssueTrackerClient vcsTracker ? vcsTracker : issueTracker;
     }
 
     @Override
