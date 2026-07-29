@@ -38,7 +38,7 @@ class GitHubEventMapperTest {
             new BotConfig.BotEntry("architect-bot", "architect@example.com")
         );
         var github = new VcsProviderConfig.GitHubProviderConfig("", "", "secret", "smithy-token", "architect-token");
-        var vcsConfig = new VcsProviderConfig("github", null, null, null, github);
+        var vcsConfig = new VcsProviderConfig("github", null, null, null, github, null);
         return new GitHubEventMapper(botConfig, vcsConfig, null);
     }
 

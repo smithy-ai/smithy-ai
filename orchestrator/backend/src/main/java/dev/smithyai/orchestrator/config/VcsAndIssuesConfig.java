@@ -5,6 +5,7 @@ import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.forgejo.ForgejoClient;
 import dev.smithyai.orchestrator.service.vcs.github.GitHubClient;
 import dev.smithyai.orchestrator.service.vcs.gitlab.GitLabClient;
+import dev.smithyai.orchestrator.service.vcs.jira.JiraClient;
 import dev.smithyai.orchestrator.web.GitHubEventMapper;
 import dev.smithyai.orchestrator.web.GitLabEventMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -110,6 +111,7 @@ public class VcsAndIssuesConfig {
 
     private IssueTrackerClient createIssueTrackerClient(VcsProviderConfig vcs, String provider, boolean architect) {
         return switch (provider) {
+            case "jira" -> new JiraClient(vcs.jira());
             case "gitlab" -> {
                 var gl = vcs.gitlab();
                 String token = architect ? gl.architectToken() : gl.smithyToken();

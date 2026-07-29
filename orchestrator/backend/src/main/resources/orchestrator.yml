@@ -35,6 +35,16 @@ vcs:
     smithy-token: ${SMITHY_GITHUB_TOKEN:}
     architect-token: ${ARCHITECT_GITHUB_TOKEN:}
 
+  jira:
+    url: ${JIRA_URL:}
+    email: ${JIRA_EMAIL:}
+    api-token: ${JIRA_API_TOKEN:}
+    bot-account-id: ${JIRA_BOT_ACCOUNT_ID:}
+    webhook-secret: ${JIRA_WEBHOOK_SECRET:}
+    repo-field: ${JIRA_REPO_FIELD:}
+    plan-approved-label: ${JIRA_PLAN_APPROVED_LABEL:plan-approved}
+    plan-approved-status: ${JIRA_PLAN_APPROVED_STATUS:}
+
 knowledgebase:
   enabled: ${KNOWLEDGEBASE_ENABLED:false}
   url: ${KNOWLEDGEBASE_URL:http://knowledgebase:8000/mcp}

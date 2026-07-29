@@ -7,7 +7,8 @@ public record VcsProviderConfig(
     @JsonProperty("issue-provider") String issueProvider,
     ForgejoProviderConfig forgejo,
     GitLabProviderConfig gitlab,
-    GitHubProviderConfig github
+    GitHubProviderConfig github,
+    JiraProviderConfig jira
 ) {
     public record ForgejoProviderConfig(
         String url,
@@ -37,6 +38,29 @@ public record VcsProviderConfig(
         @JsonProperty("smithy-token") String smithyToken,
         @JsonProperty("architect-token") String architectToken
     ) {}
+
+    /**
+     * Jira is an issue provider only (never a VCS provider). Cloud auth is
+     * Basic email:api-token (email set); Server/DC is a Bearer PAT (email empty).
+     */
+    public record JiraProviderConfig(
+        String url,
+        String email,
+        @JsonProperty("api-token") String apiToken,
+        @JsonProperty("bot-account-id") String botAccountId,
+        @JsonProperty("webhook-secret") String webhookSecret,
+        @JsonProperty("repo-field") String repoField,
+        @JsonProperty("plan-approved-label") String planApprovedLabel,
+        @JsonProperty("plan-approved-status") String planApprovedStatus
+    ) {
+        public boolean isCloud() {
+            return email != null && !email.isBlank();
+        }
+
+        public String resolvedPlanApprovedLabel() {
+            return planApprovedLabel != null && !planApprovedLabel.isBlank() ? planApprovedLabel : "plan-approved";
+        }
+    }
 
     public String resolvedProvider() {
         return provider != null && !provider.isBlank() ? provider : "forgejo";
@@ -107,9 +131,27 @@ public record VcsProviderConfig(
     public void validate() {
         validateProvider(resolvedProvider(), "vcs.provider");
         String issueP = resolvedIssueProvider();
-        if (!issueP.equals(resolvedProvider())) {
-            validateProvider(issueP, "vcs.issue-provider");
+        if ("jira".equals(resolvedProvider())) {
+            throw new IllegalStateException("vcs.provider cannot be 'jira' — Jira is an issue provider only");
         }
+        if (!issueP.equals(resolvedProvider())) {
+            if ("jira".equals(issueP)) {
+                validateJira();
+            } else {
+                validateProvider(issueP, "vcs.issue-provider");
+            }
+        }
+    }
+
+    private void validateJira() {
+        if (jira == null) {
+            throw new IllegalStateException(
+                "vcs.issue-provider is 'jira' but vcs.jira section is missing in orchestrator.yml"
+            );
+        }
+        requireNonBlank(jira.url(), "vcs.jira.url");
+        requireNonBlank(jira.apiToken(), "vcs.jira.api-token");
+        requireNonBlank(jira.botAccountId(), "vcs.jira.bot-account-id");
     }
 
     private void validateProvider(String providerName, String configKey) {
