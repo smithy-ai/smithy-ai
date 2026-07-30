@@ -178,6 +178,9 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 .build();
 
             session.initContainer(containerConfig, "refine");
+            // Persist the session id before the (long) plan turn so the
+            // dashboard can tail the live transcript while Claude works
+            syncSessionId();
 
             // Fetch and inject attachments
             var attachments = AttachmentHelper.fetchAndInject(
@@ -371,8 +374,25 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 ctx.issueRef()
             );
 
+            // Announce on the issue so plan approval has visible feedback
+            try {
+                String prUrl = vcsClient.prUrl(vcsConfig.resolvedExternalUrl(), info.owner(), info.repo(), pr.number());
+                issueTracker.createIssueComment(
+                    info.owner(),
+                    info.repo(),
+                    ctx.issueRef(),
+                    "Plan approved — implementation started. Follow progress on the draft MR: " + prUrl
+                );
+            } catch (Exception ex) {
+                log.warn("Failed to post implementation-started comment for {}", ctx.issueRef(), ex);
+            }
+
             // Start build session — new ClaudeSession for build phase
             newClaudeSession(SmithyWorkflowFactory.BUILD_TOOLS);
+            // Persist the fresh session id before the build turn starts,
+            // so the dashboard follows the live build session, not the
+            // finished refine one
+            syncSessionId();
             String prompt = renderer.render(
                 "building.md.j2",
                 Map.of(
@@ -662,6 +682,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 session.initContainer(containerConfig, Stage.BUILD.value());
                 // Fresh container has no Claude transcript — a stale session id must not be resumed
                 newClaudeSession(SmithyWorkflowFactory.BUILD_TOOLS);
+                syncSessionId();
             }
             session.updateState(ContainerState::touch);
 

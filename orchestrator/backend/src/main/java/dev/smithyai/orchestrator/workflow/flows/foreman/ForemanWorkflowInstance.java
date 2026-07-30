@@ -174,6 +174,9 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
                 .extraRepos(extra)
                 .build();
             session.initContainer(containerConfig, ForemanStage.AWAITING_APPROVAL.value());
+            // Persist the session id before the (long) planning turn so the
+            // dashboard can tail the live transcript while Claude works
+            syncSessionId();
 
             FeaturePlan plan = draftPlan(ctx.issueRef(), ctx.title(), ctx.body(), null);
             storePlan(plan);
