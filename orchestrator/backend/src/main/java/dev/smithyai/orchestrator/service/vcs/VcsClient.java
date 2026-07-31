@@ -27,6 +27,14 @@ public interface VcsClient {
      */
     default void reactToPrComment(String owner, String repo, int prNumber, long commentId, String reaction) {}
 
+    /**
+     * Reply inside the discussion thread of the comment being answered.
+     * Providers without threaded discussions fall back to a top-level comment.
+     */
+    default void replyToPrDiscussion(String owner, String repo, int prNumber, String discussionId, String body) {
+        createPrComment(owner, repo, prNumber, body);
+    }
+
     // Reviews
     void createPullReview(
         String owner,

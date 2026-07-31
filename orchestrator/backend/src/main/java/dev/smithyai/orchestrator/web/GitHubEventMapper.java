@@ -115,7 +115,8 @@ public class GitHubEventMapper {
                 prc,
                 commentUser,
                 commentBody,
-                payload.path("comment").path("id").asLong(0)
+                payload.path("comment").path("id").asLong(0),
+                ""
             );
         }
 
@@ -140,7 +141,8 @@ public class GitHubEventMapper {
                         prc,
                         commentUser,
                         commentBody,
-                        payload.path("comment").path("id").asLong(0)
+                        payload.path("comment").path("id").asLong(0),
+                        ""
                     );
                 }
             }
@@ -287,7 +289,8 @@ public class GitHubEventMapper {
                 prc,
                 commentUser,
                 comment.path("body").asText(""),
-                comment.path("id").asLong(0)
+                comment.path("id").asLong(0),
+                ""
             );
         }
 

@@ -203,6 +203,17 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public void replyToPrDiscussion(String owner, String repo, int prNumber, String discussionId, String body) {
+        post(
+            "/projects/%s/merge_requests/%d/discussions/%s/notes",
+            Map.of("body", body),
+            projectId(owner, repo),
+            prNumber,
+            discussionId
+        );
+    }
+
+    @Override
     public void reactToPrComment(String owner, String repo, int prNumber, long commentId, String reaction) {
         post(
             "/projects/%s/merge_requests/%d/notes/%d/award_emoji",
