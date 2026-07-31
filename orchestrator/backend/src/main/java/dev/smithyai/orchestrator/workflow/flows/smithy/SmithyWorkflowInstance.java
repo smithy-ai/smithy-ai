@@ -29,6 +29,16 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
     private static final int MAX_CI_RETRIES = 5;
 
+    /**
+     * Comments on the same MR often arrive in a burst (a reviewer submitting
+     * several notes). They are buffered and handled as ONE Claude turn with
+     * ONE commit, instead of a commit per comment. The window is how long the
+     * first comment waits for stragglers.
+     */
+    private static final long COMMENT_BATCH_WINDOW_MS = 30_000;
+
+    private final java.util.Queue<WorkflowEvent> pendingComments = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
     private final String botUser;
     private final StateMachine<Stage> stateMachine;
     private String contextRepoName;
@@ -141,6 +151,24 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     }
 
     // ── Unified event entry point ───────────────────────────
+
+    @Override
+    public void onEvent(WorkflowEvent event) {
+        // Buffer PR comments on arrival (before the serial handler runs) so a
+        // burst of comments is visible as one batch by the time the first
+        // handler drains it. Ack immediately — the batch window delays work,
+        // not the "seen it" signal.
+        if (!isHumanControlled()) {
+            if (event instanceof WorkflowEvent.PrReviewComment e) {
+                acknowledgeComment(e.prc(), e.commentId());
+                pendingComments.add(event);
+            } else if (event instanceof WorkflowEvent.PrConversationComment e) {
+                acknowledgeComment(e.prc(), e.commentId());
+                pendingComments.add(event);
+            }
+        }
+        super.onEvent(event);
+    }
 
     @Override
     protected void handleEvent(WorkflowEvent event) {
@@ -432,47 +460,77 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     }
 
     private void handlePrReviewComment(WorkflowEvent.PrReviewComment e) {
-        acknowledgeComment(e.prc(), e.commentId());
-        String issueRef = Naming.parseIssueRefFromBranch(e.prc().headBranch());
-        var commentDicts = new ArrayList<Map<String, Object>>();
-        for (var cd : e.comments()) {
-            commentDicts.add(cd.toMap());
-        }
-        String prompt = renderer.render(
-            "review_comment.md.j2",
-            Map.of("pr_number", e.prc().number(), "issue_ref", issueRef, "comments", commentDicts)
-        );
-        resumeBuild(e.prc(), issueRef, prompt, false);
+        processPendingComments();
     }
 
     private void handlePrConversationComment(WorkflowEvent.PrConversationComment e) {
-        acknowledgeComment(e.prc(), e.commentId());
-        String issueRef = Naming.parseIssueRefFromBranch(e.prc().headBranch());
+        processPendingComments();
+    }
 
-        // CI-fix approval check (only meaningful when the container still exists)
-        if (session.exists()) {
-            ContainerState state = session.readState();
-            if (state.ciPaused() && e.commentBody().contains("\uD83D\uDC4D")) {
-                session.updateState(ContainerState::resetCi);
-                log.info("CI fix approved for issue {}, resuming", issueRef);
+    /**
+     * Drain and handle all buffered PR comments in one Claude turn producing
+     * one commit. The handler for the first comment of a burst does the work;
+     * handlers for the rest find the buffer empty and return.
+     */
+    private void processPendingComments() {
+        if (pendingComments.isEmpty()) return;
+        try {
+            Thread.sleep(COMMENT_BATCH_WINDOW_MS);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
 
-                String ciPrompt = renderer.render(
-                    "ci_failure.md.j2",
-                    Map.of("pr_number", e.prc().number(), "issue_ref", issueRef, "workflow_id", "")
-                );
-                resumeBuild(e.prc(), issueRef, ciPrompt, true);
-                return;
+        var batch = new ArrayList<WorkflowEvent>();
+        WorkflowEvent ev;
+        while ((ev = pendingComments.poll()) != null) {
+            batch.add(ev);
+        }
+        if (batch.isEmpty()) return;
+
+        PrContext prc = batch.getLast() instanceof WorkflowEvent.PrScoped scoped ? scoped.prc() : null;
+        if (prc == null) return;
+        String issueRef = Naming.parseIssueRefFromBranch(prc.headBranch());
+
+        // CI-fix approval: a \uD83D\uDC4D while CI fixing is paused resumes it and is
+        // not review feedback
+        boolean ciApproved = false;
+        var commentDicts = new ArrayList<Map<String, Object>>();
+        String singleDiscussionId = null;
+        for (var event : batch) {
+            if (event instanceof WorkflowEvent.PrReviewComment rc) {
+                for (var cd : rc.comments()) commentDicts.add(cd.toMap());
+                singleDiscussionId = rc.discussionId();
+            } else if (event instanceof WorkflowEvent.PrConversationComment cc) {
+                if (cc.commentBody().contains("\uD83D\uDC4D") && session.exists() && session.readState().ciPaused()) {
+                    ciApproved = true;
+                    continue;
+                }
+                commentDicts.add(CommentData.conversation(cc.commentUser(), cc.commentBody()).toMap());
+                singleDiscussionId = cc.discussionId();
             }
         }
 
-        var cd = CommentData.conversation(e.commentUser(), e.commentBody());
-        var commentDicts = List.of(cd.toMap());
+        if (ciApproved) {
+            session.updateState(ContainerState::resetCi);
+            log.info("CI fix approved for issue {}, resuming", issueRef);
+            String ciPrompt = renderer.render(
+                "ci_failure.md.j2",
+                Map.of("pr_number", prc.number(), "issue_ref", issueRef, "workflow_id", "")
+            );
+            resumeBuild(prc, issueRef, ciPrompt, true, null);
+        }
+
+        if (commentDicts.isEmpty()) return;
+        log.info("Handling {} PR comment(s) on PR #{} as one batch", commentDicts.size(), prc.number());
+
         String prompt = renderer.render(
             "review_comment.md.j2",
-            Map.of("pr_number", e.prc().number(), "issue_ref", issueRef, "comments", commentDicts)
+            Map.of("pr_number", prc.number(), "issue_ref", issueRef, "comments", commentDicts)
         );
-
-        resumeBuild(e.prc(), issueRef, prompt, false);
+        // A single comment gets its reply threaded into its own discussion;
+        // a multi-comment batch gets one top-level reply covering each comment
+        String replyDiscussionId = commentDicts.size() == 1 ? singleDiscussionId : null;
+        resumeBuild(prc, issueRef, prompt, false, replyDiscussionId);
     }
 
     private void handleReviewSubmitted(WorkflowEvent.ReviewSubmitted e) {
@@ -517,7 +575,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 "review_comment.md.j2",
                 Map.of("pr_number", prNumber, "issue_ref", issueRef, "comments", commentDicts)
             );
-            resumeBuild(e.prc(), issueRef, prompt, false);
+            resumeBuild(e.prc(), issueRef, prompt, false, null);
         } catch (Exception ex) {
             log.error("Fetch and resume review failed for issue {}", issueRef, ex);
         }
@@ -644,11 +702,17 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     }
 
     private void resumeBuild(RepoInfo info, String issueRef, Integer prNumber, String prompt, boolean skipAssignmentCheck) {
-        resumeBuild(null, info, issueRef, prNumber, prompt, skipAssignmentCheck, false);
+        resumeBuild(null, info, issueRef, prNumber, prompt, skipAssignmentCheck, false, null);
     }
 
-    private void resumeBuild(PrContext prc, String issueRef, String prompt, boolean skipAssignmentCheck) {
-        resumeBuild(prc, prc.info(), issueRef, prc.number(), prompt, skipAssignmentCheck, true);
+    private void resumeBuild(
+        PrContext prc,
+        String issueRef,
+        String prompt,
+        boolean skipAssignmentCheck,
+        String replyDiscussionId
+    ) {
+        resumeBuild(prc, prc.info(), issueRef, prc.number(), prompt, skipAssignmentCheck, true, replyDiscussionId);
     }
 
     private void resumeBuild(
@@ -658,7 +722,8 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         Integer prNumber,
         String prompt,
         boolean skipAssignmentCheck,
-        boolean postReply
+        boolean postReply,
+        String replyDiscussionId
     ) {
         try {
             if (!skipAssignmentCheck && prNumber != null) {
@@ -700,7 +765,11 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
             if (postReply && prNumber != null && reply != null && !reply.isBlank()) {
                 try {
-                    vcsClient.createPrComment(info.owner(), info.repo(), prNumber, reply);
+                    if (replyDiscussionId != null && !replyDiscussionId.isBlank()) {
+                        vcsClient.replyToPrDiscussion(info.owner(), info.repo(), prNumber, replyDiscussionId, reply);
+                    } else {
+                        vcsClient.createPrComment(info.owner(), info.repo(), prNumber, reply);
+                    }
                 } catch (Exception ex) {
                     log.warn("Failed to post reply comment on PR #{}", prNumber, ex);
                 }
