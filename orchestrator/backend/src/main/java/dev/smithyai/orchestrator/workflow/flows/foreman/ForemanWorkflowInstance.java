@@ -9,7 +9,9 @@ import dev.smithyai.orchestrator.config.ReposManifest;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
+import dev.smithyai.orchestrator.model.IssueContext;
 import dev.smithyai.orchestrator.service.claude.dto.ChildPlanVerdict;
+import dev.smithyai.orchestrator.service.claude.dto.FeatureExtension;
 import dev.smithyai.orchestrator.service.claude.dto.FeaturePlan;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
@@ -203,15 +205,9 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             session.updateState(ContainerState::touch);
 
             if (stateMachine.state() == ForemanStage.EXECUTING) {
-                // Post-approval comments are questions/steering, not plan edits
-                String reply = claude.send(
-                    renderer.render(
-                        "foreman_status.md.j2",
-                        Map.of("story_ref", ctx.issueRef(), "comment_body", e.commentBody())
-                    )
-                );
-                syncSessionId();
-                storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), reply);
+                // Post-approval comments either steer (answered in place) or
+                // extend the feature with additional child issues
+                handleExecutingComment(e);
                 return;
             }
 
@@ -296,6 +292,202 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), summary.toString());
         } catch (Exception ex) {
             log.error("Foreman execution failed for {}", ctx.issueRef(), ex);
+        }
+    }
+
+    // ── EXECUTING: steering & plan extension ─────────────────
+
+    /**
+     * A story comment during execution is either a question (answered in a
+     * reply) or a request to extend the feature — e.g. a repo that has since
+     * been added to the manifest. The agent decides via structured output;
+     * new issues join the plan, the children state, and wave scheduling
+     * exactly like the original fan-out. Repos added to the manifest after
+     * this container was created are cloned on demand so extension plans
+     * stay grounded in real code.
+     */
+    private void handleExecutingComment(WorkflowEvent.IssueComment e) throws Exception {
+        var ctx = e.ctx();
+        FeaturePlan plan = loadPlan();
+        ChildrenState state = loadChildren();
+        if (state == null) {
+            state = new ChildrenState(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), List.of());
+        }
+
+        // Designs are often attached along with the comment that asks for them
+        var attachments = AttachmentHelper.fetchAndInject(
+            storyTracker,
+            session,
+            ctx.info().owner(),
+            ctx.info().repo(),
+            ctx.issueRef()
+        );
+
+        FeatureExtension ext = requestExtension(ctx.issueRef(), e.commentBody(), plan, state, attachments, false);
+        if (!ext.reposNeeded().isEmpty()) {
+            cloneMissingRepos(ext.reposNeeded());
+            ext = requestExtension(ctx.issueRef(), e.commentBody(), plan, state, attachments, true);
+        }
+
+        if (ext.issues().isEmpty()) {
+            String reply = ext.reply() != null && !ext.reply().isBlank()
+                ? ext.reply()
+                : "Nothing to add — the plan is unchanged.";
+            storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), reply);
+            return;
+        }
+
+        extendPlan(ctx, plan, state, ext);
+    }
+
+    private FeatureExtension requestExtension(
+        String storyRef,
+        String commentBody,
+        FeaturePlan plan,
+        ChildrenState state,
+        List<String> attachments,
+        boolean followUp
+    ) {
+        var cloned = clonedRepoNames();
+        var repoEntries = new ArrayList<Map<String, Object>>();
+        for (var r : manifest.repos()) {
+            repoEntries.add(
+                Map.of(
+                    "project", r.project(),
+                    "description", r.description() != null ? r.description() : "",
+                    "cloned", cloned.contains(repoName(r.project()))
+                )
+            );
+        }
+        var childEntries = new ArrayList<Map<String, Object>>();
+        for (var c : state.children()) {
+            childEntries.add(
+                Map.of("index", c.planIndex(), "project", c.project(), "ref", c.issueRef(), "status", childStatus(c))
+            );
+        }
+
+        var vars = new HashMap<String, Object>();
+        vars.put("story_ref", storyRef);
+        vars.put("comment_body", commentBody);
+        vars.put("plan_summary", plan != null ? renderPlanComment(plan) : "(no stored plan)");
+        vars.put("children", childEntries);
+        vars.put("repos", repoEntries);
+        vars.put("attachments", attachments);
+        vars.put("max_issues", foremanConfig.resolvedMaxIssues());
+        vars.put("next_index", plan != null ? plan.issues().size() : 0);
+        vars.put("follow_up", followUp);
+
+        FeatureExtension ext = claude.send(renderer.render("foreman_extend.md.j2", vars), FeatureExtension.class);
+        syncSessionId();
+        return ext;
+    }
+
+    private void extendPlan(IssueContext ctx, FeaturePlan plan, ChildrenState state, FeatureExtension ext)
+        throws Exception {
+        var baseIssues = plan != null ? plan.issues() : List.<FeaturePlan.PlannedIssue>of();
+        int base = baseIssues.size();
+        int cap = foremanConfig.resolvedMaxIssues();
+
+        // Every extension issue joins the stored plan (planIndex arithmetic
+        // and dependsOn references rely on it), even ones we skip below.
+        var allIssues = new ArrayList<>(baseIssues);
+        var children = new ArrayList<>(state.children());
+        var created = new ArrayList<Child>();
+        for (int i = 0; i < ext.issues().size(); i++) {
+            var planned = ext.issues().get(i);
+            allIssues.add(planned);
+            if (i >= cap) {
+                log.warn("Foreman extension cap ({}) reached for {}, skipping remaining issues", cap, ctx.issueRef());
+                continue;
+            }
+            if (!manifest.containsProject(planned.project())) {
+                log.warn("Foreman extension targets {} which is not in the manifest, skipping", planned.project());
+                continue;
+            }
+            String[] parts = planned.project().split("/", 2);
+            String bodyWithStory = planned.body() + "\n\n---\nParent story: " + ctx.issueRef();
+            var issue = childIssueTracker.createIssue(parts[0], parts[1], planned.title(), bodyWithStory, List.of());
+            var child = new Child(base + i, planned.project(), issue.issueRef(), planned.dependsOn(), false, false, false, 0);
+            children.add(child);
+            created.add(child);
+            childRegistrar.accept(planned.project(), issue.issueRef());
+            log.info("Foreman created child issue {}#{} extending {}", planned.project(), issue.issueRef(), ctx.issueRef());
+        }
+
+        storePlan(
+            new FeaturePlan(
+                plan != null ? plan.summary() : "",
+                allIssues,
+                plan != null ? plan.openQuestions() : List.of()
+            )
+        );
+        ChildrenState newState = new ChildrenState(state.storyOwner(), state.storyRepo(), state.storyRef(), children);
+        storeChildren(newState);
+
+        // New issues whose dependencies are already merged start immediately
+        for (var c : created) {
+            if (dependenciesMerged(newState, c)) {
+                assignToSmithy(c);
+                newState = updateChild(newState, withAssigned(c));
+            }
+        }
+
+        var sb = new StringBuilder();
+        if (ext.reply() != null && !ext.reply().isBlank()) sb.append(ext.reply()).append("\n\n");
+        if (created.isEmpty()) {
+            sb.append("No issues could be created — the proposed targets are outside the manifest or the issue cap was reached.");
+        } else {
+            sb.append("Extended the plan — created ").append(created.size()).append(" issue(s):\n");
+            for (var c : created) {
+                Child current = findChild(newState, c.project(), c.issueRef());
+                sb
+                    .append("- ")
+                    .append(c.project())
+                    .append("#")
+                    .append(c.issueRef())
+                    .append(current != null && current.assigned() ? " (assigned to smithy)" : " (waiting on dependencies)")
+                    .append("\n");
+            }
+        }
+        storyTracker.createIssueComment(state.storyOwner(), state.storyRepo(), state.storyRef(), sb.toString());
+    }
+
+    private static String childStatus(Child c) {
+        if (c.merged()) return "merged";
+        if (c.approved()) return "implementation in progress (plan approved)";
+        if (c.assigned()) return "assigned to smithy (planning)";
+        return "waiting on dependencies";
+    }
+
+    /** Repo directory names present in this container's workspace. */
+    private java.util.Set<String> clonedRepoNames() {
+        var names = new java.util.HashSet<String>();
+        names.add(repoName(manifest.repos().getFirst().project()));
+        var result = session.exec("sh", "-c", "ls -1 repos 2>/dev/null || true");
+        if (result.exitCode() == 0) {
+            for (String line : result.stdout().split("\n")) {
+                if (!line.isBlank()) names.add(line.trim());
+            }
+        }
+        return names;
+    }
+
+    /** Clones manifest repos that joined the manifest after this container was created. */
+    private void cloneMissingRepos(List<String> projects) {
+        var present = clonedRepoNames();
+        for (String project : projects) {
+            if (!manifest.containsProject(project)) {
+                log.warn("Foreman requested clone of {} which is not in the manifest, skipping", project);
+                continue;
+            }
+            String name = repoName(project);
+            if (present.contains(name)) continue;
+            var result = session.exec("git", "clone", "--filter=blob:none", cloneUrlFor(project), "repos/" + name);
+            if (result.exitCode() != 0) {
+                log.warn("Foreman failed to clone {}: {}", project, result.stderr());
+            } else {
+                log.info("Foreman cloned {} into {}", project, session.getContainerName());
+            }
         }
     }
 

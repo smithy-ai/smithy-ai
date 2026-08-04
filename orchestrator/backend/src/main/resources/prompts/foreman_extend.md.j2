@@ -1,0 +1,61 @@
+A human commented on story {{ story_ref }}, which you are currently executing: child issues exist
+and smithy agents are working on them.
+
+{{ comment_body }}
+{% if follow_up %}
+
+The repositories you requested have now been cloned into this workspace under `repos/<name>` —
+ground your new issues in their real code and return the final result.
+{% endif %}
+
+## Current feature plan
+
+{{ plan_summary }}
+
+## Children
+
+The bracketed numbers are zero-based plan indexes — dependsOn references use them.
+{% for c in children %}
+- [{{ c.index }}] {{ c.project }}#{{ c.ref }} — {{ c.status }}
+{% endfor %}
+{% if attachments %}
+
+## Story attachments available in this container
+
+{% for path in attachments %}
+- `{{ path }}`
+{% endfor %}
+{% endif %}
+
+## Repositories
+
+These are the only repositories that may receive issues. Repos marked "(not cloned)" are absent
+from this workspace; the rest are cloned — the first at the workspace root, others under
+`repos/<name>`.
+
+{% for repo in repos %}
+### {{ repo.project }}{% if not repo.cloned %} (not cloned){% endif %}
+{{ repo.description }}
+{% endfor %}
+
+## Instructions
+
+Decide what the comment asks for:
+
+1. A question or steering (status, progress, clarification): answer it in `reply` and return no
+   issues. Workflow state (assigned / in progress / merged) comes from the children list above —
+   trust it over your clones, which are snapshots from planning time. Before claiming a branch,
+   commit, or file does not exist, run `git fetch origin` in the relevant clone and check again.
+
+2. A request to extend the feature (a repository newly in scope, a missed piece of work): draft the
+   additional issues. The same rules apply as for the original plan: high-level bodies (goal,
+   expected behavior/contract, acceptance criteria stating the expected tests), cross-component
+   touchpoints spelled out explicitly, no sequencing notes in bodies — ordering is expressed only
+   via dependsOn. dependsOn holds zero-based indexes into the combined issue list: existing
+   children keep their bracketed indexes above, and your first new issue is index {{ next_index }}.
+   At most {{ max_issues }} new issues. Plans must be grounded in real code: if a repository you
+   need is marked "(not cloned)", return its project name in `reposNeeded` and no issues — it will
+   be cloned and you will be asked to finalize. Use `reply` to summarize what you are adding and why.
+
+Return structured output: reply (string, always set), issues (project, title, body, dependsOn),
+reposNeeded (project names, normally empty).

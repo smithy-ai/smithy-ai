@@ -82,6 +82,8 @@ Orange-bordered boxes are human actions, blue-bordered boxes are Claude agents, 
 5. Each child issue runs the normal smithy workflow: a plan on the issue (auto-reviewed by the foreman), implementation, and a merge request. CI failures and review comments loop back to the owning agent.
 6. As a wave's merge requests land, the foreman opens the next wave; when all waves finish, it closes the story.
 
+Commenting on the story during execution either gets you a status answer or extends the feature: if the comment asks for additional work (e.g. a repository that has since been added to the manifest), the foreman drafts the extra issues — cloning newly in-scope repos on demand so the plan stays grounded in code — and schedules them into the existing dependency waves.
+
 ## Demo setup
 
 The `examples/demo/` directory contains a Docker Compose stack that runs a local Forgejo instance with the orchestrator.
