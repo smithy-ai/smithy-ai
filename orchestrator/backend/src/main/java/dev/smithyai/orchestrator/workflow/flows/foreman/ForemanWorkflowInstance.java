@@ -19,6 +19,7 @@ import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
 import dev.smithyai.orchestrator.workflow.shared.StateMachine;
+import dev.smithyai.orchestrator.workflow.shared.utils.AttachmentHelper;
 import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -178,7 +179,15 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             // dashboard can tail the live transcript while Claude works
             syncSessionId();
 
-            FeaturePlan plan = draftPlan(ctx.issueRef(), ctx.title(), ctx.body(), null);
+            var attachments = AttachmentHelper.fetchAndInject(
+                storyTracker,
+                session,
+                ctx.info().owner(),
+                ctx.info().repo(),
+                ctx.issueRef()
+            );
+
+            FeaturePlan plan = draftPlan(ctx.issueRef(), ctx.title(), ctx.body(), null, attachments);
             storePlan(plan);
             storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), renderPlanComment(plan));
             log.info("Foreman posted plan for {} ({} issues)", ctx.issueRef(), plan.issues().size());
@@ -206,7 +215,16 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
                 return;
             }
 
-            FeaturePlan plan = draftPlan(ctx.issueRef(), ctx.title(), ctx.body(), e.commentBody());
+            // Re-fetch attachments: designs are often added together with the comment
+            var attachments = AttachmentHelper.fetchAndInject(
+                storyTracker,
+                session,
+                ctx.info().owner(),
+                ctx.info().repo(),
+                ctx.issueRef()
+            );
+
+            FeaturePlan plan = draftPlan(ctx.issueRef(), ctx.title(), ctx.body(), e.commentBody(), attachments);
             storePlan(plan);
             storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), renderPlanComment(plan));
             log.info("Foreman revised plan for {}", ctx.issueRef());
@@ -477,7 +495,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
 
     // ── Plan drafting & persistence ──────────────────────────
 
-    private FeaturePlan draftPlan(String storyRef, String title, String body, String feedback) {
+    private FeaturePlan draftPlan(String storyRef, String title, String body, String feedback, List<String> attachments) {
         var manifestEntries = new ArrayList<Map<String, String>>();
         for (var r : manifest.repos()) {
             var entry = new HashMap<String, String>();
@@ -493,6 +511,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
         vars.put("repos", manifestEntries);
         vars.put("max_issues", foremanConfig.resolvedMaxIssues());
         vars.put("feedback", feedback != null ? feedback : "");
+        vars.put("attachments", attachments != null ? attachments : List.of());
 
         String template = feedback == null ? "foreman_plan.md.j2" : "foreman_plan_revise.md.j2";
         FeaturePlan plan = claude.send(renderer.render(template, vars), FeaturePlan.class);

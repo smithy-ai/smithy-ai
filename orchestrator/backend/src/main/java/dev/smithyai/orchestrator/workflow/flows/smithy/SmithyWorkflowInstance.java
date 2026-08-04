@@ -39,9 +39,37 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
     private final java.util.Queue<WorkflowEvent> pendingComments = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
+    /** Matches the marker the foreman appends to every child issue body. */
+    private static final java.util.regex.Pattern PARENT_STORY =
+        java.util.regex.Pattern.compile("^Parent story: (\\S+)$", java.util.regex.Pattern.MULTILINE);
+
     private final String botUser;
     private final StateMachine<Stage> stateMachine;
     private String contextRepoName;
+
+    /**
+     * The external story tracker (e.g. Jira) in foreman mode; null otherwise.
+     * Lets a child workflow pull attachments (designs, mockups) from its
+     * parent story, which live on the tracker rather than the VCS issue.
+     */
+    private IssueTrackerClient storyTracker;
+
+    public SmithyWorkflowInstance withStoryTracker(IssueTrackerClient storyTracker) {
+        this.storyTracker = storyTracker;
+        return this;
+    }
+
+    /**
+     * Foreman child issues reference their parent story; fetch that story's
+     * attachments too, so designs attached on the tracker reach this agent.
+     */
+    private List<String> fetchParentStoryAttachments(String issueBody) {
+        if (storyTracker == null || issueBody == null) return List.of();
+        var matcher = PARENT_STORY.matcher(issueBody);
+        if (!matcher.find()) return List.of();
+        // Tracker story refs are not repository-scoped; owner/repo are ignored
+        return AttachmentHelper.fetchAndInject(storyTracker, session, "", "", matcher.group(1));
+    }
 
     public SmithyWorkflowInstance(
         ContainerSession session,
@@ -211,13 +239,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             syncSessionId();
 
             // Fetch and inject attachments
-            var attachments = AttachmentHelper.fetchAndInject(
-                issueTracker,
-                session,
-                info.owner(),
-                info.repo(),
-                ctx.issueRef()
+            var attachments = new ArrayList<>(
+                AttachmentHelper.fetchAndInject(issueTracker, session, info.owner(), info.repo(), ctx.issueRef())
             );
+            attachments.addAll(fetchParentStoryAttachments(ctx.body()));
 
             // Render and invoke plan
             String prompt = renderer.render(
@@ -320,13 +345,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 log.warn("git pull --ff-only failed in {}: {}", session.getContainerName(), pullResult.stderr());
             }
 
-            var attachments = AttachmentHelper.fetchAndInject(
-                issueTracker,
-                session,
-                info.owner(),
-                info.repo(),
-                ctx.issueRef()
+            var attachments = new ArrayList<>(
+                AttachmentHelper.fetchAndInject(issueTracker, session, info.owner(), info.repo(), ctx.issueRef())
             );
+            attachments.addAll(fetchParentStoryAttachments(ctx.body()));
 
             String prompt = renderer.render(
                 "refinement_comment.md.j2",
@@ -394,13 +416,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             vcsClient.setPrAssignees(info.owner(), info.repo(), pr.number(), List.of(botUser));
 
             // Fetch attachments
-            var attachments = AttachmentHelper.fetchAndInject(
-                issueTracker,
-                session,
-                info.owner(),
-                info.repo(),
-                ctx.issueRef()
+            var attachments = new ArrayList<>(
+                AttachmentHelper.fetchAndInject(issueTracker, session, info.owner(), info.repo(), ctx.issueRef())
             );
+            attachments.addAll(fetchParentStoryAttachments(ctx.body()));
 
             // Announce on the issue so plan approval has visible feedback
             try {

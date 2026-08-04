@@ -37,6 +37,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
+    private final IssueTrackerClient storyTracker;
 
     public SmithyWorkflowFactory(
         DockerConfig dockerConfig,
@@ -62,6 +63,9 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         // VCS about them even when the issue provider is e.g. Jira.
         this.issueTracker =
             foremanConfig.enabled() && vcsClient instanceof IssueTrackerClient vcsTracker ? vcsTracker : issueTracker;
+        // The external tracker still holds the parent stories (and their
+        // attachments — designs, mockups); child workflows read those from it.
+        this.storyTracker = foremanConfig.enabled() ? issueTracker : null;
     }
 
     @Override
@@ -109,7 +113,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             botConfig,
             augmentTools(REFINE_TOOLS),
             () -> removeInstance(key)
-        );
+        ).withStoryTracker(storyTracker);
     }
 
     @Override
@@ -135,7 +139,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(key),
             Stage.BUILD,
             null
-        );
+        ).withStoryTracker(storyTracker);
     }
 
     @Override
@@ -165,7 +169,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(containerName),
             stage,
             state.sessionId()
-        );
+        ).withStoryTracker(storyTracker);
     }
 
     private List<String> augmentTools(List<String> baseTools) {

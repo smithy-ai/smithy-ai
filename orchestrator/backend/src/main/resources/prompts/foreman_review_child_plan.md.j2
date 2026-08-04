@@ -32,7 +32,8 @@ config keys must MATCH across repos. This is the one check only you can do.
   consistent with the feature plan and the sibling plans. Style, internal file layout, and
   implementation taste are the agent's call — do NOT block on them.
 - aligned = false only for real problems: missing acceptance criteria, contract mismatches, work
-  outside the issue's scope, or a misread of the issue. Put the reason in feedback as short,
+  outside the issue's scope, a misread of the issue, or no testing approach for behavior the issue's
+  acceptance criteria say must be covered. Put the reason in feedback as short,
   imperative comments the agent can act on directly ("Use PUT /api/v2/clients, not POST /clients").
   The feedback text is posted verbatim on the child issue.
 

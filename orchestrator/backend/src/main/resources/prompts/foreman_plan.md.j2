@@ -5,6 +5,19 @@ smithy agents will implement one repo at a time.
 ## Story {{ story_ref }}: {{ story_title }}
 
 {{ story_body }}
+{% if attachments %}
+
+## Attachments
+
+These files were attached to the story (designs, mockups, specs) and are available in this container:
+{% for path in attachments %}
+- `{{ path }}`
+{% endfor %}
+
+Read them before planning — designs often carry requirements the story text omits. The smithy agents
+working your child issues receive the same files, so reference them by filename in issue bodies where
+a design drives the work.
+{% endif %}
 
 ## Repositories
 
@@ -27,6 +40,8 @@ at the workspace root, the rest under `repos/<name>`.
 Issue-body rules (smithy sees ONLY its target repo):
 - Write bodies high-level: goal, expected behavior/contract, acceptance criteria. Smithy plans the
   exact files itself.
+- Acceptance criteria must state the expected tests: which behaviors need coverage and at what level
+  (unit, integration, e2e), following the conventions already present in that repo.
 - Spell out cross-component touchpoints explicitly: API shapes, endpoint paths, queue/message names,
   config keys. Sibling agents cannot see each other's repos.
 - NO sequencing notes in bodies ("after X merges") — ordering is expressed only via dependsOn.

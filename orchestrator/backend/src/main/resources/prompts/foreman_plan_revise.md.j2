@@ -1,6 +1,14 @@
 A human replied to your feature plan for story {{ story_ref }} ("{{ story_title }}"):
 
 {{ feedback }}
+{% if attachments %}
+
+Story attachments available in this container (this list may include files added since the previous
+round — check anything you have not read yet):
+{% for path in attachments %}
+- `{{ path }}`
+{% endfor %}
+{% endif %}
 
 Revise the plan accordingly. Re-read code in the workspace clones where the feedback makes that
 necessary. Keep everything that wasn't questioned. The same rules apply as before: only manifest
