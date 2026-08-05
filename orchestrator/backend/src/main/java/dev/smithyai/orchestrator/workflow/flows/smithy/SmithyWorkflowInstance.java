@@ -43,6 +43,17 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     private final StateMachine<Stage> stateMachine;
     private String contextRepoName;
 
+    /**
+     * When false, a CI failure pauses the workflow and asks for approval on
+     * the MR instead of debugging unprompted; each 👍 covers one fix turn.
+     */
+    private boolean ciAutofix = true;
+
+    public SmithyWorkflowInstance withCiAutofix(boolean ciAutofix) {
+        this.ciAutofix = ciAutofix;
+        return this;
+    }
+
     public SmithyWorkflowInstance(
         ContainerSession session,
         VcsClient vcsClient,
@@ -639,6 +650,20 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         ContainerState state = session.readState();
         if (state.ciPaused()) {
             log.info("CI fixing paused for issue {}, waiting for approval", issueRef);
+            return;
+        }
+
+        if (!ciAutofix) {
+            session.updateState(s -> s.withCiPaused(true));
+            if (ciRun.prNumber() != null) {
+                vcsClient.createPrComment(
+                    info.owner(),
+                    info.repo(),
+                    ciRun.prNumber(),
+                    "CI failed. Automatic CI fixing is disabled — reply with 👍 and I'll debug it."
+                );
+            }
+            log.info("CI autofix disabled, pausing issue {} for approval", issueRef);
             return;
         }
 

@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.smithy;
 
 import dev.smithyai.orchestrator.config.BotConfig;
+import dev.smithyai.orchestrator.config.CiConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
@@ -34,9 +35,11 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
+    private final boolean ciAutofix;
 
     public SmithyWorkflowFactory(
         DockerConfig dockerConfig,
+        CiConfig ciConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
@@ -53,6 +56,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         this.renderer = renderer;
         this.vcsClient = vcsClient;
         this.issueTracker = issueTracker;
+        this.ciAutofix = ciConfig.resolvedAutofix();
     }
 
     @Override
@@ -91,7 +95,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             botConfig,
             augmentTools(REFINE_TOOLS),
             () -> removeInstance(key)
-        );
+        ).withCiAutofix(ciAutofix);
     }
 
     @Override
@@ -117,7 +121,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(key),
             Stage.BUILD,
             null
-        );
+        ).withCiAutofix(ciAutofix);
     }
 
     @Override
@@ -147,7 +151,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(containerName),
             stage,
             state.sessionId()
-        );
+        ).withCiAutofix(ciAutofix);
     }
 
     private List<String> augmentTools(List<String> baseTools) {
