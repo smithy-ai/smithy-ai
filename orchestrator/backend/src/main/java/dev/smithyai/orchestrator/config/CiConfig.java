@@ -7,6 +7,6 @@ package dev.smithyai.orchestrator.config;
  */
 public record CiConfig(Boolean autofix) {
     public boolean resolvedAutofix() {
-        return autofix == null || autofix;
+        return autofix != null && autofix;
     }
 }

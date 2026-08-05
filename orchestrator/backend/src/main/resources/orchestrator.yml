@@ -48,7 +48,7 @@ vcs:
 ci:
   # When false, a failed pipeline pauses the workflow and asks for approval
   # on the MR (reply with a thumbs-up) instead of debugging automatically.
-  autofix: ${CI_AUTOFIX:true}
+  autofix: ${CI_AUTOFIX:false}
 
 foreman:
   enabled: ${FOREMAN_ENABLED:false}

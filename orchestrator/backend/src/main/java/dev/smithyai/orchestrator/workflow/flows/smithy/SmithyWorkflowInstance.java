@@ -58,7 +58,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
      * When false, a CI failure pauses the workflow and asks for approval on
      * the MR instead of debugging unprompted; each 👍 covers one fix turn.
      */
-    private boolean ciAutofix = true;
+    private boolean ciAutofix = false;
 
     public SmithyWorkflowInstance withCiAutofix(boolean ciAutofix) {
         this.ciAutofix = ciAutofix;
