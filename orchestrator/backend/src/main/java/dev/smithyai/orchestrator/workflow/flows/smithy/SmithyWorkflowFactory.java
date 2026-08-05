@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.smithy;
 
 import dev.smithyai.orchestrator.config.BotConfig;
+import dev.smithyai.orchestrator.config.CiConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.ForemanConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
@@ -38,9 +39,11 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
     private final IssueTrackerClient storyTracker;
+    private final boolean ciAutofix;
 
     public SmithyWorkflowFactory(
         DockerConfig dockerConfig,
+        CiConfig ciConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
@@ -66,6 +69,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         // The external tracker still holds the parent stories (and their
         // attachments — designs, mockups); child workflows read those from it.
         this.storyTracker = foremanConfig.enabled() ? issueTracker : null;
+        this.ciAutofix = ciConfig.resolvedAutofix();
     }
 
     @Override
@@ -113,7 +117,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             botConfig,
             augmentTools(REFINE_TOOLS),
             () -> removeInstance(key)
-        ).withStoryTracker(storyTracker);
+        ).withStoryTracker(storyTracker).withCiAutofix(ciAutofix);
     }
 
     @Override
@@ -139,7 +143,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(key),
             Stage.BUILD,
             null
-        ).withStoryTracker(storyTracker);
+        ).withStoryTracker(storyTracker).withCiAutofix(ciAutofix);
     }
 
     @Override
@@ -169,7 +173,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(containerName),
             stage,
             state.sessionId()
-        ).withStoryTracker(storyTracker);
+        ).withStoryTracker(storyTracker).withCiAutofix(ciAutofix);
     }
 
     private List<String> augmentTools(List<String> baseTools) {

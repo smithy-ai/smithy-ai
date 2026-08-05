@@ -66,6 +66,11 @@ public class ConfigLoader {
     }
 
     @Bean
+    public CiConfig ciConfig() {
+        return config.ci() != null ? config.ci() : new CiConfig(null);
+    }
+
+    @Bean
     public ForemanConfig foremanConfig() {
         var foreman = config.foreman() != null ? config.foreman() : new ForemanConfig(false, null, null, null);
         foreman.validate();

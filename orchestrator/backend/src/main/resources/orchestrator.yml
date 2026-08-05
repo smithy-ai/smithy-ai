@@ -45,6 +45,11 @@ vcs:
     plan-approved-label: ${JIRA_PLAN_APPROVED_LABEL:plan-approved}
     plan-approved-status: ${JIRA_PLAN_APPROVED_STATUS:}
 
+ci:
+  # When false, a failed pipeline pauses the workflow and asks for approval
+  # on the MR (reply with a thumbs-up) instead of debugging automatically.
+  autofix: ${CI_AUTOFIX:true}
+
 foreman:
   enabled: ${FOREMAN_ENABLED:false}
   manifest-path: ${REPOS_MANIFEST:/config/repos.yml}
