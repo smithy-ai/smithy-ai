@@ -106,7 +106,9 @@ export function DashboardPage() {
                               inst.workflowType === "architect" ? "violet" : "blue"
                             }
                           >
-                            {inst.workflowType}
+                            {inst.workflowType === "foreman"
+                              ? "orchestrator"
+                              : inst.workflowType}
                           </Badge>
                         </Table.Td>
                         <Table.Td>{inst.stage}</Table.Td>

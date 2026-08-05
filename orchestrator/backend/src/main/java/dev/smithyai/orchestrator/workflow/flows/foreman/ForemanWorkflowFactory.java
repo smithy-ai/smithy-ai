@@ -134,7 +134,8 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
     public boolean canRecover(String containerName, ContainerState state) {
         return (
             foremanConfig.enabled() &&
-            containerName.startsWith("foreman.") &&
+            // "foreman." is the legacy prefix from before the user-facing rename
+            (containerName.startsWith("orchestrator.") || containerName.startsWith("foreman.")) &&
             state.workflowType() == WorkflowType.FOREMAN &&
             !ForemanStage.DONE.value().equals(state.stage())
         );
@@ -185,8 +186,12 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
         );
     }
 
-    private static String containerKey(WorkflowEvent.IssueScoped event) {
+    private String containerKey(WorkflowEvent.IssueScoped event) {
         var info = event.ctx().info();
-        return Naming.containerName("foreman", info.owner(), info.repo(), event.ctx().issueRef());
+        // Stories started before the user-facing rename live on in foreman.*
+        // containers — keep routing their events to the existing instance.
+        String legacy = Naming.containerName("foreman", info.owner(), info.repo(), event.ctx().issueRef());
+        if (hasInstance(legacy)) return legacy;
+        return Naming.containerName("orchestrator", info.owner(), info.repo(), event.ctx().issueRef());
     }
 }

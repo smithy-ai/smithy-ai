@@ -34,9 +34,9 @@ Human actions are in yellow. The project knowledge base is an optional separate 
 2. If the knowledge base (context) requires updating based on the comments, The Architect opens a PR on the context repository
 3. This PR, just like the build flow, allows you to review and request changes
 
-### The Foreman workflow (cross-repo stories, optional)
+### The Orchestrator workflow (cross-repo stories, optional)
 
-When an issue-tracker story (a tracker key like `ECD-4309`, rather than a numeric VCS issue) is assigned to the bot, the feature-level **foreman** takes over instead of the per-issue smithy flow. It plans a feature across every repository listed in its `repos.yml` manifest, gates execution on your approval, and fans the work out to smithy agents.
+When an issue-tracker story (a tracker key like `ECD-4309`, rather than a numeric VCS issue) is assigned to the bot, the feature-level **Orchestrator agent** takes over instead of the per-issue smithy flow. It plans a feature across every repository listed in its `repos.yml` manifest, gates execution on your approval, and fans the work out to smithy agents.
 
 ```mermaid
 flowchart LR
@@ -50,7 +50,7 @@ flowchart LR
   subgraph ORCH["Orchestrator"]
     direction TB
     B["IssueAssigned event"]
-    C["Foreman plans the feature<br/>across the repos.yml manifest"]
+    C["Orchestrator agent plans the feature<br/>across the repos.yml manifest"]
     F["Fan-out in dependency waves"]
     H["Smithy agent per issue<br/>refine → build"]
   end
@@ -76,13 +76,13 @@ flowchart LR
 Orange-bordered boxes are human actions, blue-bordered boxes are Claude agents, dashed arrows are feedback loops.
 
 1. Assign a story to the bot. The tracker webhook delivers an `IssueAssigned` event to the orchestrator.
-2. The foreman reads the story against `repos.yml` — its planning universe; only repos listed there can receive issues — and posts a cross-repo plan as a comment on the story.
+2. The Orchestrator agent reads the story against `repos.yml` — its planning universe; only repos listed there can receive issues — and posts a cross-repo plan as a comment on the story.
 3. You review the plan and approve it by adding the `plan-approved` label (or a configured status transition). Nothing executes before this gate.
-4. The foreman creates child issues in the target repos, grouped into dependency waves, and assigns them to the smithy bot.
-5. Each child issue runs the normal smithy workflow: a plan on the issue (auto-reviewed by the foreman), implementation, and a merge request. CI failures and review comments loop back to the owning agent.
-6. As a wave's merge requests land, the foreman opens the next wave; when all waves finish, it closes the story.
+4. The Orchestrator agent creates child issues in the target repos, grouped into dependency waves, and assigns them to the smithy bot.
+5. Each child issue runs the normal smithy workflow: a plan on the issue (auto-reviewed by the Orchestrator agent), implementation, and a merge request. CI failures and review comments loop back to the owning agent.
+6. As a wave's merge requests land, the Orchestrator agent opens the next wave; when all waves finish, it closes the story.
 
-Commenting on the story during execution either gets you a status answer or extends the feature: if the comment asks for additional work (e.g. a repository that has since been added to the manifest), the foreman drafts the extra issues — cloning newly in-scope repos on demand so the plan stays grounded in code — and schedules them into the existing dependency waves.
+Commenting on the story during execution either gets you a status answer or extends the feature: if the comment asks for additional work (e.g. a repository that has since been added to the manifest), the Orchestrator agent drafts the extra issues — cloning newly in-scope repos on demand so the plan stays grounded in code — and schedules them into the existing dependency waves.
 
 ## Demo setup
 
