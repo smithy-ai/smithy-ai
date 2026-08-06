@@ -26,6 +26,13 @@ config keys must MATCH across repos. This is the one check only you can do.
 {% endfor %}
 {% endif %}
 
+{% if lens %}
+## This pass has one lens
+
+Review EXCLUSIVELY through this lens: {{ lens }}. Ignore concerns outside it — they are covered by
+separate passes.
+{% endif %}
+
 ## Verdict rules
 
 - aligned = true when the plan implements the issue's intent and every cross-component touchpoint is

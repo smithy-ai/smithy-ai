@@ -17,6 +17,7 @@ import dev.smithyai.orchestrator.service.docker.ContainerSession;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
+import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
@@ -83,6 +84,17 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
     private final String smithyBotUser;
     private final BiConsumer<String, String> childRegistrar;
     private final StateMachine<ForemanStage> stateMachine;
+
+    private MetricsRecorder metrics;
+
+    public ForemanWorkflowInstance withMetrics(MetricsRecorder metrics) {
+        this.metrics = metrics;
+        return this;
+    }
+
+    private void metric(String event, String project, String ref, Map<String, Object> extra) {
+        if (metrics != null) metrics.record(event, project, ref, extra);
+    }
 
     public ForemanWorkflowInstance(
         ContainerSession session,
@@ -160,21 +172,16 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
 
             log.info("Foreman planning story {} in {}", ctx.issueRef(), session.getContainerName());
 
-            // Clone every manifest repo: the first is the workspace, the rest
-            // land under repos/<name>. Shallow blobless clones keep this cheap.
-            var repos = manifest.repos();
-            var first = repos.getFirst();
-            var extra = new ArrayList<ContainerConfig.ExtraRepo>();
-            for (var r : repos.subList(1, repos.size())) {
-                extra.add(new ContainerConfig.ExtraRepo(cloneUrlFor(r.project()), "repos/" + repoName(r.project()), ""));
-            }
+            // Clone only the first manifest repo as the workspace. The agent
+            // requests clones for the repos its plan actually needs — with a
+            // large manifest, cloning everything up front is prohibitive.
+            var first = manifest.repos().getFirst();
             var containerConfig = ContainerConfig.builder()
                 .cloneUrl(cloneUrlFor(first.project()))
                 .branch("")
                 .sourceBranch("")
                 .cacheVolumes(dockerConfig.getCacheVolumeMap())
                 .workflowType(WorkflowType.FOREMAN)
-                .extraRepos(extra)
                 .build();
             session.initContainer(containerConfig, ForemanStage.AWAITING_APPROVAL.value());
             // Persist the session id before the (long) planning turn so the
@@ -192,9 +199,11 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             FeaturePlan plan = draftPlan(ctx.issueRef(), ctx.title(), ctx.body(), null, attachments);
             storePlan(plan);
             storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), renderPlanComment(plan));
+            metric("feature_plan_posted", null, ctx.issueRef(), Map.of("issues", plan.issues().size()));
             log.info("Foreman posted plan for {} ({} issues)", ctx.issueRef(), plan.issues().size());
         } catch (Exception ex) {
             log.error("Foreman planning failed for {}", ctx.issueRef(), ex);
+            metric("turn_failed", null, ctx.issueRef(), Map.of("stage", "feature_plan"));
         }
     }
 
@@ -290,6 +299,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
                     .append("\n");
             }
             storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), summary.toString());
+            metric("fan_out", null, ctx.issueRef(), Map.of("children", assigned.size()));
         } catch (Exception ex) {
             log.error("Foreman execution failed for {}", ctx.issueRef(), ex);
         }
@@ -362,7 +372,13 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
         var childEntries = new ArrayList<Map<String, Object>>();
         for (var c : state.children()) {
             childEntries.add(
-                Map.of("index", c.planIndex(), "project", c.project(), "ref", c.issueRef(), "status", childStatus(c))
+                Map.of(
+                    "index", c.planIndex(),
+                    "project", c.project(),
+                    "ref", c.issueRef(),
+                    "status", childStatus(c),
+                    "live", liveChildState(c)
+                )
             );
         }
 
@@ -418,7 +434,8 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             new FeaturePlan(
                 plan != null ? plan.summary() : "",
                 allIssues,
-                plan != null ? plan.openQuestions() : List.of()
+                plan != null ? plan.openQuestions() : List.of(),
+                List.of()
             )
         );
         ChildrenState newState = new ChildrenState(state.storyOwner(), state.storyRepo(), state.storyRef(), children);
@@ -450,6 +467,21 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             }
         }
         storyTracker.createIssueComment(state.storyOwner(), state.storyRepo(), state.storyRef(), sb.toString());
+    }
+
+    /** Ground truth from the VCS — the workspace clones are planning-time snapshots. */
+    private String liveChildState(Child c) {
+        try {
+            String[] parts = c.project().split("/", 2);
+            String branch = vcsClient.findBranchByPrefix(parts[0], parts[1], "smithy/" + c.issueRef() + "-");
+            if (branch == null) return "no smithy branch yet";
+            var pr = vcsClient.findPrByHead(parts[0], parts[1], branch);
+            if (pr == null) return "branch " + branch + " pushed, no MR yet";
+            return "MR !%d (%s) on %s".formatted(pr.number(), pr.merged() ? "merged" : "open", branch);
+        } catch (Exception ex) {
+            log.warn("Failed to fetch live VCS state for {}#{}", c.project(), c.issueRef(), ex);
+            return "unknown (VCS lookup failed)";
+        }
     }
 
     private static String childStatus(Child c) {
@@ -544,8 +576,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             vars.put("siblings", siblings);
             vars.put("round", child.reviewRounds() + 1);
 
-            ChildPlanVerdict verdict = claude.send(renderer.render("foreman_review_child_plan.md.j2", vars), ChildPlanVerdict.class);
-            syncSessionId();
+            ChildPlanVerdict verdict = reviewWithLenses(vars);
             session.updateState(ContainerState::touch);
 
             if (verdict.aligned()) {
@@ -556,6 +587,42 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
         } catch (Exception ex) {
             log.error("Foreman child plan review failed for {}/{}#{}", owner, repo, issueRef, ex);
         }
+    }
+
+    private static final List<String> REVIEW_LENSES = List.of(
+        "contract consistency — endpoint paths, payload shapes, queue/message names and config keys must match the feature plan and every sibling plan",
+        "scope and acceptance criteria — the plan covers the issue's intent completely, and nothing outside it",
+        "testing approach — the tests the issue's acceptance criteria demand are actually planned"
+    );
+
+    /**
+     * A plan review is either one combined pass (lenses = 1) or several
+     * focused passes that must ALL align — different lenses catch different
+     * failure modes. Feedback from failing lenses is concatenated.
+     */
+    private ChildPlanVerdict reviewWithLenses(HashMap<String, Object> vars) {
+        int lenses = Math.min(foremanConfig.resolvedReviewLenses(), REVIEW_LENSES.size());
+        if (lenses <= 1) {
+            vars.put("lens", "");
+            ChildPlanVerdict v = claude.send(renderer.render("foreman_review_child_plan.md.j2", vars), ChildPlanVerdict.class);
+            syncSessionId();
+            return v;
+        }
+        boolean aligned = true;
+        var feedback = new StringBuilder();
+        for (int i = 0; i < lenses; i++) {
+            vars.put("lens", REVIEW_LENSES.get(i));
+            ChildPlanVerdict v = claude.send(renderer.render("foreman_review_child_plan.md.j2", vars), ChildPlanVerdict.class);
+            syncSessionId();
+            if (!v.aligned()) {
+                aligned = false;
+                if (v.feedback() != null && !v.feedback().isBlank()) {
+                    if (!feedback.isEmpty()) feedback.append("\n\n");
+                    feedback.append(v.feedback());
+                }
+            }
+        }
+        return new ChildPlanVerdict(aligned, feedback.toString());
     }
 
     private void approveChild(ChildrenState state, Child child) throws Exception {
@@ -579,6 +646,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             state.storyRef(),
             "Approved smithy's plan for %s#%s — implementation started.".formatted(child.project(), child.issueRef())
         );
+        metric("child_plan_approved", child.project(), child.issueRef(), Map.of("rounds", child.reviewRounds() + 1));
         log.info("Foreman approved plan for {}#{}", child.project(), child.issueRef());
     }
 
@@ -597,6 +665,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             childIssueTracker.createIssueComment(parts[0], parts[1], child.issueRef(), feedback);
         }
         updateChild(state, withRounds(child, rounds));
+        metric("child_changes_requested", child.project(), child.issueRef(), Map.of("round", rounds));
         log.info("Foreman requested plan changes on {}#{} (round {})", child.project(), child.issueRef(), rounds);
     }
 
@@ -632,6 +701,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
 
             state = updateChild(state, withMerged(child));
             log.info("Foreman marked {}#{} merged", project, ref);
+            metric("child_merged", project, ref, null);
 
             // Assign every unassigned child whose dependencies are all merged
             var newlyAssigned = new ArrayList<Child>();
@@ -658,6 +728,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
                     state.storyRef(),
                     "All child merge requests are merged — this feature is complete."
                 );
+                metric("story_done", null, state.storyRef(), null);
                 log.info("Foreman feature {} complete", state.storyRef());
             }
         } catch (Exception ex) {
@@ -688,12 +759,30 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
     // ── Plan drafting & persistence ──────────────────────────
 
     private FeaturePlan draftPlan(String storyRef, String title, String body, String feedback, List<String> attachments) {
-        var manifestEntries = new ArrayList<Map<String, String>>();
+        FeaturePlan plan = draftPlanTurn(storyRef, title, body, feedback, attachments, false);
+        if (!plan.reposNeeded().isEmpty()) {
+            cloneMissingRepos(plan.reposNeeded());
+            plan = draftPlanTurn(storyRef, title, body, feedback, attachments, true);
+        }
+        return plan;
+    }
+
+    private FeaturePlan draftPlanTurn(
+        String storyRef,
+        String title,
+        String body,
+        String feedback,
+        List<String> attachments,
+        boolean followUp
+    ) {
+        var cloned = clonedRepoNames();
+        var manifestEntries = new ArrayList<Map<String, Object>>();
         for (var r : manifest.repos()) {
-            var entry = new HashMap<String, String>();
+            var entry = new HashMap<String, Object>();
             entry.put("project", r.project());
             entry.put("description", r.description() != null ? r.description() : "");
             entry.put("specs", r.specs() != null ? r.specs() : "");
+            entry.put("cloned", cloned.contains(repoName(r.project())));
             manifestEntries.add(entry);
         }
         var vars = new HashMap<String, Object>();
@@ -704,6 +793,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
         vars.put("max_issues", foremanConfig.resolvedMaxIssues());
         vars.put("feedback", feedback != null ? feedback : "");
         vars.put("attachments", attachments != null ? attachments : List.of());
+        vars.put("follow_up", followUp);
 
         String template = feedback == null ? "foreman_plan.md.j2" : "foreman_plan_revise.md.j2";
         FeaturePlan plan = claude.send(renderer.render(template, vars), FeaturePlan.class);

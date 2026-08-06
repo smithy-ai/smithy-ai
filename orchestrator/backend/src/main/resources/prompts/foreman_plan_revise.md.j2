@@ -10,8 +10,15 @@ round — check anything you have not read yet):
 {% endfor %}
 {% endif %}
 
+{% if follow_up %}
+The repositories you requested have been cloned under `repos/<name>` — read them and return the
+final revised plan.
+
+{% endif %}
 Revise the plan accordingly. Re-read code in the workspace clones where the feedback makes that
-necessary. Keep everything that wasn't questioned. The same rules apply as before: only manifest
+necessary; if the feedback requires a repository that is not cloned in this workspace, return its
+project name in reposNeeded with no issues — it will be cloned and you will be asked to finalize.
+Keep everything that wasn't questioned. The same rules apply as before: only manifest
 repositories, high-level issue bodies with explicit cross-component touchpoints, ordering via
 zero-based dependsOn indexes, at most {{ max_issues }} issues.
 

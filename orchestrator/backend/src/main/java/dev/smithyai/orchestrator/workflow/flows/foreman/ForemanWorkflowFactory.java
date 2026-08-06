@@ -8,6 +8,7 @@ import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
+import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
@@ -40,6 +41,7 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
     private final VcsClient vcsClient;
     private final IssueTrackerClient storyTracker;
     private final IssueTrackerClient childIssueTracker;
+    private final MetricsRecorder metrics;
 
     public ForemanWorkflowFactory(
         ForemanConfig foremanConfig,
@@ -47,6 +49,7 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
         VcsProviderConfig vcsConfig,
         BotConfig botConfig,
         ContainerService containerService,
+        MetricsRecorder metrics,
         PromptRenderer renderer,
         @Qualifier("smithyVcs") VcsClient vcsClient,
         @Qualifier("smithyIssueTracker") IssueTrackerClient storyTracker
@@ -56,6 +59,7 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
         this.vcsConfig = vcsConfig;
         this.botConfig = botConfig;
         this.containerService = containerService;
+        this.metrics = metrics;
         this.renderer = renderer;
         this.vcsClient = vcsClient;
         this.storyTracker = storyTracker;
@@ -183,7 +187,7 @@ public class ForemanWorkflowFactory extends AbstractWorkflowFactory<ForemanWorkf
             },
             stage,
             sessionId
-        );
+        ).withMetrics(metrics);
     }
 
     private String containerKey(WorkflowEvent.IssueScoped event) {

@@ -55,6 +55,9 @@ foreman:
   manifest-path: ${REPOS_MANIFEST:/config/repos.yml}
   max-issues: ${FOREMAN_MAX_ISSUES:10}
   autonomy: ${FOREMAN_AUTONOMY:auto}
+  # >1 splits each child-plan review into focused passes (contract, scope,
+  # testing); the plan must pass every lens. 1 keeps the single combined review.
+  review-lenses: ${FOREMAN_REVIEW_LENSES:1}
 
 knowledgebase:
   enabled: ${KNOWLEDGEBASE_ENABLED:false}

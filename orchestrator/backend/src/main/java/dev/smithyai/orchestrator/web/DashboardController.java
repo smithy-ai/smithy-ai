@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.web;
 
 import dev.smithyai.orchestrator.service.docker.ContainerService;
+import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.web.dto.InstanceDto;
 import dev.smithyai.orchestrator.web.dto.MessageRequest;
 import dev.smithyai.orchestrator.web.dto.TakeoverDto;
@@ -28,10 +29,21 @@ public class DashboardController {
 
     private final List<AbstractWorkflowFactory<?>> factories;
     private final ContainerService containerService;
+    private final MetricsRecorder metrics;
 
-    public DashboardController(List<AbstractWorkflowFactory<?>> factories, ContainerService containerService) {
+    public DashboardController(
+        List<AbstractWorkflowFactory<?>> factories,
+        ContainerService containerService,
+        MetricsRecorder metrics
+    ) {
         this.factories = factories;
         this.containerService = containerService;
+        this.metrics = metrics;
+    }
+
+    @GetMapping("/dashboard/metrics")
+    public java.util.Map<String, Object> metricsSummary() {
+        return metrics.summarize();
     }
 
     @GetMapping("/dashboard/instances")

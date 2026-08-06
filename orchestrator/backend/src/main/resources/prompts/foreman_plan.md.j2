@@ -20,21 +20,27 @@ a design drives the work.
 {% endif %}
 
 ## Repositories
+{% if follow_up %}
 
-These are the only repositories that may receive issues. They are cloned in this workspace: the first
-at the workspace root, the rest under `repos/<name>`.
+The repositories you requested have been cloned under `repos/<name>` — read them and return the
+final plan.
+{% endif %}
+
+These are the only repositories that may receive issues. Repos marked "(not cloned)" are absent from
+this workspace; the rest are cloned — the first at the workspace root, others under `repos/<name>`.
 
 {% for repo in repos %}
-### {{ repo.project }}
+### {{ repo.project }}{% if not repo.cloned %} (not cloned){% endif %}
 {{ repo.description }}
 {% if repo.specs %}Specs to read: {{ repo.specs }}{% endif %}
 {% endfor %}
 
 ## Instructions
 
-1. Decide which repositories this story touches. Read the relevant specs and code in the clones —
-   plans grounded in real code beat plans from descriptions. A story touching a single repo is fine:
-   the plan is then a single issue.
+1. Decide which repositories this story touches. Read the relevant specs and code — plans grounded
+   in real code beat plans from descriptions. If a repository you need to read is marked
+   "(not cloned)", return its project name in reposNeeded and NO issues: it will be cloned and you
+   will be asked again. A story touching a single repo is fine: the plan is then a single issue.
 2. For each repository, draft one issue: target project, title, and body.
 
 Issue-body rules (smithy sees ONLY its target repo):
@@ -52,4 +58,5 @@ Issue-body rules (smithy sees ONLY its target repo):
    stated in the summary.
 
 Return the plan as structured output: summary (2-4 sentences on the approach and how the pieces fit),
-issues (project, title, body, dependsOn), openQuestions.
+issues (project, title, body, dependsOn), openQuestions, reposNeeded (project names to clone first,
+normally empty).

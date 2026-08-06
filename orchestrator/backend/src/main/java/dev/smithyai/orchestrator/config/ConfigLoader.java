@@ -72,7 +72,7 @@ public class ConfigLoader {
 
     @Bean
     public ForemanConfig foremanConfig() {
-        var foreman = config.foreman() != null ? config.foreman() : new ForemanConfig(false, null, null, null);
+        var foreman = config.foreman() != null ? config.foreman() : new ForemanConfig(false, null, null, null, null);
         foreman.validate();
         return foreman;
     }

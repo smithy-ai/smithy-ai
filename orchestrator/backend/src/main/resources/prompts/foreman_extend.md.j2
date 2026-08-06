@@ -14,9 +14,10 @@ ground your new issues in their real code and return the final result.
 
 ## Children
 
-The bracketed numbers are zero-based plan indexes — dependsOn references use them.
+The bracketed numbers are zero-based plan indexes — dependsOn references use them. "VCS" is live
+state fetched from the code host just now; it outranks anything you infer from your local clones.
 {% for c in children %}
-- [{{ c.index }}] {{ c.project }}#{{ c.ref }} — {{ c.status }}
+- [{{ c.index }}] {{ c.project }}#{{ c.ref }} — {{ c.status }} · VCS: {{ c.live }}
 {% endfor %}
 {% if attachments %}
 

@@ -159,6 +159,19 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         }
     }
 
+    @Override
+    public void deleteFile(String owner, String repo, String branch, String path, String message) {
+        post(
+            "/projects/%s/repository/commits",
+            Map.of(
+                "branch", branch,
+                "commit_message", message,
+                "actions", List.of(Map.of("action", "delete", "file_path", path))
+            ),
+            projectId(owner, repo)
+        );
+    }
+
     // ── VcsClient: Pull/Merge Requests ───────────────────────
 
     @Override

@@ -74,6 +74,11 @@ public interface VcsClient {
      * Find the first branch whose name starts with the given prefix, or null.
      * Used to locate smithy's work branch ("smithy/<ref>-<slug>") from an issue ref.
      */
+    /** Delete a file on a branch with a single commit. */
+    default void deleteFile(String owner, String repo, String branch, String path, String message) {
+        throw new UnsupportedOperationException("deleteFile not supported by " + getClass().getSimpleName());
+    }
+
     default String findBranchByPrefix(String owner, String repo, String prefix) {
         throw new UnsupportedOperationException("findBranchByPrefix not supported by " + getClass().getSimpleName());
     }

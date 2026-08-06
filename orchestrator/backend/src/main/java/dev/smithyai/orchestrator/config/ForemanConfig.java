@@ -11,10 +11,16 @@ public record ForemanConfig(
     boolean enabled,
     @JsonProperty("manifest-path") String manifestPath,
     @JsonProperty("max-issues") Integer maxIssues,
-    String autonomy
+    String autonomy,
+    @JsonProperty("review-lenses") Integer reviewLenses
 ) {
     public int resolvedMaxIssues() {
         return maxIssues != null && maxIssues > 0 ? maxIssues : 10;
+    }
+
+    /** How many focused passes a child-plan review runs (1 = single combined review). */
+    public int resolvedReviewLenses() {
+        return reviewLenses != null && reviewLenses > 0 ? reviewLenses : 1;
     }
 
     /** gated: child-plan approval requires a human; auto (default): the foreman approves aligned plans. */

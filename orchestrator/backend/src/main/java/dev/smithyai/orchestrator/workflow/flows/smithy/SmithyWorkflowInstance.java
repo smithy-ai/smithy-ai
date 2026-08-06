@@ -13,6 +13,7 @@ import dev.smithyai.orchestrator.service.docker.*;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
+import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.ReviewCommentEntry;
@@ -63,6 +64,17 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     public SmithyWorkflowInstance withCiAutofix(boolean ciAutofix) {
         this.ciAutofix = ciAutofix;
         return this;
+    }
+
+    private MetricsRecorder metrics;
+
+    public SmithyWorkflowInstance withMetrics(MetricsRecorder metrics) {
+        this.metrics = metrics;
+        return this;
+    }
+
+    private void metric(String event, RepoInfo info, String issueRef, Map<String, Object> extra) {
+        if (metrics != null) metrics.record(event, info.owner() + "/" + info.repo(), issueRef, extra);
     }
 
     public SmithyWorkflowInstance withStoryTracker(IssueTrackerClient storyTracker) {
@@ -296,6 +308,8 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 throw new RuntimeException("Failed to copy plan file: " + copyResult.stderr());
             }
 
+            metric("plan_posted", info, ctx.issueRef(), null);
+
             // Extract open questions from the plan
             List<String> openQuestions = List.of();
             try {
@@ -334,6 +348,13 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             log.info("Refinement complete for issue {}", ctx.issueRef());
         } catch (Exception ex) {
             log.error("Refinement task failed for issue {}", ctx.issueRef(), ex);
+            metric("turn_failed", ctx.info(), ctx.issueRef(), Map.of("stage", "refine"));
+            notifyFailure(
+                ctx.info(),
+                ctx.issueRef(),
+                null,
+                "Planning failed unexpectedly (" + ex.getClass().getSimpleName() + "). Unassign and re-assign me to retry."
+            );
         }
     }
 
@@ -423,6 +444,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 true
             );
             log.info("Created draft PR #{} for issue {}", pr.number(), ctx.issueRef());
+            metric("mr_opened", info, ctx.issueRef(), Map.of("pr", pr.number()));
 
             vcsClient.setPrAssignees(info.owner(), info.repo(), pr.number(), List.of(botUser));
 
@@ -483,9 +505,33 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 }
             }
 
+            metric("build_completed", info, ctx.issueRef(), null);
             log.info("Building started for issue {}", ctx.issueRef());
         } catch (Exception ex) {
             log.error("Transition to building failed for issue {}", ctx.issueRef(), ex);
+            metric("turn_failed", ctx.info(), ctx.issueRef(), Map.of("stage", "build"));
+            notifyFailure(
+                ctx.info(),
+                ctx.issueRef(),
+                Naming.branchName(ctx.issueRef(), ctx.title()),
+                "Implementation failed before completing (" +
+                    ex.getClass().getSimpleName() +
+                    "). Comment on the merge request and I'll resume from there."
+            );
+        }
+    }
+
+    /** Failures must be visible where humans look — the MR when one exists, the issue otherwise. */
+    private void notifyFailure(RepoInfo info, String issueRef, String branch, String message) {
+        try {
+            var pr = branch != null ? vcsClient.findPrByHead(info.owner(), info.repo(), branch) : null;
+            if (pr != null) {
+                vcsClient.createPrComment(info.owner(), info.repo(), pr.number(), message);
+            } else {
+                issueTracker.createIssueComment(info.owner(), info.repo(), issueRef, message);
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to surface failure for issue {}", issueRef, ex);
         }
     }
 
@@ -644,6 +690,15 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     private void handlePrFinalized(WorkflowEvent.PrFinalized e) {
         String issueRef = Naming.parseIssueRefFromBranch(e.prc().headBranch());
         try {
+            metric("pr_finalized", e.prc().info(), issueRef, null);
+            if (!session.exists()) {
+                // The container died earlier — clean the plan file via the VCS
+                // so finalize still leaves a mergeable branch
+                cleanupPlanFileRemotely(e.prc(), issueRef);
+                destroy();
+                log.info("Issue #{} finalized without a live container", issueRef);
+                return;
+            }
             var cleanupResult = session.exec("smithy-cleanup-branch");
             if (cleanupResult.exitCode() != 0) {
                 log.warn("smithy-cleanup-branch failed in {}: {}", session.getContainerName(), cleanupResult.stderr());
@@ -653,6 +708,29 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             log.info("Issue #{} transitioned to Review", issueRef);
         } catch (Exception ex) {
             log.error("Transition to review failed for issue {}", issueRef, ex);
+        }
+    }
+
+    /** Deletes the plan file through the VCS API when no container is left to do it. */
+    private void cleanupPlanFileRemotely(PrContext prc, String issueRef) {
+        var info = prc.info();
+        String planPath = Naming.planFilePath(issueRef);
+        try {
+            if (vcsClient.getRawFile(info.owner(), info.repo(), prc.headBranch(), planPath) == null) return;
+            vcsClient.deleteFile(info.owner(), info.repo(), prc.headBranch(), planPath, "Remove development plan");
+            log.info("Removed {} from {} via the VCS API", planPath, prc.headBranch());
+        } catch (Exception ex) {
+            log.warn("Remote plan-file cleanup failed for issue {}", issueRef, ex);
+            try {
+                vcsClient.createPrComment(
+                    info.owner(),
+                    info.repo(),
+                    prc.number(),
+                    "Note: the plan file `" + planPath + "` is still on this branch — remove it before merging."
+                );
+            } catch (Exception ignored) {
+                log.warn("Failed to comment about the leftover plan file on PR #{}", prc.number());
+            }
         }
     }
 
@@ -702,6 +780,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             return;
         }
         session.writeState(state);
+        metric("ci_failure", info, issueRef, Map.of("attempt", state.ciRetryCount()));
 
         String ciPrompt = renderer.render(
             "ci_failure.md.j2",

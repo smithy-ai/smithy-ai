@@ -9,7 +9,12 @@ import java.util.List;
  * is assigned to smithy only once all its dependencies' MRs are merged.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record FeaturePlan(String summary, List<PlannedIssue> issues, List<String> openQuestions) {
+public record FeaturePlan(
+    String summary,
+    List<PlannedIssue> issues,
+    List<String> openQuestions,
+    List<String> reposNeeded
+) {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PlannedIssue(String project, String title, String body, List<Integer> dependsOn) {
         public PlannedIssue {
@@ -20,5 +25,6 @@ public record FeaturePlan(String summary, List<PlannedIssue> issues, List<String
     public FeaturePlan {
         if (issues == null) issues = List.of();
         if (openQuestions == null) openQuestions = List.of();
+        if (reposNeeded == null) reposNeeded = List.of();
     }
 }
