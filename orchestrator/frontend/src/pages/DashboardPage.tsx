@@ -13,7 +13,7 @@ import {
   Button,
   Tabs,
 } from "@mantine/core";
-import { fetchInstances } from "../api/client";
+import { fetchInstances, fetchMetrics } from "../api/client";
 import { LogsPanel, ORCHESTRATOR_LOG_SOURCE } from "./LogsPanel";
 import { SessionPanel } from "./SessionPanel";
 
@@ -22,6 +22,12 @@ export function DashboardPage() {
     queryKey: ["instances"],
     queryFn: fetchInstances,
     refetchInterval: 5000,
+  });
+
+  const { data: metrics } = useQuery({
+    queryKey: ["metrics"],
+    queryFn: fetchMetrics,
+    refetchInterval: 30000,
   });
 
   const [activeTab, setActiveTab] = useState<string | null>("instances");
@@ -68,6 +74,17 @@ export function DashboardPage() {
             </Tabs.List>
 
             <Tabs.Panel value="instances">
+              {metrics && Object.keys(metrics.counts).length > 0 && (
+                <Group gap="xl" mb="md">
+                  <Stat label="Stories planned" value={metrics.counts["feature_plan_posted"] ?? 0} />
+                  <Stat label="Issues fanned out" value={metrics.counts["fan_out"] ?? 0} />
+                  <Stat label="MRs opened" value={metrics.counts["mr_opened"] ?? 0} />
+                  <Stat label="MRs merged" value={metrics.counts["child_merged"] ?? 0} />
+                  <Stat label="CI failures" value={metrics.counts["ci_failure"] ?? 0} />
+                  <Stat label="Turn failures" value={metrics.counts["turn_failed"] ?? 0} />
+                  <Stat label="Avg plan review rounds" value={metrics.avgPlanReviewRounds} />
+                </Group>
+              )}
               {isLoading ? (
                 <Center>
                   <Loader />
@@ -158,5 +175,18 @@ export function DashboardPage() {
         </Container>
       </AppShell.Main>
     </AppShell>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <Text size="xl" fw={700} ff="monospace">
+        {value}
+      </Text>
+      <Text size="xs" c="dimmed" tt="uppercase">
+        {label}
+      </Text>
+    </div>
   );
 }
