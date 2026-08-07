@@ -1,0 +1,27 @@
+A human commented on story {{ story_ref }}. You have already handled the comment itself; this is a
+separate question about knowledge capture.
+
+{{ comment_body }}
+
+## Guideline repositories
+
+{% for g in guidelines %}
+- `guidelines/{{ g.name }}` ({{ g.project }}) — scope: {{ g.scope }}
+{% endfor %}
+
+## Instructions
+
+Decide whether the comment contains a DURABLE, reusable rule that belongs in one of the guideline
+repos above — inside its stated scope — and is not already documented there. Check the existing
+docs before deciding. Story-specific instructions, one-off choices, priority calls, and anything
+outside the scopes do NOT qualify; most comments do not.
+
+If (and only if) it qualifies:
+- Edit the appropriate files inside the guideline clone (`guidelines/<name>/...`) to capture the
+  rule where a future reader would look for it. Extend existing docs rather than creating parallel
+  structure. Keep the edit minimal and factual, and mention the originating story key ({{ story_ref }}).
+- Do NOT run any git commands — committing, branching and the merge request are handled for you.
+
+Return structured output: updated (boolean), repo (the guideline repo's project name, e.g.
+"owner/name"; empty when updated is false), summary (1-2 sentences of what you documented, for the
+merge request description; empty when updated is false).

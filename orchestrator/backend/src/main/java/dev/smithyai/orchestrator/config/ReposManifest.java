@@ -13,8 +13,19 @@ import java.util.List;
  * skill's repos.yml, so a manifest is portable between the two. Only projects
  * listed here may receive issues.
  */
-public record ReposManifest(List<RepoEntry> repos) {
+public record ReposManifest(List<RepoEntry> repos, List<GuidelineEntry> guidelines) {
     public record RepoEntry(String project, String description, String specs) {}
+
+    /**
+     * A cross-cutting guidelines repo (e.g. a design system): cloned into the
+     * planning workspace for consultation within its stated scope, but never
+     * a target for issues.
+     */
+    public record GuidelineEntry(String project, String scope) {}
+
+    public ReposManifest {
+        if (guidelines == null) guidelines = List.of();
+    }
 
     public static ReposManifest load(Path path) {
         try {

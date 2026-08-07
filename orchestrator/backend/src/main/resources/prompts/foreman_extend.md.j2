@@ -39,6 +39,18 @@ from this workspace; the rest are cloned — the first at the workspace root, ot
 {{ repo.description }}
 {% endfor %}
 
+{% if guidelines %}
+## Guidelines
+
+Cross-cutting guideline repos, cloned under `guidelines/<name>`; consult each ONLY within its scope,
+and transcribe applicable rules (citing guideline files by path) into any issue you draft — smithy
+agents cannot see these repos.
+
+{% for g in guidelines %}
+- `guidelines/{{ g.name }}` ({{ g.project }}) — scope: {{ g.scope }}
+{% endfor %}
+{% endif %}
+
 ## Instructions
 
 Decide what the comment asks for:

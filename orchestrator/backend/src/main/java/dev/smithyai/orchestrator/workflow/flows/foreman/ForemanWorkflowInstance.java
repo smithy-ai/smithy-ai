@@ -13,6 +13,7 @@ import dev.smithyai.orchestrator.model.IssueContext;
 import dev.smithyai.orchestrator.service.claude.dto.ChildPlanVerdict;
 import dev.smithyai.orchestrator.service.claude.dto.FeatureExtension;
 import dev.smithyai.orchestrator.service.claude.dto.FeaturePlan;
+import dev.smithyai.orchestrator.service.claude.dto.GuidelineLearning;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
@@ -44,7 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
 
-    public static final List<String> TOOLS = List.of("Read", "Glob", "Grep", "Bash");
+    public static final List<String> TOOLS = List.of("Read", "Glob", "Grep", "Bash", "Edit", "Write");
     public static final String PLAN_APPROVED_LABEL = "Plan Approved";
 
     private static final int MAX_REVIEW_ROUNDS = 3;
@@ -82,6 +83,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
     private final IssueTrackerClient storyTracker;
     private final IssueTrackerClient childIssueTracker;
     private final String smithyBotUser;
+    private final String smithyBotEmail;
     private final BiConsumer<String, String> childRegistrar;
     private final StateMachine<ForemanStage> stateMachine;
 
@@ -129,6 +131,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
         this.storyTracker = storyTracker;
         this.childIssueTracker = childIssueTracker;
         this.smithyBotUser = botConfig.resolvedSmithyUser();
+        this.smithyBotEmail = botConfig.resolvedSmithyEmail();
         this.childRegistrar = childRegistrar;
         // @formatter:off
         this.stateMachine = StateMachine.builder(ForemanStage.class, initialStage)
@@ -187,6 +190,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             // Persist the session id before the (long) planning turn so the
             // dashboard can tail the live transcript while Claude works
             syncSessionId();
+            ensureGuidelinesCloned();
 
             var attachments = AttachmentHelper.fetchAndInject(
                 storyTracker,
@@ -233,6 +237,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             storePlan(plan);
             storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), renderPlanComment(plan));
             log.info("Foreman revised plan for {}", ctx.issueRef());
+            learnGuidelines(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), e.commentBody());
         } catch (Exception ex) {
             log.error("Foreman plan revision failed for {}", ctx.issueRef(), ex);
         }
@@ -332,6 +337,8 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             ctx.info().repo(),
             ctx.issueRef()
         );
+        // Containers created before guidelines were configured lack the clones
+        ensureGuidelinesCloned();
 
         FeatureExtension ext = requestExtension(ctx.issueRef(), e.commentBody(), plan, state, attachments, false);
         if (!ext.reposNeeded().isEmpty()) {
@@ -344,10 +351,12 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
                 ? ext.reply()
                 : "Nothing to add — the plan is unchanged.";
             storyTracker.createIssueComment(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), reply);
+            learnGuidelines(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), e.commentBody());
             return;
         }
 
         extendPlan(ctx, plan, state, ext);
+        learnGuidelines(ctx.info().owner(), ctx.info().repo(), ctx.issueRef(), e.commentBody());
     }
 
     private FeatureExtension requestExtension(
@@ -392,6 +401,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
         vars.put("max_issues", foremanConfig.resolvedMaxIssues());
         vars.put("next_index", plan != null ? plan.issues().size() : 0);
         vars.put("follow_up", followUp);
+        vars.put("guidelines", guidelineEntries());
 
         FeatureExtension ext = claude.send(renderer.render("foreman_extend.md.j2", vars), FeatureExtension.class);
         syncSessionId();
@@ -502,6 +512,128 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
             }
         }
         return names;
+    }
+
+    /** Guideline repos (design system etc.) live under guidelines/<name>; idempotent. */
+    private void ensureGuidelinesCloned() {
+        for (var g : manifest.guidelines()) {
+            String name = repoName(g.project());
+            var check = session.exec("sh", "-c", "test -d 'guidelines/" + name + "/.git'");
+            if (check.exitCode() == 0) continue;
+            var result = session.exec("git", "clone", "--filter=blob:none", cloneUrlFor(g.project()), "guidelines/" + name);
+            if (result.exitCode() != 0) {
+                log.warn("Failed to clone guidelines repo {}: {}", g.project(), result.stderr());
+            } else {
+                log.info("Cloned guidelines repo {} into {}", g.project(), session.getContainerName());
+            }
+        }
+    }
+
+    private List<Map<String, String>> guidelineEntries() {
+        var entries = new ArrayList<Map<String, String>>();
+        for (var g : manifest.guidelines()) {
+            entries.add(
+                Map.of(
+                    "project", g.project(),
+                    "name", repoName(g.project()),
+                    "scope", g.scope() != null ? g.scope() : ""
+                )
+            );
+        }
+        return entries;
+    }
+
+    /**
+     * Knowledge capture: when plan feedback contains a durable rule inside a
+     * guideline repo's scope, the agent documents it in the clone and the
+     * change is proposed as a merge request on that repo — reviewed by
+     * humans, never pushed to the default branch directly.
+     */
+    private void learnGuidelines(String storyOwner, String storyRepo, String storyRef, String commentBody) {
+        if (manifest.guidelines().isEmpty()) return;
+        try {
+            refreshGuidelineClones();
+            var vars = new HashMap<String, Object>();
+            vars.put("story_ref", storyRef);
+            vars.put("comment_body", commentBody);
+            vars.put("guidelines", guidelineEntries());
+            GuidelineLearning learning = claude.send(renderer.render("guideline_learn.md.j2", vars), GuidelineLearning.class);
+            syncSessionId();
+            if (!learning.updated() || learning.repo() == null || learning.repo().isBlank()) return;
+
+            boolean known = manifest.guidelines().stream().anyMatch(g -> g.project().equals(learning.repo()));
+            if (!known) {
+                log.warn("Guideline learning named unknown repo {}, ignoring", learning.repo());
+                return;
+            }
+            proposeGuidelineChange(learning.repo(), storyOwner, storyRepo, storyRef, learning.summary());
+        } catch (Exception ex) {
+            log.warn("Guideline learning failed for {}", storyRef, ex);
+        }
+    }
+
+    /** Guideline clones are created at container init; sync them before editing. */
+    private void refreshGuidelineClones() {
+        for (var g : manifest.guidelines()) {
+            String dir = "guidelines/" + repoName(g.project());
+            session.exec(
+                "sh",
+                "-c",
+                ("cd '%s' && git fetch origin && DEF=$(git rev-parse --abbrev-ref origin/HEAD | sed 's|origin/||') && " +
+                    "git checkout -f \"$DEF\" && git reset --hard \"origin/$DEF\"").formatted(dir)
+            );
+        }
+    }
+
+    private void proposeGuidelineChange(String project, String storyOwner, String storyRepo, String storyRef, String summary)
+        throws Exception {
+        String dir = "guidelines/" + repoName(project);
+        var status = session.exec("sh", "-c", "cd '" + dir + "' && git status --porcelain");
+        if (status.exitCode() != 0 || status.stdout().isBlank()) {
+            log.info("Guideline learning for {} produced no file changes, skipping", storyRef);
+            return;
+        }
+
+        String branch = "orchestrator/" + storyRef.toLowerCase() + "-" + Long.toHexString(System.currentTimeMillis());
+        var baseResult = session.exec(
+            "sh",
+            "-c",
+            "cd '" + dir + "' && git rev-parse --abbrev-ref origin/HEAD | sed 's|origin/||'"
+        );
+        String base = baseResult.exitCode() == 0 && !baseResult.stdout().isBlank() ? baseResult.stdout().trim() : "main";
+
+        var push = session.exec(
+            "sh",
+            "-c",
+            ("cd '%s' && git checkout -b '%s' && git add -A && " +
+                "git -c user.name='%s' -c user.email='%s' commit -m 'Document guideline learned from %s' && " +
+                "git push origin '%s'").formatted(dir, branch, smithyBotUser, smithyBotEmail, storyRef, branch)
+        );
+        if (push.exitCode() != 0) {
+            log.warn("Failed to push guideline branch for {}: {}", storyRef, push.stderr());
+            return;
+        }
+
+        String[] parts = project.split("/", 2);
+        var pr = vcsClient.createPullRequest(
+            parts[0],
+            parts[1],
+            "Guideline learned from " + storyRef,
+            branch,
+            base,
+            "Captured from plan feedback on " + storyRef + ":\n\n" + summary +
+                "\n\nProposed by the orchestrator — review before merging.",
+            false
+        );
+        metric("guideline_mr_opened", project, storyRef, null);
+        String prUrl = vcsClient.prUrl(vcsConfig.resolvedExternalUrl(), parts[0], parts[1], pr.number());
+        storyTracker.createIssueComment(
+            storyOwner,
+            storyRepo,
+            storyRef,
+            "Your feedback contained a reusable design rule — I proposed documenting it in " + project + ": " + prUrl
+        );
+        log.info("Guideline MR !{} opened on {} from {}", pr.number(), project, storyRef);
     }
 
     /** Clones manifest repos that joined the manifest after this container was created. */
@@ -794,6 +926,7 @@ public class ForemanWorkflowInstance extends AbstractWorkflowInstance {
         vars.put("feedback", feedback != null ? feedback : "");
         vars.put("attachments", attachments != null ? attachments : List.of());
         vars.put("follow_up", followUp);
+        vars.put("guidelines", guidelineEntries());
 
         String template = feedback == null ? "foreman_plan.md.j2" : "foreman_plan_revise.md.j2";
         FeaturePlan plan = claude.send(renderer.render(template, vars), FeaturePlan.class);

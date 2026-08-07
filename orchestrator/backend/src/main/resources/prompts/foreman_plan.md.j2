@@ -35,6 +35,21 @@ this workspace; the rest are cloned — the first at the workspace root, others 
 {% if repo.specs %}Specs to read: {{ repo.specs }}{% endif %}
 {% endfor %}
 
+{% if guidelines %}
+## Guidelines
+
+These repositories hold cross-cutting guidelines, cloned under `guidelines/<name>` in this
+workspace. Consult each ONLY within its stated scope. They may never receive issues.
+
+{% for g in guidelines %}
+- `guidelines/{{ g.name }}` ({{ g.project }}) — scope: {{ g.scope }}
+{% endfor %}
+
+When a guideline's scope applies to an issue you draft, read the relevant guideline docs first and
+transcribe the applicable rules into that issue's body — cite specific guideline files by path.
+Smithy agents cannot see these repos; whatever they must follow has to be in the issue body.
+{% endif %}
+
 ## Instructions
 
 1. Decide which repositories this story touches. Read the relevant specs and code — plans grounded
