@@ -142,10 +142,14 @@ public abstract class AbstractWorkflowInstance {
                 );
                 return;
             }
+            // Record the event before handling it, so a run's timeline shows what
+            // arrived even when the handler then throws.
+            recordEvent(event.name(), null);
             try {
                 handleEvent(event);
             } catch (Exception e) {
                 log.error("Event {} failed in {}", event.getClass().getSimpleName(), session.getContainerName(), e);
+                recordEvent("event.failed", Map.of("event", event.name(), "error", String.valueOf(e.getMessage())));
             }
         });
     }

@@ -3,10 +3,25 @@ package dev.smithyai.orchestrator.model.events;
 import dev.smithyai.orchestrator.model.*;
 import java.util.List;
 
-public sealed interface WorkflowEvent {
+/**
+ * A normalized event, provider-neutral by the time it reaches a workflow.
+ *
+ * <p>Deliberately not sealed: a sealed hierarchy means every new event source
+ * has to edit this file, and it is what let flow-specific events end up in the
+ * shared model. Routing keys on {@link #name()} — a stable string — rather than
+ * on the Java type, so a workflow definition can name the events it wants
+ * without the engine knowing the record.
+ */
+public interface WorkflowEvent {
     RepoInfo info();
 
-    sealed interface IssueScoped extends WorkflowEvent {
+    /**
+     * The event's routing name, e.g. {@code issue.assigned}. Provider adapters
+     * agree on these; workflows match on them.
+     */
+    String name();
+
+    interface IssueScoped extends WorkflowEvent {
         IssueContext ctx();
 
         @Override
@@ -15,7 +30,7 @@ public sealed interface WorkflowEvent {
         }
     }
 
-    sealed interface PrScoped extends WorkflowEvent {
+    interface PrScoped extends WorkflowEvent {
         PrContext prc();
 
         @Override
@@ -25,16 +40,46 @@ public sealed interface WorkflowEvent {
     }
 
     // ── IssueScoped ─────────────────────────────
-    record IssueAssigned(IssueContext ctx, String repoHtmlUrl) implements IssueScoped {}
+    record IssueAssigned(IssueContext ctx, String repoHtmlUrl) implements IssueScoped {
+        @Override
+        public String name() {
+            return "issue.assigned";
+        }
+    }
 
-    record IssueUnassigned(IssueContext ctx) implements IssueScoped {}
+    record IssueUnassigned(IssueContext ctx) implements IssueScoped {
+        @Override
+        public String name() {
+            return "issue.unassigned";
+        }
+    }
 
-    record IssueComment(IssueContext ctx, String commentBody) implements IssueScoped {}
+    record IssueComment(IssueContext ctx, String commentBody) implements IssueScoped {
+        @Override
+        public String name() {
+            return "issue.commented";
+        }
+    }
 
-    record PlanApproved(IssueContext ctx, String approver) implements IssueScoped {}
+    /**
+     * The approval gate. Still a distinct type while the flows are Java; a
+     * definition expresses it as {@code issue.labeled} plus a predicate on the
+     * configured label.
+     */
+    record PlanApproved(IssueContext ctx, String approver) implements IssueScoped {
+        @Override
+        public String name() {
+            return "issue.plan_approved";
+        }
+    }
 
     // ── Standalone push ─────────────────────────
-    record HumanPush(RepoInfo info, String branch) implements WorkflowEvent {}
+    record HumanPush(RepoInfo info, String branch) implements WorkflowEvent {
+        @Override
+        public String name() {
+            return "push.human";
+        }
+    }
 
     // ── PrScoped ────────────────────────────────
     record PrConversationComment(
@@ -43,30 +88,80 @@ public sealed interface WorkflowEvent {
         String commentBody,
         long commentId,
         String discussionId
-    ) implements PrScoped {}
+    ) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.commented";
+        }
+    }
 
     record PrReviewComment(
         PrContext prc,
         List<CommentData> comments,
         long commentId,
         String discussionId
-    ) implements PrScoped {}
+    ) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.review_commented";
+        }
+    }
 
-    record ReviewSubmitted(PrContext prc, long reviewId, String reviewBody, String reviewer) implements PrScoped {}
+    record ReviewSubmitted(PrContext prc, long reviewId, String reviewBody, String reviewer) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.review_submitted";
+        }
+    }
 
-    record PrFinalized(PrContext prc) implements PrScoped {}
+    record PrFinalized(PrContext prc) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.ready_for_review";
+        }
+    }
 
-    record PrUnassigned(PrContext prc) implements PrScoped {}
+    record PrUnassigned(PrContext prc) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.unassigned";
+        }
+    }
 
-    record ReviewRequested(PrContext prc) implements PrScoped {}
+    record ReviewRequested(PrContext prc) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.review_requested";
+        }
+    }
 
-    record PrMerged(PrContext prc) implements PrScoped {}
+    record PrMerged(PrContext prc) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.merged";
+        }
+    }
 
     // ── Standalone PR ───────────────────────────
-    record PrClosed(RepoInfo info, int prNumber, boolean merged, String headBranch) implements WorkflowEvent {}
+    record PrClosed(RepoInfo info, int prNumber, boolean merged, String headBranch) implements WorkflowEvent {
+        @Override
+        public String name() {
+            return "pr.closed";
+        }
+    }
 
     // ── CI events ───────────────────────────────
-    record CiFailure(RepoInfo info, CiRunInfo ciRun, String workflowName) implements WorkflowEvent {}
+    record CiFailure(RepoInfo info, CiRunInfo ciRun, String workflowName) implements WorkflowEvent {
+        @Override
+        public String name() {
+            return "ci.failed";
+        }
+    }
 
-    record CiRecovery(RepoInfo info, CiRunInfo ciRun) implements WorkflowEvent {}
+    record CiRecovery(RepoInfo info, CiRunInfo ciRun) implements WorkflowEvent {
+        @Override
+        public String name() {
+            return "ci.recovered";
+        }
+    }
 }

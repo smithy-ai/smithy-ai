@@ -153,6 +153,23 @@ class SmithyFlowTest {
 
         var types = store.findEvents(run.id()).stream().map(RunEvent::type).toList();
         assertTrue(types.contains("plan_posted"), "timeline records the plan: " + types);
+        assertEquals("issue.assigned", types.getFirst(), "the timeline opens with the event that arrived");
+    }
+
+    @Test
+    void everyArrivingEventIsNamedOnTheTimeline() throws Exception {
+        givenClaudeWritesAPlan();
+
+        var event = issueAssigned();
+        var instance = factory.getOrCreateInstance("smithy.acme.app.7", event);
+        instance.onEvent(event);
+        settle();
+
+        // Routing names, not Java class names: a workflow definition will match
+        // on exactly these strings.
+        assertEquals("issue.assigned", event.name());
+        var types = store.findEvents(instance.runId()).stream().map(RunEvent::type).toList();
+        assertTrue(types.contains("issue.assigned"), types.toString());
     }
 
     @Test
