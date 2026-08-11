@@ -24,6 +24,50 @@ public class ExpressionRenderer {
 
     private final Jinjava jinjava = new Jinjava(JinjavaConfig.newBuilder().build());
 
+    {
+        // Two text helpers the built-in flows need and that no amount of
+        // expression syntax would express readably. Deliberately the only two:
+        // a filter that transforms text is not the same thing as logic in a
+        // definition, but the line is easy to walk over.
+        jinjava.getGlobalContext().registerFilter(new SlugFilter());
+        jinjava.getGlobalContext().registerFilter(new DisplayRefFilter());
+    }
+
+    /** Turn a title into something usable in a branch name. */
+    static final class SlugFilter implements com.hubspot.jinjava.lib.filter.Filter {
+
+        @Override
+        public String getName() {
+            return "slug";
+        }
+
+        @Override
+        public Object filter(Object var, com.hubspot.jinjava.interpret.JinjavaInterpreter interpreter, String... args) {
+            if (var == null) return "";
+            String slug = String.valueOf(var).toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
+            return slug.length() > 40 ? slug.substring(0, 40) : slug;
+        }
+    }
+
+    /**
+     * The form of an issue reference a provider auto-links: numeric references
+     * take a "#", tracker keys like ECD-4309 are already links and must not.
+     */
+    static final class DisplayRefFilter implements com.hubspot.jinjava.lib.filter.Filter {
+
+        @Override
+        public String getName() {
+            return "displayRef";
+        }
+
+        @Override
+        public Object filter(Object var, com.hubspot.jinjava.interpret.JinjavaInterpreter interpreter, String... args) {
+            if (var == null) return "";
+            String ref = String.valueOf(var);
+            return ref.chars().allMatch(Character::isDigit) ? "#" + ref : ref;
+        }
+    }
+
     /** The bindings a foreach exposes to its nested steps. */
     public static final String LOOP_ITEM = "item";
     public static final String LOOP_INDEX = "index";

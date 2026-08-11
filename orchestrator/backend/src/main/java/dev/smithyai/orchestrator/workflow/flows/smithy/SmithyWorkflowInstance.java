@@ -249,6 +249,12 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 .build();
 
             session.initContainer(containerConfig, "refine");
+            // The container says "refine" and the run must agree. Without this
+            // the run store stayed on "new" for the whole refinement, so the
+            // dashboard showed every planning run as not yet started — the same
+            // two-copies-of-the-stage drift that put the string "build" beside
+            // Stage.BUILD further down.
+            recordState(Stage.REFINE.value());
             // Persist the session id before the (long) plan turn so the
             // dashboard can tail the live transcript while Claude works
             syncSessionId();

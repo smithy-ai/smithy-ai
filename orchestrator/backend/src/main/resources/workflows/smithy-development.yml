@@ -25,7 +25,7 @@ vars:
   botUser: smithy
   # Where plans live on the branch. Removed before the pull request is
   # finalized, so a plan never reaches the base branch.
-  planDir: "docs/plans"
+  planDir: ".smithy/plans"
   branchPrefix: "smithy/"
   # Read-only while planning; the build turn gets the rest.
   refineTools: [Read, Glob, Grep, Bash, WebFetch]
@@ -72,13 +72,13 @@ state:
             with:
               name: "smithy.{{ repo.owner }}.{{ repo.name }}.{{ event.issueRef }}"
               cloneUrl: "{{ repo.cloneUrl }}"
-              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}"
+              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}-{{ event.issueTitle | slug }}"
               sourceBranch: "{{ event.baseBranch }}"
               stage: refine
 
           - uses: state.var
             with:
-              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}"
+              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}-{{ event.issueTitle | slug }}"
               planPath: "{{ vars.planDir }}/{{ event.issueRef }}.md"
               issueRef: "{{ event.issueRef }}"
               owner: "{{ repo.owner }}"
@@ -131,14 +131,27 @@ state:
           - uses: exec
             if: "{{ steps.plan.hasPlan }}"
             with:
-              command: [smithy-commit-and-push, "Development plan for {{ event.issueRef }}"]
+              command: [smithy-commit-and-push, "Development plan for {{ event.issueRef | displayRef }}"]
+
+          # A cheap second turn purely to surface what the plan is unsure about.
+          # Best-effort: an unanswerable question is not worth failing a plan
+          # that is otherwise ready to read.
+          - uses: agent.runStructured
+            id: questions
+            if: "{{ steps.plan.hasPlan }}"
+            with:
+              template: refinement_extract.md.j2
+              vars:
+                plan_file_path: "{{ vars.planDir }}/{{ event.issueRef }}.md"
+              output:
+                openQuestions: [string]
 
           - uses: file.url
             id: planLink
             if: "{{ steps.plan.hasPlan }}"
             with:
               repoUrl: "{{ repo.cloneUrl }}"
-              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}"
+              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}-{{ event.issueTitle | slug }}"
               path: "{{ vars.planDir }}/{{ event.issueRef }}.md"
 
           - uses: issue.comment
@@ -147,7 +160,15 @@ state:
               owner: "{{ repo.owner }}"
               repo: "{{ repo.name }}"
               issue: "{{ event.issueRef }}"
-              body: "Development plan: [{{ vars.planDir }}/{{ event.issueRef }}.md]({{ steps.planLink.url }})"
+              body: |-
+                Development plan: [{{ vars.planDir }}/{{ event.issueRef }}.md]({{ steps.planLink.url }})
+                {%- if steps.questions.openQuestions %}
+
+                ### Open Questions
+                {%- for question in steps.questions.openQuestions %}
+                - {{ question }}
+                {%- endfor %}
+                {%- endif %}
 
           - uses: metrics.record
             if: "{{ steps.plan.hasPlan }}"
@@ -183,7 +204,7 @@ state:
 
           - uses: exec
             with:
-              command: [smithy-commit-and-push, "Update plan for {{ vars.issueRef }}"]
+              command: [smithy-commit-and-push, "Update plan for {{ vars.issueRef | displayRef }}"]
               failOnError: false
 
       issue.plan_approved:
@@ -204,7 +225,7 @@ state:
               title: "{{ event.issueTitle }}"
               head: "{{ vars.branch }}"
               base: "{{ vars.baseBranch }}"
-              body: "fixes {{ vars.issueRef }}"
+              body: "fixes {{ vars.issueRef | displayRef }}"
               draft: true
 
           - uses: state.var
