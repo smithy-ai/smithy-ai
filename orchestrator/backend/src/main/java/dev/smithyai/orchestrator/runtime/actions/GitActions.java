@@ -165,9 +165,15 @@ public class GitActions {
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var session = environments.container(context.run());
                 List<String> command = listInput(input, "command");
+                // Values go in as environment rather than interpolated into the
+                // command, so a path with a space in it cannot become two words.
+                var env = new java.util.LinkedHashMap<String, String>();
+                if (input.get("env") instanceof Map<?, ?> declared) {
+                    declared.forEach((key, value) -> env.put(String.valueOf(key), String.valueOf(value)));
+                }
                 var result = command.isEmpty()
-                    ? session.exec("sh", "-c", required(input, "shell"))
-                    : session.exec(command);
+                    ? session.exec(List.of("sh", "-c", required(input, "shell")), env)
+                    : session.exec(command, env);
                 if (result.exitCode() != 0 && boolInput(input, "failOnError", true)) {
                     throw new IllegalStateException(
                         "exec failed (%d) in %s: %s".formatted(
