@@ -103,6 +103,25 @@ public class RunRecorder {
         return store.findByEnvironment(CONTAINER, containerName);
     }
 
+    /**
+     * The container a run holds, if any. Routing uses this to answer "which
+     * session owns this PR?" from a correlation rather than by parsing a branch
+     * name — which is what let flow-specific naming leak into the adapters.
+     */
+    public Optional<String> containerFor(Run run) {
+        return store.findEnvironmentNames(run.id(), CONTAINER).stream().findFirst();
+    }
+
+    public Optional<String> containerForPr(String owner, String repo, int number) {
+        return store.findByCorrelation(CorrelationKind.PR, prRef(owner, repo, number)).flatMap(this::containerFor);
+    }
+
+    public Optional<String> containerForBranch(String owner, String repo, String branch) {
+        return store
+            .findByCorrelation(CorrelationKind.BRANCH, branchRef(owner, repo, branch))
+            .flatMap(this::containerFor);
+    }
+
     // ── Correlation reference formats ────────────────────────
 
     public static String issueRef(String owner, String repo, String issueRef) {

@@ -21,6 +21,7 @@ public class GitLabEventMapper {
     private final String botUser;
     private final String smithyEmail;
     private final String planApprovedLabel;
+    private final String branchPrefix;
 
     public GitLabEventMapper(
         BotConfig botConfig,
@@ -34,6 +35,7 @@ public class GitLabEventMapper {
         this.botUser = botConfig.resolvedSmithyUser();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
         this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
+        this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
         log.info(
             "GitLabEventMapper initialized: smithyBot='{}', architectBot='{}'",
             botUser,
@@ -211,7 +213,7 @@ public class GitLabEventMapper {
         }
 
         String headBranch = mr.path("source_branch").asText("");
-        if (Naming.isSmithyBranch(headBranch)) {
+        if (isWorkBranch(headBranch)) {
             return new WorkflowEvent.PrConversationComment(
                 prc,
                 commentUser,
@@ -229,7 +231,7 @@ public class GitLabEventMapper {
     private WorkflowEvent mapPushHook(JsonNode payload) {
         String ref = payload.path("ref").asText("");
         String branch = ref.replaceFirst("^refs/heads/", "");
-        if (!Naming.isSmithyBranch(branch)) return null;
+        if (!isWorkBranch(branch)) return null;
 
         var commits = payload.path("commits");
         boolean isHuman = false;
@@ -293,7 +295,7 @@ public class GitLabEventMapper {
         // Unassigned — only fire if bot was previously assigned
         if (changes.has("assignees")) {
             String headBranch = attrs.path("source_branch").asText("");
-            if (Naming.isSmithyBranch(headBranch)) {
+            if (isWorkBranch(headBranch)) {
                 var previousAssignees = changes.path("assignees").path("previous");
                 boolean previouslyAssigned = isUserInArray(previousAssignees, botUser);
                 var currentAssignees = attrs.path("assignees");
@@ -333,7 +335,7 @@ public class GitLabEventMapper {
 
         var info = repoInfo(payload);
         String headBranch = attrs.path("source_branch").asText("");
-        if (!Naming.isSmithyBranch(headBranch)) return null;
+        if (!isWorkBranch(headBranch)) return null;
 
         var prc = extractPrFromMr(info, attrs);
         return new WorkflowEvent.ReviewSubmitted(prc, 0, "", reviewer);
@@ -374,7 +376,7 @@ public class GitLabEventMapper {
         var ciRun = new CiRunInfo(headBranch, prNumber);
 
         if ("failed".equals(status)) {
-            if (!Naming.isSmithyBranch(headBranch)) {
+            if (!isWorkBranch(headBranch)) {
                 log.info("CI failure on non-smithy branch {}, ignoring", headBranch);
                 return null;
             }
@@ -453,5 +455,14 @@ public class GitLabEventMapper {
         var out = new java.util.ArrayList<String>();
         for (var item : array) out.add(item.path("title").asText(""));
         return out;
+    }
+
+    /**
+     * Whether a branch belongs to the agent, per the configured prefix. The
+     * adapters used to hardcode "smithy/", which made a provider adapter carry
+     * a particular flow.
+     */
+    private boolean isWorkBranch(String branch) {
+        return branch != null && branch.startsWith(branchPrefix);
     }
 }

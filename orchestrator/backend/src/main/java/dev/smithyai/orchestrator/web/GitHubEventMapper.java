@@ -20,6 +20,7 @@ public class GitHubEventMapper {
     private final String botUser;
     private final String smithyEmail;
     private final String planApprovedLabel;
+    private final String branchPrefix;
 
     public GitHubEventMapper(
         BotConfig botConfig,
@@ -33,6 +34,7 @@ public class GitHubEventMapper {
         this.botUser = botConfig.resolvedSmithyUser();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
         this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
+        this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
         log.info(
             "GitHubEventMapper initialized: smithyBot='{}', architectBot='{}'",
             botUser,
@@ -116,41 +118,27 @@ public class GitHubEventMapper {
         int prNumber = payload.path("issue").path("number").asInt();
         String commentBody = payload.path("comment").path("body").asText("");
 
-        // Needs the head branch from the API to tell whether this belongs to
-        // smithy or the architect. Keying on the branch rather than a
-        // "<repo>-context" name lets the context repository be named anything.
-        try {
-            log.debug("Fetching PR #{} from {}/{}", prNumber, info.owner(), info.repo());
-            PrData pr = smithyClient.getPullRequest(info.owner(), info.repo(), prNumber);
-            String headBranch = pr.headRef();
-
-            boolean architectBranch =
-                Naming.isArchitectBranch(headBranch) && !commentUser.equals(botConfig.resolvedArchitectUser());
-            if (Naming.isSmithyBranch(headBranch) || architectBranch) {
-                String issueRef = Naming.parseIssueRefFromBranch(headBranch);
-                if (issueRef != null) {
-                    var prc = new PrContext(
-                        info,
-                        prNumber,
-                        pr.title(),
-                        pr.body(),
-                        pr.merged(),
-                        headBranch,
-                        pr.baseRef()
-                    );
-                    return new WorkflowEvent.PrConversationComment(
-                        prc,
-                        commentUser,
-                        commentBody,
-                        payload.path("comment").path("id").asLong(0),
-                        ""
-                    );
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to fetch PR #{} for conversation comment routing", prNumber, e);
-        }
-        return null;
+        // Emitted as a fact. This used to fetch the PR from the API on the
+        // webhook thread just to read the head branch and decide whether the
+        // event was worth emitting; routing resolves the owning session from
+        // the PR correlation instead.
+        var issue = payload.path("issue");
+        var prc = new PrContext(
+            info,
+            prNumber,
+            issue.path("title").asText(""),
+            issue.path("body").asText(""),
+            false,
+            "",
+            ""
+        );
+        return new WorkflowEvent.PrConversationComment(
+            prc,
+            commentUser,
+            commentBody,
+            payload.path("comment").path("id").asLong(0),
+            ""
+        );
     }
 
     // ── Push ────────────────────────────────────────────────
@@ -158,7 +146,7 @@ public class GitHubEventMapper {
     private WorkflowEvent mapPush(JsonNode payload) {
         String ref = payload.path("ref").asText("");
         String branch = ref.replaceFirst("^refs/heads/", "");
-        if (!Naming.isSmithyBranch(branch)) return null;
+        if (!isWorkBranch(branch)) return null;
 
         var commits = payload.path("commits");
         boolean isHuman = false;
@@ -232,7 +220,7 @@ public class GitHubEventMapper {
     private WorkflowEvent mapPrUnassigned(JsonNode payload) {
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
-        if (!Naming.isSmithyBranch(headBranch)) return null;
+        if (!isWorkBranch(headBranch)) return null;
 
         String issueRef = Naming.parseIssueRefFromBranch(headBranch);
         if (issueRef == null) return null;
@@ -260,7 +248,7 @@ public class GitHubEventMapper {
 
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
-        if (!Naming.isSmithyBranch(headBranch)) return null;
+        if (!isWorkBranch(headBranch)) return null;
 
         String issueRef = Naming.parseIssueRefFromBranch(headBranch);
         if (issueRef == null) return null;
@@ -332,7 +320,7 @@ public class GitHubEventMapper {
         var ciRun = new CiRunInfo(headBranch, prNumber);
 
         if ("failure".equals(conclusion)) {
-            if (!Naming.isSmithyBranch(headBranch)) {
+            if (!isWorkBranch(headBranch)) {
                 log.info("CI failure on non-smithy branch {}, ignoring", headBranch);
                 return null;
             }
@@ -391,5 +379,14 @@ public class GitHubEventMapper {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether a branch belongs to the agent, per the configured prefix. The
+     * adapters used to hardcode "smithy/", which made a provider adapter carry
+     * a particular flow.
+     */
+    private boolean isWorkBranch(String branch) {
+        return branch != null && branch.startsWith(branchPrefix);
     }
 }

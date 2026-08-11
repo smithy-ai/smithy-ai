@@ -195,8 +195,38 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         return List.copyOf(tools);
     }
 
-    private static String containerKey(WorkflowEvent event) {
+    /**
+     * Resolve the session an event belongs to.
+     *
+     * <p>Correlations are consulted first: a run records the PR and branch it
+     * owns, so "which session owns this PR?" is a lookup rather than an inference
+     * from a branch name. That is what lets the adapters stop classifying events
+     * by the {@code smithy/} prefix, and it works when the payload carries no
+     * head branch at all.
+     *
+     * <p>Branch parsing remains the fallback, for events that arrive before the
+     * correlation exists or after the store has been cleared.
+     */
+    private String containerKey(WorkflowEvent event) {
         var info = event.info();
+
+        var correlated = switch (event) {
+            case WorkflowEvent.PrScoped e -> runs.containerForPr(info.owner(), info.repo(), e.prc().number());
+            case WorkflowEvent.HumanPush e -> runs.containerForBranch(info.owner(), info.repo(), e.branch());
+            case WorkflowEvent.CiFailure e -> runs.containerForBranch(
+                info.owner(),
+                info.repo(),
+                e.ciRun().headBranch()
+            );
+            case WorkflowEvent.CiRecovery e -> runs.containerForBranch(
+                info.owner(),
+                info.repo(),
+                e.ciRun().headBranch()
+            );
+            default -> java.util.Optional.<String>empty();
+        };
+        if (correlated.isPresent()) return correlated.get();
+
         String issueRef = switch (event) {
             case WorkflowEvent.IssueScoped e -> e.ctx().issueRef();
             case WorkflowEvent.PrScoped e -> Naming.parseIssueRefFromBranch(e.prc().headBranch());
