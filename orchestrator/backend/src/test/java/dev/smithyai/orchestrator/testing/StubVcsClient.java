@@ -28,6 +28,11 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     public final List<String> prComments = new ArrayList<>();
     public final List<PrData> createdPrs = new ArrayList<>();
 
+    /** A review as posted: the summary plus whatever it anchored to lines. */
+    public record PostedReview(int prNumber, String summary, List<InlineComment> comments) {}
+
+    public final List<PostedReview> postedReviews = new ArrayList<>();
+
     /** Where an issue was created and what it says — a coordinator's fan-out is judged on this. */
     public record CreatedIssue(String owner, String repo, String issueRef, String title, String body) {}
 
@@ -143,6 +148,7 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
         List<InlineComment> comments
     ) {
         prComments.add(body);
+        postedReviews.add(new PostedReview(prNumber, body, comments == null ? List.of() : List.copyOf(comments)));
     }
 
     @Override

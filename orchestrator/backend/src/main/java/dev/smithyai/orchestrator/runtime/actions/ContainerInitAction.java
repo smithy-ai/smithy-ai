@@ -91,7 +91,9 @@ public class ContainerInitAction implements WorkflowAction {
                 new ContainerConfig.ExtraRepo(
                     required(fields, "cloneUrl"),
                     required(fields, "path"),
-                    optional(fields, "branch", null)
+                    // Empty, never null: the entry is serialized with List.of,
+                    // which rejects nulls, and that failure used to be swallowed.
+                    optional(fields, "branch", "")
                 )
             );
         }

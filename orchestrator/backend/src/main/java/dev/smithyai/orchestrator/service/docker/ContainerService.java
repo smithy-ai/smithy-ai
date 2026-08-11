@@ -204,7 +204,10 @@ public class ContainerService {
                     .toList();
                 extraReposJson = MAPPER.writeValueAsString(repoLists);
             } catch (Exception e) {
-                log.warn("Failed to serialize extra repos", e);
+                // Continuing would build a container missing a repository the
+                // workflow asked for, and the agent would then plan against
+                // code it cannot see.
+                throw new IllegalStateException("Cannot serialize extra repos for container " + name, e);
             }
         }
         args.add("-e");
