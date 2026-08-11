@@ -23,6 +23,10 @@ public class ExpressionRenderer {
 
     private final Jinjava jinjava = new Jinjava(JinjavaConfig.newBuilder().build());
 
+    /** The bindings a foreach exposes to its nested steps. */
+    public static final String LOOP_ITEM = "item";
+    public static final String LOOP_INDEX = "index";
+
     /** Render one template string against the context. */
     public String render(String template, ActionContext context) {
         if (template == null) return null;
@@ -41,10 +45,25 @@ public class ExpressionRenderer {
         return rendered;
     }
 
+    private static final java.util.regex.Pattern WHOLE_EXPRESSION = java.util.regex.Pattern.compile(
+        "^\\s*\\{\\{\\s*([\\w.]+)\\s*}}\\s*$"
+    );
+
     @SuppressWarnings("unchecked")
     private Object renderValue(Object value, ActionContext context) {
         return switch (value) {
-            case String s -> render(s, context);
+            case String s -> {
+                // A value that is exactly one expression yields the object it
+                // names, not its toString. Without this a `foreach` over
+                // "{{ vars.plan }}" would iterate the characters of a rendered
+                // list rather than the list.
+                var whole = WHOLE_EXPRESSION.matcher(s);
+                if (whole.matches()) {
+                    Object resolved = resolvePath(whole.group(1), context);
+                    if (resolved != null && !(resolved instanceof String)) yield resolved;
+                }
+                yield render(s, context);
+            }
             case Map<?, ?> map -> renderInputs((Map<String, Object>) map, context);
             case List<?> list -> {
                 var out = new ArrayList<>();
@@ -64,6 +83,17 @@ public class ExpressionRenderer {
         return "true".equalsIgnoreCase(render(condition, context).strip());
     }
 
+    /** Walk a dotted path such as {@code vars.plan} through the context maps. */
+    private Object resolvePath(String path, ActionContext context) {
+        Object current = contextOf(context);
+        for (String segment : path.split("\\.")) {
+            if (!(current instanceof Map<?, ?> map)) return null;
+            current = map.get(segment);
+            if (current == null) return null;
+        }
+        return current;
+    }
+
     /** The documented, fixed variable set a definition may reference. */
     public Map<String, Object> contextOf(ActionContext context) {
         var root = new LinkedHashMap<String, Object>();
@@ -72,6 +102,9 @@ public class ExpressionRenderer {
         root.put("steps", context.steps());
         root.put("event", eventView(context.event()));
         root.put("repo", repoView(context.event()));
+        // A foreach's bindings read as loop variables rather than as vars.
+        if (context.vars().containsKey(LOOP_ITEM)) root.put(LOOP_ITEM, context.vars().get(LOOP_ITEM));
+        if (context.vars().containsKey(LOOP_INDEX)) root.put(LOOP_INDEX, context.vars().get(LOOP_INDEX));
         return root;
     }
 

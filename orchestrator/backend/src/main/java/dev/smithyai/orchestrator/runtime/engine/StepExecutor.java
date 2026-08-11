@@ -53,14 +53,31 @@ public class StepExecutor {
         String transitionId,
         List<WorkflowStepDefinition> steps
     ) {
+        return execute(run, event, transitionId, steps, Map.of());
+    }
+
+    /**
+     * @param extraVars variables layered over the run's own, so a {@code foreach}
+     *                  can expose {@code item} and {@code index} to its nested
+     *                  steps without mutating the run
+     */
+    public Map<String, Map<String, Object>> execute(
+        Run run,
+        WorkflowEvent event,
+        String transitionId,
+        List<WorkflowStepDefinition> steps,
+        Map<String, Object> extraVars
+    ) {
         // Seed with anything a previous attempt completed, so `steps.<id>` still
         // resolves for steps that are skipped this time round.
         var outputs = new LinkedHashMap<>(store.findStepOutputs(run.id(), transitionId));
+        var vars = new LinkedHashMap<>(run.vars());
+        vars.putAll(extraVars);
 
         for (int i = 0; i < steps.size(); i++) {
             var step = steps.get(i);
             String stepId = step.id() != null && !step.id().isBlank() ? step.id() : step.uses() + "#" + i;
-            var context = new ActionContext(run, event, Map.copyOf(outputs), run.vars());
+            var context = new ActionContext(run, event, Map.copyOf(outputs), Map.copyOf(vars));
 
             if (!renderer.isTruthy(step.condition(), context)) {
                 log.debug("Run {}: skipping step {} — condition false", run.id(), stepId);
@@ -84,7 +101,12 @@ public class StepExecutor {
 
             try {
                 var rendered = renderer.renderInputs(step.with(), context);
-                var result = action.execute(context, rendered);
+                // foreach is the one action that drives the executor, so it is
+                // handed its nested steps rather than calling back for them.
+                var result =
+                    action instanceof ForeachAction foreach
+                        ? foreach.executeOver(context, rendered, step.steps(), transitionId + ":" + stepId)
+                        : action.execute(context, rendered);
                 var stepOutput = result == null ? Map.<String, Object>of() : result;
                 store.completeStep(run.id(), transitionId, stepId, stepOutput);
                 outputs.put(stepId, stepOutput);
