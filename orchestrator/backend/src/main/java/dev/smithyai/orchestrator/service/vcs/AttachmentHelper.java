@@ -1,7 +1,6 @@
-package dev.smithyai.orchestrator.workflow.shared.utils;
+package dev.smithyai.orchestrator.service.vcs;
 
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
-import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.dto.AttachmentInfo;
 import java.util.ArrayList;
 import java.util.List;

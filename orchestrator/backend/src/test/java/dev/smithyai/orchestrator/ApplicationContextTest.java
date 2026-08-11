@@ -8,7 +8,6 @@ import dev.smithyai.orchestrator.runtime.actions.ActionRegistry;
 import dev.smithyai.orchestrator.runtime.engine.WorkflowRegistry;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.workflow.WorkflowService;
-import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,9 +45,6 @@ class ApplicationContextTest {
 
     @Autowired
     private RunStore runStore;
-
-    @Autowired
-    private List<AbstractWorkflowFactory<?>> factories;
 
     @Autowired
     private WorkflowRegistry workflows;
@@ -101,16 +97,10 @@ class ApplicationContextTest {
     }
 
     @Test
-    void allWorkflowFactoriesAreRegistered() {
-        var names = factories
-            .stream()
-            .map(f -> f.getClass().getSimpleName())
-            .sorted()
-            .toList();
-        // Smithy plus the two architect flows. The foreman is deliberately absent.
-        org.junit.jupiter.api.Assertions.assertEquals(
-            List.of("ArchitectLearnFactory", "ArchitectReviewFactory", "SmithyWorkflowFactory"),
-            names
-        );
+    void theEngineIsWhatHandlesEvents() {
+        // There are no workflow factories left to register: every flow is a
+        // definition, and WorkflowService is a way in to the engine.
+        assertNotNull(workflows);
+        assertEquals(4, workflows.all().size());
     }
 }

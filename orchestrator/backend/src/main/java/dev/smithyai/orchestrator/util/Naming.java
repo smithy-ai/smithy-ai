@@ -1,4 +1,4 @@
-package dev.smithyai.orchestrator.workflow.shared.utils;
+package dev.smithyai.orchestrator.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.model.RepoInfo;

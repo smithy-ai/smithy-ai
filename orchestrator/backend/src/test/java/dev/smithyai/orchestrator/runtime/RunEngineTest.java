@@ -124,7 +124,7 @@ class RunEngineTest {
         );
 
         var stubs = new StubVcsClient();
-        var policy = new WorkflowPolicyConfig(null, null, definitions.toString(), true);
+        var policy = new WorkflowPolicyConfig(null, null, definitions.toString());
         var workflows = new WorkflowRegistry(
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),

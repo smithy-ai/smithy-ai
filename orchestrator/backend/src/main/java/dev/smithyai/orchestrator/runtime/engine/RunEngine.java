@@ -222,6 +222,13 @@ public class RunEngine implements SignalDelivery {
     }
 
     private Outcome dispatch(WorkflowDefinition definition, Run run, WorkflowEvent event) {
+        if (store.isLeased(run.id())) {
+            // Someone is driving this session by hand. Acting on a webhook on
+            // top of what they are typing produces work neither asked for.
+            log.info("Run {} is under human control, holding {}", run.id(), event.name());
+            store.appendEvent(run.id(), "event.held", Map.of("event", event.name()));
+            return Outcome.ignored(definition.metadata().name());
+        }
         if (run.isTerminal()) {
             log.debug("Run {} is {}, ignoring {}", run.id(), run.status().value(), event.name());
             return Outcome.ignored(definition.metadata().name());

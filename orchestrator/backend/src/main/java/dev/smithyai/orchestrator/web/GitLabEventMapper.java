@@ -8,7 +8,7 @@ import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.PrData;
-import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
+import dev.smithyai.orchestrator.util.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 

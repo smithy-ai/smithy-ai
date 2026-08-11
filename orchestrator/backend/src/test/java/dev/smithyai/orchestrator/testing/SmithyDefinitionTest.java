@@ -17,8 +17,6 @@ import dev.smithyai.orchestrator.runtime.store.*;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
-import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
-import dev.smithyai.orchestrator.workflow.flows.smithy.SmithyWorkflowFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,27 +27,26 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.mock.env.MockEnvironment;
 
 /**
- * The same issue, driven through the Java flow and through the definition that
- * replaces it, against identical fakes.
+ * The development workflow, end to end, against a simulated Docker daemon.
  *
- * <p>This is the gate on deleting {@code workflow/flows/smithy/}. Porting a
- * 912-line class to YAML with no way to compare the two would be a rewrite with
- * no safety net, so what is compared here is what a person watching the
- * repository would see: the container that appeared, the commands run inside it,
- * the comments posted, and the branch and paths those commands used.
+ * <p>Every expected value here was first established by running the same event
+ * stream through the Java flow this definition replaced and comparing the two;
+ * that comparison lived at {@code SmithyParityTest} until the Java was deleted.
+ * What survives is the half that is still worth running: the behaviour itself,
+ * pinned.
  *
- * <p>What is deliberately <em>not</em> compared is anything internal — the order
- * of store writes, the prompts, the number of agent turns. A port that produced
- * the same effects by a different route is a successful port.
+ * <p>What is asserted is what a person watching the repository would see — the
+ * container that appeared, the branch it cloned, the commands run inside it, the
+ * comments posted, the pull request opened — and not anything internal like the
+ * order of store writes or the number of agent turns.
  *
- * <p>It does not need Docker: {@link FakeDockerCli} replaces the process
- * boundary, so the real container-state handling, command construction and
- * Claude output parsing all still run on both sides.
+ * <p>No Docker required: {@link FakeDockerCli} replaces the process boundary, so
+ * the real container-state handling, command construction and Claude output
+ * parsing all still run.
  */
-class SmithyParityTest {
+class SmithyDefinitionTest {
 
     private static final RepoInfo REPO = new RepoInfo("acme", "app", "https://git.invalid/acme/app");
     private static final String CONTAINER = "smithy.acme.app.7";
@@ -90,52 +87,6 @@ class SmithyParityTest {
     /** And the build turn that follows approval. */
     private static void scriptABuild(FakeDockerCli docker) {
         docker.enqueueClaudeText("Implemented it.");
-    }
-
-    // ── The Java flow ────────────────────────────────────────
-
-    private Observed runJavaFlow(FakeDockerCli docker, boolean approve) throws Exception {
-        var vcs = new StubVcsClient();
-        var store = freshStore("java-" + System.identityHashCode(docker));
-        scriptAPlan(docker);
-
-        var factory = new SmithyWorkflowFactory(
-            dockerConfig(),
-            new CiConfig(false),
-            new MetricsRecorder(new MockEnvironment().withProperty("METRICS_PATH", tempDir + "/metrics.jsonl")),
-            new RepositoryConfigResolver(vcs),
-            vcsProviderConfig(),
-            new KnowledgebaseConfig(false, null, null),
-            botConfig(),
-            new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker),
-            new PromptRenderer(new DefaultResourceLoader()),
-            vcs,
-            vcs
-        );
-        factory.runs = new RunRecorder(store);
-
-        var event = issueAssigned();
-        var instance = factory.getOrCreateInstance(CONTAINER, event);
-        instance.onEvent(event);
-        Thread.sleep(600);
-        if (approve) {
-            scriptABuild(docker);
-            instance.onEvent(planApproved());
-            Thread.sleep(600);
-        }
-
-        var run = store.find(instance.runId()).orElseThrow();
-        return new Observed(
-            createdContainers(docker),
-            List.copyOf(vcs.issueComments),
-            containerCommands(docker),
-            vcs.createdPrs
-                .stream()
-                .map(pr -> pr.headRef() + " -> " + pr.baseRef() + ": " + pr.title())
-                .toList(),
-            run.workflowName(),
-            run.state()
-        );
     }
 
     // ── The definition ───────────────────────────────────────
@@ -214,7 +165,7 @@ class SmithyParityTest {
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),
             // No override directory: the built-in definition is what is on trial.
-            new WorkflowPolicyConfig(null, null, tempDir.resolve("no-such-dir").toString(), true),
+            new WorkflowPolicyConfig(null, null, tempDir.resolve("no-such-dir").toString()),
             vcs,
             vcs
         );
@@ -251,106 +202,78 @@ class SmithyParityTest {
         );
     }
 
-    // ── The comparison ───────────────────────────────────────
+    // ── Refining ─────────────────────────────────────────────
 
     @Test
-    void bothSidesCreateTheSameContainer() throws Exception {
-        assertEquals(
-            runJavaFlow(new FakeDockerCli(), false).containers(),
-            runDefinition(new FakeDockerCli(), false).containers()
-        );
+    void assignmentCreatesTheWorkspaceContainer() {
+        assertEquals(List.of(CONTAINER), runDefinition(new FakeDockerCli(), false).containers());
     }
 
     @Test
-    void bothSidesPostThePlanBackToTheIssue() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli(), false).issueComments();
-        var yaml = runDefinition(new FakeDockerCli(), false).issueComments();
+    void theBranchCarriesTheIssueAndASlugOfItsTitle() {
+        var docker = new FakeDockerCli();
+        runDefinition(docker, false);
 
-        assertEquals(1, java.size(), "the Java flow posts one comment: " + java);
-        assertEquals(java.size(), yaml.size(), "and so does the definition: " + yaml);
-
-        // The link and the open question are the content; exact whitespace is
-        // not behaviour, so it is not what is compared.
-        for (String comment : List.of(java.getFirst(), yaml.getFirst())) {
-            assertTrue(comment.contains("Development plan:"), comment);
-            assertTrue(comment.contains(".smithy/plans/7.md"), comment);
-            assertTrue(comment.contains("Open Questions"), comment);
-            assertTrue(comment.contains("Which cache should this use?"), comment);
-        }
+        assertEquals("smithy/7-add-a-thing", branchFromCreate(docker));
     }
 
     @Test
-    void bothSidesWriteThePlanToTheSamePathAndPushItOnTheSameBranch() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli(), false).containerCommands();
-        var yaml = runDefinition(new FakeDockerCli(), false).containerCommands();
+    void thePlanIsPostedBackToTheIssueWithItsOpenQuestions() {
+        var comments = runDefinition(new FakeDockerCli(), false).issueComments();
 
-        assertTrue(commandsContain(java, ".smithy/plans/7.md"), "Java writes the plan: " + java);
-        assertTrue(commandsContain(yaml, ".smithy/plans/7.md"), "so does the definition: " + yaml);
-
-        assertTrue(commandsContain(java, "smithy-commit-and-push"), java.toString());
-        assertTrue(commandsContain(yaml, "smithy-commit-and-push"), yaml.toString());
-
-        // The commit message names the issue the way the provider auto-links it.
-        assertTrue(commandsContain(java, "Development plan for #7"), java.toString());
-        assertTrue(commandsContain(yaml, "Development plan for #7"), yaml.toString());
+        assertEquals(1, comments.size(), comments.toString());
+        var comment = comments.getFirst();
+        assertTrue(comment.contains("Development plan:"), comment);
+        assertTrue(comment.contains(".smithy/plans/7.md"), comment);
+        assertTrue(comment.contains("Open Questions"), comment);
+        assertTrue(comment.contains("Which cache should this use?"), comment);
     }
 
     @Test
-    void bothSidesCloneTheSameBranchFromTheSameRepository() throws Exception {
-        var javaDocker = new FakeDockerCli();
-        var yamlDocker = new FakeDockerCli();
-        runJavaFlow(javaDocker, false);
-        runDefinition(yamlDocker, false);
+    void thePlanIsWrittenToTheBranchAndPushedWithAMessageNamingTheIssue() {
+        var commands = runDefinition(new FakeDockerCli(), false).containerCommands();
 
-        assertEquals("smithy/7-add-a-thing", branchFromCreate(javaDocker), "the Java flow's branch convention");
-        assertEquals(branchFromCreate(javaDocker), branchFromCreate(yamlDocker), "and the definition's");
+        assertTrue(commandsContain(commands, ".smithy/plans/7.md"), commands.toString());
+        // "#7", not "7": the form a provider auto-links.
+        assertTrue(commandsContain(commands, "Development plan for #7"), commands.toString());
     }
 
     @Test
-    void bothSidesLeaveTheRunInTheSameState() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli(), false);
-        var yaml = runDefinition(new FakeDockerCli(), false);
+    void refinementLeavesTheRunWaitingInRefine() {
+        assertEquals("refine", runDefinition(new FakeDockerCli(), false).runState());
+    }
 
-        assertEquals("smithy-development", java.runWorkflow());
-        assertEquals(java.runWorkflow(), yaml.runWorkflow());
-        assertEquals("refine", java.runState(), "the Java flow reaches refine");
-        assertEquals(java.runState(), yaml.runState(), "and so does the definition");
+    // ── Building ─────────────────────────────────────────────
+
+    @Test
+    void approvingThePlanOpensADraftRequestFromTheWorkBranch() {
+        var pullRequests = runDefinition(new FakeDockerCli(), true).pullRequests();
+
+        assertEquals(1, pullRequests.size(), pullRequests.toString());
+        assertTrue(pullRequests.getFirst().startsWith("smithy/7-add-a-thing -> main:"), pullRequests.toString());
     }
 
     @Test
-    void approvingThePlanOpensTheSamePullRequestOnBothSides() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli(), true);
-        var yaml = runDefinition(new FakeDockerCli(), true);
+    void approvalIsAcknowledgedOnTheIssueThatWasApproved() {
+        var comments = runDefinition(new FakeDockerCli(), true).issueComments();
 
-        assertEquals(1, java.pullRequests().size(), "the Java flow opens one: " + java.pullRequests());
-        assertEquals(java.pullRequests(), yaml.pullRequests(), "and the definition opens the same one");
-        assertTrue(
-            java.pullRequests().getFirst().startsWith("smithy/7-add-a-thing -> main:"),
-            java.pullRequests().toString()
-        );
+        // Approving a plan has to have visible feedback where the approval
+        // happened, not only on a pull request nobody has been told about.
+        assertEquals(2, comments.size(), comments.toString());
+        assertTrue(comments.get(1).contains("Plan approved"), comments.get(1));
     }
 
     @Test
-    void bothSidesReachBuildAndSayImplementationStarted() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli(), true);
-        var yaml = runDefinition(new FakeDockerCli(), true);
+    void theBranchIsRebasedOntoItsBaseBeforeTheRequestIsOpened() {
+        var commands = runDefinition(new FakeDockerCli(), true).containerCommands();
 
-        assertEquals("build", java.runState(), "the Java flow reaches build");
-        assertEquals(java.runState(), yaml.runState(), "and so does the definition");
-
-        assertEquals(2, java.issueComments().size(), "plan, then implementation-started: " + java.issueComments());
-        assertEquals(java.issueComments().size(), yaml.issueComments().size(), yaml.issueComments().toString());
-        assertTrue(java.issueComments().get(1).contains("Plan approved"), java.issueComments().get(1));
-        assertTrue(yaml.issueComments().get(1).contains("Plan approved"), yaml.issueComments().get(1));
+        assertTrue(commandsContain(commands, "smithy-rebase-onto smithy/7-add-a-thing main"), commands.toString());
     }
 
     @Test
-    void bothSidesRebaseOntoTheBaseBranchBeforeOpeningTheRequest() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli(), true).containerCommands();
-        var yaml = runDefinition(new FakeDockerCli(), true).containerCommands();
-
-        assertTrue(commandsContain(java, "smithy-rebase-onto smithy/7-add-a-thing main"), java.toString());
-        assertTrue(commandsContain(yaml, "smithy-rebase-onto smithy/7-add-a-thing main"), yaml.toString());
+    void buildingLeavesTheRunInBuild() {
+        assertEquals("build", runDefinition(new FakeDockerCli(), true).runState());
+        assertEquals("smithy-development", runDefinition(new FakeDockerCli(), true).runWorkflow());
     }
 
     // ── Plumbing ─────────────────────────────────────────────

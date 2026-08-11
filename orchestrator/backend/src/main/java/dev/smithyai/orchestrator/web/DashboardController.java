@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.web;
 
+import dev.smithyai.orchestrator.runtime.engine.RunTakeover;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.RunEvent;
 import dev.smithyai.orchestrator.runtime.store.RunRecorder;
@@ -12,13 +13,11 @@ import dev.smithyai.orchestrator.web.dto.InstanceDto;
 import dev.smithyai.orchestrator.web.dto.MessageRequest;
 import dev.smithyai.orchestrator.web.dto.RunDto;
 import dev.smithyai.orchestrator.web.dto.TakeoverDto;
-import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
-import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,24 +34,24 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class DashboardController {
 
-    private final List<AbstractWorkflowFactory<?>> factories;
     private final ContainerService containerService;
     private final MetricsRecorder metrics;
     private final RunStore runStore;
     private final RunEnvironments environments;
+    private final RunTakeover takeover;
 
     public DashboardController(
-        List<AbstractWorkflowFactory<?>> factories,
         ContainerService containerService,
         MetricsRecorder metrics,
         RunStore runStore,
-        RunEnvironments environments
+        RunEnvironments environments,
+        RunTakeover takeover
     ) {
-        this.factories = factories;
         this.containerService = containerService;
         this.metrics = metrics;
         this.runStore = runStore;
         this.environments = environments;
+        this.takeover = takeover;
     }
 
     @GetMapping("/dashboard/metrics")
@@ -162,44 +161,31 @@ public class DashboardController {
         return ResponseEntity.ok(RunDto.from(runStore.find(runId).orElseThrow(), List.of(), false));
     }
 
+    /**
+     * Runs that currently hold a container.
+     *
+     * <p>Kept as a separate view from the run list because it answers a
+     * different question: not "what has happened" but "what is running right
+     * now, and can I get at it".
+     */
     @GetMapping("/dashboard/instances")
     public List<InstanceDto> listInstances() {
-        var runningContainers = new HashSet<>(containerService.listManagedContainers());
+        var running = new HashSet<>(containerService.listManagedContainers());
         var result = new ArrayList<InstanceDto>();
-
-        for (var factory : factories) {
-            for (var entry : factory.allInstances().entrySet()) {
-                var instance = entry.getValue();
-                boolean running = runningContainers.contains(instance.containerName());
-                try {
-                    var state = instance.session().getState();
-                    result.add(
-                        new InstanceDto(
-                            instance.containerName(),
-                            state.workflow(),
-                            state.stage(),
-                            state.lastProcessedAt(),
-                            state.ciPaused(),
-                            state.ciRetryCount(),
-                            running,
-                            instance.isHumanControlled()
-                        )
-                    );
-                } catch (Exception e) {
-                    log.warn("Could not read state for {}: {}", instance.containerName(), e.getMessage());
-                    result.add(
-                        new InstanceDto(
-                            instance.containerName(),
-                            null,
-                            null,
-                            null,
-                            false,
-                            0,
-                            running,
-                            instance.isHumanControlled()
-                        )
-                    );
-                }
+        for (var run : runStore.findActive()) {
+            for (String container : runStore.findEnvironmentNames(run.id(), RunRecorder.CONTAINER)) {
+                result.add(
+                    new InstanceDto(
+                        container,
+                        run.workflowName(),
+                        run.state(),
+                        run.updatedAt(),
+                        Boolean.TRUE.equals(run.vars().get("ciPaused")),
+                        run.vars().get("ciAttempts") instanceof Number n ? n.intValue() : 0,
+                        running.contains(container),
+                        takeover.isHeld(run.id())
+                    )
+                );
             }
         }
         return result;
@@ -240,33 +226,40 @@ public class DashboardController {
 
     // ── Human takeover ───────────────────────────────────────
 
+    /**
+     * Addressed by container name because that is what the session panel knows.
+     * The lease itself belongs to the run, so it survives the container being
+     * rebuilt underneath it.
+     */
+    private Optional<dev.smithyai.orchestrator.runtime.store.Run> runFor(String containerName) {
+        return runStore.findByEnvironment(RunRecorder.CONTAINER, containerName);
+    }
+
     @GetMapping("/dashboard/takeover/{containerName}")
     public ResponseEntity<TakeoverDto> takeoverStatus(@PathVariable String containerName) {
-        var instance = findInstance(containerName);
-        if (instance == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(new TakeoverDto(instance.isHumanControlled(), null));
+        var run = runFor(containerName);
+        if (run.isEmpty()) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(new TakeoverDto(takeover.isHeld(run.get().id()), null));
     }
 
     @PostMapping("/dashboard/takeover/{containerName}")
     public ResponseEntity<TakeoverDto> takeoverHeartbeat(@PathVariable String containerName) {
-        var instance = findInstance(containerName);
-        if (instance == null) {
-            return ResponseEntity.notFound().build();
-        }
-        Instant expiresAt = instance.takeoverHeartbeat();
-        return ResponseEntity.ok(new TakeoverDto(true, expiresAt));
+        var run = runFor(containerName);
+        if (run.isEmpty()) return ResponseEntity.notFound().build();
+        // Empty means someone else already has it; saying so beats two people
+        // typing into the same agent session.
+        return takeover
+            .heartbeat(run.get().id())
+            .map(expiresAt -> ResponseEntity.ok(new TakeoverDto(true, expiresAt)))
+            .orElseGet(() -> ResponseEntity.status(409).build());
     }
 
     @DeleteMapping("/dashboard/takeover/{containerName}")
     public ResponseEntity<Void> releaseTakeover(@PathVariable String containerName) {
-        var instance = findInstance(containerName);
-        if (instance == null) {
-            return ResponseEntity.notFound().build();
-        }
-        instance.releaseTakeover();
-        return ResponseEntity.ok().build();
+        var run = runFor(containerName);
+        if (run.isEmpty()) return ResponseEntity.notFound().build();
+        takeover.release(run.get().id());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/dashboard/takeover/{containerName}/message")
@@ -274,29 +267,14 @@ public class DashboardController {
         @PathVariable String containerName,
         @RequestBody MessageRequest request
     ) {
-        var instance = findInstance(containerName);
-        if (instance == null) {
-            return ResponseEntity.notFound().build();
-        }
+        var run = runFor(containerName);
+        if (run.isEmpty()) return ResponseEntity.notFound().build();
         if (request.text() == null || request.text().isBlank()) {
             return ResponseEntity.badRequest().body("Message text is required");
         }
-        if (!instance.isHumanControlled()) {
-            return ResponseEntity.status(409).body("No active takeover for this instance");
+        if (!takeover.isHeld(run.get().id())) {
+            return ResponseEntity.status(409).body("No active takeover for this run");
         }
-        // Keep the lease alive while Claude processes the message
-        instance.takeoverHeartbeat();
-        String reply = instance.sendHumanMessage(request.text());
-        return ResponseEntity.ok(reply);
-    }
-
-    private AbstractWorkflowInstance findInstance(String containerName) {
-        for (var factory : factories) {
-            AbstractWorkflowInstance instance = factory.getInstance(containerName);
-            if (instance != null) {
-                return instance;
-            }
-        }
-        return null;
+        return ResponseEntity.ok(takeover.send(run.get(), request.text(), List.of()));
     }
 }

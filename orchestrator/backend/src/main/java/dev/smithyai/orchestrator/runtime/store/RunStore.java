@@ -392,6 +392,52 @@ public class RunStore {
         db.sql("DELETE FROM run_environments WHERE kind = ? AND name = ?").params(kind, name).update();
     }
 
+    // ── Leases ───────────────────────────────────────────────
+
+    /**
+     * Take or renew a lease on a run.
+     *
+     * <p>A heartbeat rather than a flag: a human who takes over a session and
+     * then closes the tab must not leave the run frozen forever, so control
+     * lapses on its own unless the dashboard keeps renewing it.
+     *
+     * @return the new expiry, or empty if someone else holds it
+     */
+    @Transactional
+    public Optional<Instant> acquireLease(String runId, String holder, java.time.Duration ttl) {
+        var current = findLease(runId);
+        if (current.isPresent() && !current.get().holder().equals(holder) && !current.get().expired()) {
+            return Optional.empty();
+        }
+        Instant expiresAt = Instant.now().plus(ttl);
+        db
+            .sql(
+                """
+                INSERT INTO run_leases (run_id, holder, expires_at) VALUES (?, ?, ?)
+                ON CONFLICT (run_id) DO UPDATE SET holder = excluded.holder, expires_at = excluded.expires_at
+                """
+            )
+            .params(runId, holder, iso(expiresAt))
+            .update();
+        return Optional.of(expiresAt);
+    }
+
+    public Optional<RunLease> findLease(String runId) {
+        return db.sql("SELECT * FROM run_leases WHERE run_id = ?").param(runId).query(LEASE_MAPPER).optional();
+    }
+
+    /** Whether anyone currently holds this run. An expired lease holds nothing. */
+    public boolean isLeased(String runId) {
+        return findLease(runId)
+            .filter(lease -> !lease.expired())
+            .isPresent();
+    }
+
+    @Transactional
+    public void releaseLease(String runId) {
+        db.sql("DELETE FROM run_leases WHERE run_id = ?").param(runId).update();
+    }
+
     // ── Waits ────────────────────────────────────────────────
 
     /**
@@ -521,6 +567,9 @@ public class RunStore {
             rs.getString("name"),
             readVars(rs.getString("state_json"))
         );
+
+    private final RowMapper<RunLease> LEASE_MAPPER = (ResultSet rs, int rowNum) ->
+        new RunLease(rs.getString("run_id"), rs.getString("holder"), parseInstant(rs, "expires_at"));
 
     private final RowMapper<RunWait> WAIT_MAPPER = (ResultSet rs, int rowNum) ->
         new RunWait(

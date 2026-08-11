@@ -56,11 +56,6 @@ workflow:
   # repository catalog goes — see workflows/feature-coordinator.yml.
   definitions-dir: ${WORKFLOW_DIR:/config/workflows}
 
-  # Whether definitions drive the flows, or the hardcoded Java ones still do.
-  # The two are exclusive: running both would give a repository two agents on
-  # the same issue. Off until the ported definitions have been proven against
-  # the flows they replace.
-  engine: ${WORKFLOW_ENGINE:false}
 
 ci:
   # When false, a failed pipeline pauses the workflow and asks for approval

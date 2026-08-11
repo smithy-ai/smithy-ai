@@ -2,9 +2,9 @@ package dev.smithyai.orchestrator.runtime.actions;
 
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
+import dev.smithyai.orchestrator.service.vcs.AttachmentHelper;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
-import dev.smithyai.orchestrator.workflow.shared.utils.AttachmentHelper;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

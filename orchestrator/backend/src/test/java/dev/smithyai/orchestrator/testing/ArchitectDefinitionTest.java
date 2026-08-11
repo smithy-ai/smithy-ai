@@ -16,7 +16,6 @@ import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.*;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
-import dev.smithyai.orchestrator.workflow.flows.architect.ArchitectReviewFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,18 +28,14 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 /**
- * The same review request, through the Java flow and through the definition.
+ * The two architect workflows, against a simulated Docker daemon.
  *
- * <p>Same idea as {@link SmithyParityTest} and the same gate: the architect
- * flows are smaller, but "smaller" is not evidence, and deleting them on the
- * strength of the port reading correctly would be exactly the rewrite-without-a-
- * safety-net the plan warned about.
- *
- * <p>The reviewer's observable output is narrow, which makes it easy to compare
- * completely: a container with the guidelines cloned beside the branch, and a
- * review posted with a summary and comments anchored to lines.
+ * <p>As with {@link SmithyDefinitionTest}, every expected value was established
+ * by first running the same events through the Java flows these definitions
+ * replaced and comparing the two. The comparison is gone with the Java; the
+ * behaviour it pinned is not.
  */
-class ArchitectParityTest {
+class ArchitectDefinitionTest {
 
     private static final RepoInfo REPO = new RepoInfo("acme", "app", "https://git.invalid/acme/app");
     private static final String CONTAINER = "architect.acme.app.pr-3";
@@ -69,32 +64,6 @@ class ArchitectParityTest {
     private static WorkflowEvent.ReviewRequested reviewRequested() {
         var prc = new PrContext(REPO, 3, "Add caching", "Adds a cache layer.", false, "feature/cache", "main");
         return new WorkflowEvent.ReviewRequested(prc);
-    }
-
-    // ── The Java flow ────────────────────────────────────────
-
-    private Observed runJavaFlow(FakeDockerCli docker) throws Exception {
-        var vcs = new StubVcsClient();
-        docker.enqueueClaudeStructured(REVIEW_JSON);
-
-        var factory = new ArchitectReviewFactory(
-            dockerConfig(),
-            vcsProviderConfig(),
-            botConfig(),
-            new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker),
-            new RepositoryConfigResolver(vcs),
-            new PromptRenderer(new DefaultResourceLoader()),
-            vcs,
-            vcs
-        );
-        factory.runs = new RunRecorder(freshStore("architect-java-" + System.identityHashCode(docker)));
-
-        var event = reviewRequested();
-        var instance = factory.getOrCreateInstance(CONTAINER, event);
-        instance.onEvent(event);
-        Thread.sleep(600);
-
-        return observe(docker, vcs);
     }
 
     // ── The definition ───────────────────────────────────────
@@ -172,7 +141,7 @@ class ArchitectParityTest {
         var registry = new WorkflowRegistry(
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),
-            new WorkflowPolicyConfig(null, null, tempDir.resolve("no-such-dir").toString(), true),
+            new WorkflowPolicyConfig(null, null, tempDir.resolve("no-such-dir").toString()),
             vcs,
             vcs
         );
@@ -189,46 +158,33 @@ class ArchitectParityTest {
         );
     }
 
-    // ── The comparison ───────────────────────────────────────
+    // ── Reviewing ────────────────────────────────────────────
 
     @Test
-    void bothSidesBuildTheSameWorkspace() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli());
-        var yaml = runDefinition(new FakeDockerCli());
-
-        assertEquals(List.of(CONTAINER), java.containers());
-        assertEquals(java.containers(), yaml.containers());
+    void aReviewRequestBuildsAWorkspaceForThatPullRequest() {
+        assertEquals(List.of(CONTAINER), runDefinition(new FakeDockerCli()).containers());
     }
 
     @Test
-    void bothSidesCloneTheGuidelinesRepositoryBesideTheBranch() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli());
-        var yaml = runDefinition(new FakeDockerCli());
+    void theGuidelinesRepositoryIsClonedBesideTheBranch() {
+        var mounts = runDefinition(new FakeDockerCli()).extraRepoMounts();
 
-        // Reviewing "does this follow our guidelines" needs both repositories
-        // in one workspace; the mount path is what the prompt refers to.
-        assertEquals(1, java.extraRepoMounts().size(), "the Java flow mounts one: " + java.extraRepoMounts());
-        assertTrue(java.extraRepoMounts().getFirst().contains("/context-repo"), java.extraRepoMounts().toString());
-        assertEquals(java.extraRepoMounts(), yaml.extraRepoMounts());
+        // Answering "does this follow our guidelines" needs both repositories in
+        // one workspace; the mount path is what the prompt refers to.
+        assertEquals(1, mounts.size(), mounts.toString());
+        assertTrue(mounts.getFirst().contains("/context-repo"), mounts.toString());
+        assertTrue(mounts.getFirst().contains("app-context"), mounts.toString());
     }
 
     @Test
-    void bothSidesPostTheSameReview() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli());
-        var yaml = runDefinition(new FakeDockerCli());
-
-        assertEquals(List.of("Two things to fix."), java.reviewSummaries());
-        assertEquals(java.reviewSummaries(), yaml.reviewSummaries());
+    void theReviewIsPostedWithItsSummary() {
+        assertEquals(List.of("Two things to fix."), runDefinition(new FakeDockerCli()).reviewSummaries());
     }
 
     @Test
-    void bothSidesAnchorTheCommentToTheSameLine() throws Exception {
-        var java = runJavaFlow(new FakeDockerCli());
-        var yaml = runDefinition(new FakeDockerCli());
-
+    void commentsAreAnchoredToTheLinesTheyAreAbout() {
         // Inline anchoring is the whole value of a review over a comment.
-        assertEquals(List.of("src/Main.java:12"), java.reviewAnchors());
-        assertEquals(java.reviewAnchors(), yaml.reviewAnchors());
+        assertEquals(List.of("src/Main.java:12"), runDefinition(new FakeDockerCli()).reviewAnchors());
     }
 
     // ── Learning from a merged pull request ──────────────────
@@ -239,29 +195,6 @@ class ArchitectParityTest {
          "title": "Cache access goes through the repository layer",
          "description": "PR #3 argued about this twice."}
         """;
-
-    private Observed runJavaLearn(FakeDockerCli docker) throws Exception {
-        var vcs = new StubVcsClient();
-        docker.enqueueClaudeStructured(LEARNING_JSON);
-        docker.onExec("symbolic-ref", new dev.smithyai.orchestrator.service.docker.dto.ExecResult(0, "main", ""));
-
-        var factory = new dev.smithyai.orchestrator.workflow.flows.architect.ArchitectLearnFactory(
-            dockerConfig(),
-            vcsProviderConfig(),
-            botConfig(),
-            new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker),
-            new RepositoryConfigResolver(vcs),
-            new PromptRenderer(new DefaultResourceLoader()),
-            vcs,
-            vcs
-        );
-        factory.runs = new RunRecorder(freshStore("learn-java-" + System.identityHashCode(docker)));
-
-        var event = prMerged();
-        factory.getOrCreateInstance("architect.acme.app.learn-3", event).onEvent(event);
-        Thread.sleep(600);
-        return observeLearn(docker, vcs);
-    }
 
     private Observed runDefinitionLearn(FakeDockerCli docker) {
         var vcs = new StubVcsClient();
@@ -276,38 +209,23 @@ class ArchitectParityTest {
     }
 
     @Test
-    void bothSidesProposeTheGuidelineChangeOnTheGuidelinesRepository() throws Exception {
-        var java = runJavaLearn(new FakeDockerCli());
-        var yaml = runDefinitionLearn(new FakeDockerCli());
+    void aMergedRequestProposesTheGuidelineChangeOnTheGuidelinesRepository() {
+        var proposals = runDefinitionLearn(new FakeDockerCli()).reviewSummaries();
 
         // Proposed, never merged: the people who own the guidelines decide.
-        assertEquals(1, java.reviewSummaries().size(), "the Java flow opens one: " + java.reviewSummaries());
-        assertEquals(java.reviewSummaries(), yaml.reviewSummaries());
+        assertEquals(1, proposals.size(), proposals.toString());
         assertTrue(
-            java.reviewSummaries().getFirst().contains("Cache access goes through the repository layer"),
-            java.reviewSummaries().toString()
+            proposals.getFirst().contains("Cache access goes through the repository layer"),
+            proposals.toString()
         );
+        assertTrue(proposals.getFirst().endsWith("-> main"), "onto the guidelines default branch: " + proposals);
     }
 
     @Test
-    void bothSidesPushTheGuidelinesBranchBeforeProposing() throws Exception {
-        var java = runJavaLearn(new FakeDockerCli());
-        var yaml = runDefinitionLearn(new FakeDockerCli());
+    void theGuidelinesBranchIsPushedBeforeItIsProposed() {
+        var commands = runDefinitionLearn(new FakeDockerCli()).reviewAnchors();
 
-        assertTrue(
-            java
-                .reviewAnchors()
-                .stream()
-                .anyMatch(c -> c.contains("git push")),
-            java.reviewAnchors().toString()
-        );
-        assertTrue(
-            yaml
-                .reviewAnchors()
-                .stream()
-                .anyMatch(c -> c.contains("git push")),
-            yaml.reviewAnchors().toString()
-        );
+        assertTrue(commands.stream().anyMatch(c -> c.contains("git push")), commands.toString());
     }
 
     /** Reuses the Observed shape: summaries are PR titles here, anchors are commands. */

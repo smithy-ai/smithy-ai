@@ -1,8 +1,7 @@
-package dev.smithyai.orchestrator.workflow.shared;
+package dev.smithyai.orchestrator.util;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
 import org.junit.jupiter.api.Test;
 
 class NamingTest {

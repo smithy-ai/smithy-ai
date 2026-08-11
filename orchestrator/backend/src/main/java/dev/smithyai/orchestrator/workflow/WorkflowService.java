@@ -1,232 +1,83 @@
 package dev.smithyai.orchestrator.workflow;
 
-import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.engine.RunEngine;
 import dev.smithyai.orchestrator.runtime.store.RunRecorder;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
-import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
-import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+/**
+ * The way in from a webhook.
+ *
+ * <p>Thin on purpose: an event goes to the engine, which asks every loaded
+ * definition what it means. This used to broadcast to every workflow factory
+ * and let each opt out with a negative check, which is how one flow's factory
+ * ended up importing another's just to bow out of its events.
+ */
 @Slf4j
 @Component
 public class WorkflowService {
 
-    private final List<AbstractWorkflowFactory<?>> factories;
     private final ContainerService containerService;
     private final RunStore runStore;
     private final RunEngine engine;
-    private final WorkflowPolicyConfig policy;
 
-    public WorkflowService(
-        List<AbstractWorkflowFactory<?>> factories,
-        ContainerService containerService,
-        RunStore runStore,
-        RunEngine engine,
-        WorkflowPolicyConfig policy
-    ) {
-        this.factories = factories;
+    public WorkflowService(ContainerService containerService, RunStore runStore, RunEngine engine) {
         this.containerService = containerService;
         this.runStore = runStore;
         this.engine = engine;
-        this.policy = policy;
-        log.info(
-            "WorkflowService initialized with {} workflow factories; engine {}",
-            factories.size(),
-            policy.engineEnabled() ? "enabled" : "disabled (hardcoded flows only)"
-        );
     }
 
-    @EventListener(ApplicationReadyEvent.class)
-    public void recoverInstances() {
-        logOrphanedRuns();
-
-        var containers = containerService.listAllManagedContainers();
-        if (containers.isEmpty()) {
-            log.info("No managed containers found for recovery");
-            return;
-        }
-
-        log.info("Found {} managed containers, attempting recovery", containers.size());
-        int recovered = 0;
-
-        for (var containerName : containers) {
-            try {
-                if (!containerService.ensureRunning(containerName)) {
-                    log.warn("Skipping recovery of {} — container could not be started", containerName);
-                    continue;
-                }
-                var stateOpt = containerService.readStateSafe(containerName);
-                if (stateOpt.isEmpty()) {
-                    log.warn("Skipping recovery of {} — could not read state", containerName);
-                    continue;
-                }
-                var state = stateOpt.get();
-
-                boolean matched = false;
-                for (var factory : factories) {
-                    if (factory.canRecover(containerName, state)) {
-                        factory.getOrRecoverInstance(containerName, state);
-                        log.info(
-                            "Recovered instance {} (stage={}, workflow={})",
-                            containerName,
-                            state.stage(),
-                            state.workflow()
-                        );
-                        recovered++;
-                        matched = true;
-                        break;
-                    }
-                }
-                if (!matched) {
-                    log.warn(
-                        "No factory matched container {} (workflow={}, stage={})",
-                        containerName,
-                        state.workflow(),
-                        state.stage()
-                    );
-                }
-            } catch (Exception e) {
-                log.error("Failed to recover container {}", containerName, e);
-            }
-        }
-
-        log.info("Recovery complete: {}/{} containers recovered", recovered, containers.size());
+    public void onEvent(WorkflowEvent event) {
+        engine.handle(event);
     }
 
     /**
-     * Report runs the store still considers active whose container is gone.
-     * Container recovery is still driven by {@code docker ps} — the store does
-     * not own the lifecycle yet — but a run with no container is a real state
-     * that used to be invisible, so surface it rather than let it sit silently.
+     * On startup, reconcile what the store believes with what Docker has.
+     *
+     * <p>There is nothing to recover any more — a run's state is in the store,
+     * not in its container — so this only reports. A run holding a container
+     * that no longer exists is a real state that used to be invisible, and a
+     * container nobody claims is worth knowing about before it is reaped.
      */
-    private void logOrphanedRuns() {
+    @EventListener(ApplicationReadyEvent.class)
+    public void reconcile() {
         try {
             var active = runStore.findActive();
-            if (active.isEmpty()) return;
+            var containers = new java.util.HashSet<>(containerService.listAllManagedContainers());
 
-            var orphaned = active
-                .stream()
-                .filter(run -> runStore.findEnvironmentNames(run.id(), RunRecorder.CONTAINER).isEmpty())
-                .toList();
-            log.info("Run store: {} active run(s), {} with no container attached", active.size(), orphaned.size());
-            orphaned.forEach(run ->
-                log.warn(
-                    "Run {} ({}) is active in state '{}' but holds no container",
-                    run.id(),
-                    run.workflowName(),
-                    run.state()
-                )
+            int orphanedRuns = 0;
+            for (var run : active) {
+                var held = runStore.findEnvironmentNames(run.id(), RunRecorder.CONTAINER);
+                held.forEach(containers::remove);
+                if (held.isEmpty()) continue;
+                for (String name : held) {
+                    if (containerService.containerExists(name)) continue;
+                    orphanedRuns++;
+                    log.warn(
+                        "Run {} ({}) is active in state '{}' but its container {} is gone",
+                        run.id(),
+                        run.workflowName(),
+                        run.state(),
+                        name
+                    );
+                    runStore.detachEnvironment(RunRecorder.CONTAINER, name);
+                }
+            }
+
+            log.info(
+                "{} active run(s); {} with a missing container, {} unclaimed container(s): {}",
+                active.size(),
+                orphanedRuns,
+                containers.size(),
+                containers
             );
         } catch (RuntimeException e) {
-            log.warn("Could not read the run store during recovery", e);
+            log.warn("Could not reconcile runs with containers at startup", e);
         }
-    }
-
-    /**
-     * Hand the event to whichever side is in charge.
-     *
-     * <p>The two are exclusive on purpose. Running both would give a repository
-     * two agents on the same issue, so switching over is a deliberate act: turn
-     * `workflow.engine` on once the definitions have been proven against the
-     * flows they replace, and the Java goes away after that.
-     */
-    public void onEvent(WorkflowEvent event) {
-        if (policy.engineEnabled()) {
-            engine.handle(event);
-            return;
-        }
-        for (var type : factories) {
-            var action = type.decideEventAction(event);
-            executeEventAction(type, action, event);
-        }
-    }
-
-    private void executeEventAction(AbstractWorkflowFactory<?> factory, EventAction action, WorkflowEvent event) {
-        String factoryName = factory.getClass().getSimpleName();
-        switch (action) {
-            case EventAction.Create c -> {
-                log.debug("[{}] Create instance for key={}", factoryName, c.key());
-                var instance = factory.getOrCreateInstance(c.key(), event);
-                instance.onEvent(event);
-            }
-            case EventAction.Dispatch d -> {
-                AbstractWorkflowInstance instance = factory.getInstance(d.key());
-                if (instance == null) {
-                    instance = recoverOnDemand(factory, d.key());
-                }
-                if (instance == null) {
-                    // Container is gone entirely — let the factory rebuild from the event
-                    instance = factory.getOrResurrectInstance(d.key(), event);
-                    if (instance != null) {
-                        log.info(
-                            "[{}] Resurrected instance key={} for {}",
-                            factoryName,
-                            d.key(),
-                            event.getClass().getSimpleName()
-                        );
-                        instance.onEvent(event);
-                        return;
-                    }
-                }
-                // A registered instance whose container was removed is still dispatched:
-                // handlers either recreate the container or ignore the event.
-                if (instance != null && (containerService.ensureRunning(d.key()) || !instance.exists())) {
-                    log.debug(
-                        "[{}] Dispatch event {} to key={}",
-                        factoryName,
-                        event.getClass().getSimpleName(),
-                        d.key()
-                    );
-                    instance.onEvent(event);
-                } else {
-                    log.debug("[{}] No active instance for key={}, ignoring", factoryName, d.key());
-                }
-            }
-            case EventAction.Destroy d -> {
-                var instance = factory.removeInstance(d.key());
-                if (instance != null) {
-                    log.debug("[{}] Destroy instance key={}", factoryName, d.key());
-                    instance.destroy();
-                    log.info("Destroyed instance {}", d.key());
-                } else {
-                    log.debug("[{}] Destroy requested but no instance for key={}", factoryName, d.key());
-                }
-            }
-            case EventAction.Ignore ignored -> {
-                log.debug("[{}] Ignoring event {}", factoryName, event.getClass().getSimpleName());
-            }
-        }
-    }
-
-    /**
-     * Attempt to recover an instance from its (possibly stopped) container when
-     * an event arrives for a key with no registered instance — e.g. after an
-     * orchestrator redeploy that missed the startup recovery pass.
-     */
-    private AbstractWorkflowInstance recoverOnDemand(AbstractWorkflowFactory<?> factory, String key) {
-        if (!containerService.isManagedContainer(key)) {
-            return null;
-        }
-        if (!containerService.ensureRunning(key)) {
-            log.warn("Cannot lazily recover {} — container could not be started", key);
-            return null;
-        }
-        var stateOpt = containerService.readStateSafe(key);
-        if (stateOpt.isEmpty()) {
-            log.warn("Cannot lazily recover {} — could not read state", key);
-            return null;
-        }
-        var instance = factory.getOrRecoverInstance(key, stateOpt.get());
-        if (instance != null) {
-            log.info("Lazily recovered instance {} (stage={}) on incoming event", key, stateOpt.get().stage());
-        }
-        return instance;
     }
 }

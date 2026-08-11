@@ -1,7 +1,7 @@
 package dev.smithyai.orchestrator.config;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
-import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
+import dev.smithyai.orchestrator.util.Naming;
 
 public record RepositoryConfig(ContextConfig context) {
     public static final String PATH = ".smithy/config.yml";

@@ -20,13 +20,6 @@ Replacing a built-in means writing a file with the same `metadata.name`. A file
 that fails to parse or validate is logged and skipped; it does not stop the
 others loading.
 
-!!! warning "The engine is off by default"
-
-    `workflow.engine` (`WORKFLOW_ENGINE`) decides whether definitions drive the
-    flows or the hardcoded Java ones still do. The two are exclusive: running
-    both would put two agents on the same issue. Turn it on once you have proven
-    the definitions you rely on.
-
 ## Anatomy
 
 ```yaml

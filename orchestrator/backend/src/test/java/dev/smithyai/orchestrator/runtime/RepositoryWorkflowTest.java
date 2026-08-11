@@ -96,7 +96,7 @@ class RepositoryWorkflowTest {
 
         // An empty directory: everything here comes from the repository itself.
         var definitions = Files.createDirectory(tempDir.resolve("workflows"));
-        var policy = new WorkflowPolicyConfig(null, null, definitions.toString(), true);
+        var policy = new WorkflowPolicyConfig(null, null, definitions.toString());
         var parser = new WorkflowDefinitionParser();
         var registry = new WorkflowRegistry(
             new WorkflowDefinitionLoader(parser),
