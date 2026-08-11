@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Badge,
+  Button,
   Center,
   Code,
   Collapse,
@@ -10,7 +11,14 @@ import {
   Table,
   Text,
 } from "@mantine/core";
-import { fetchRunEvents, fetchRuns, type Run } from "../api/client";
+import {
+  approveRunWait,
+  cancelRun,
+  fetchRunEvents,
+  fetchRuns,
+  fetchRunWaits,
+  type Run,
+} from "../api/client";
 
 const STATUS_COLOR: Record<string, string> = {
   pending: "gray",
@@ -28,7 +36,8 @@ function formatTime(iso: string | null) {
 
 /**
  * Run history. Unlike the instances table, rows here stay after the container
- * is gone, so a finished or failed run is still inspectable.
+ * is gone, so a finished or failed run is still inspectable — and a run holding
+ * at a gate can be released from here.
  */
 export function RunsTable() {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -65,6 +74,7 @@ export function RunsTable() {
           <Table.Th>Container</Table.Th>
           <Table.Th>Started</Table.Th>
           <Table.Th>Updated</Table.Th>
+          <Table.Th />
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
@@ -90,11 +100,38 @@ function RunRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  // Only fetch a run's timeline once the row is opened.
+  const queryClient = useQueryClient();
+  const terminal = ["completed", "failed", "cancelled"].includes(run.status);
+
+  // Only fetch a run's timeline once the row is opened; what it is waiting on
+  // is polled regardless, because that is what the row's action depends on.
   const { data: events = [] } = useQuery({
     queryKey: ["run-events", run.id],
     queryFn: () => fetchRunEvents(run.id),
     enabled: expanded,
+  });
+
+  const { data: waits = [] } = useQuery({
+    queryKey: ["run-waits", run.id],
+    queryFn: () => fetchRunWaits(run.id),
+    enabled: !terminal,
+    refetchInterval: 10000,
+  });
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["runs"] });
+    void queryClient.invalidateQueries({ queryKey: ["run-waits", run.id] });
+    void queryClient.invalidateQueries({ queryKey: ["run-events", run.id] });
+  };
+
+  const approve = useMutation({
+    mutationFn: (key: string) => approveRunWait(run.id, key),
+    onSuccess: refresh,
+  });
+
+  const cancel = useMutation({
+    mutationFn: () => cancelRun(run.id),
+    onSuccess: refresh,
   });
 
   return (
@@ -121,6 +158,11 @@ function RunRow({
               {run.status}
             </Badge>
             {run.live && <Badge color="green">live</Badge>}
+            {waits.map((wait) => (
+              <Badge key={wait.id} color="yellow" variant="light">
+                waiting: {wait.waitKey}
+              </Badge>
+            ))}
           </Group>
         </Table.Td>
         <Table.Td>
@@ -130,9 +172,36 @@ function RunRow({
         </Table.Td>
         <Table.Td>{formatTime(run.createdAt)}</Table.Td>
         <Table.Td>{formatTime(run.updatedAt)}</Table.Td>
+        <Table.Td onClick={(event) => event.stopPropagation()}>
+          <Group gap="xs" justify="flex-end" wrap="nowrap">
+            {waits.map((wait) => (
+              <Button
+                key={wait.id}
+                size="compact-xs"
+                variant="light"
+                color="yellow"
+                loading={approve.isPending}
+                onClick={() => approve.mutate(wait.waitKey)}
+              >
+                Approve {wait.waitKey}
+              </Button>
+            ))}
+            {!terminal && (
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                color="red"
+                loading={cancel.isPending}
+                onClick={() => cancel.mutate()}
+              >
+                Cancel
+              </Button>
+            )}
+          </Group>
+        </Table.Td>
       </Table.Tr>
       <Table.Tr>
-        <Table.Td colSpan={6} p={0} style={{ border: "none" }}>
+        <Table.Td colSpan={7} p={0} style={{ border: "none" }}>
           <Collapse in={expanded}>
             {events.length === 0 ? (
               <Text size="sm" c="dimmed" p="sm">
