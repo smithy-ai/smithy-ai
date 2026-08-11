@@ -33,7 +33,7 @@ public class ContainerSession {
     // ── Container init ──────────────────────────────────────
 
     public void initContainer(ContainerConfig config, String initialStage) {
-        cachedState = ContainerState.init(config.workflowType(), initialStage);
+        cachedState = ContainerState.init(config.workflow(), initialStage);
         service.create(containerName, config);
         service.writeState(containerName, cachedState);
     }

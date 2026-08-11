@@ -339,6 +339,27 @@ public class RunStore {
             .optional();
     }
 
+    /** The environment of a kind a run holds, with whatever the engine parked on it. */
+    public Optional<RunEnvironment> findEnvironment(String runId, String kind) {
+        return db
+            .sql("SELECT * FROM run_environments WHERE run_id = ? AND kind = ? ORDER BY created_at LIMIT 1")
+            .params(runId, kind)
+            .query(ENVIRONMENT_MAPPER)
+            .optional();
+    }
+
+    /**
+     * Park engine state on an environment — the agent session id, so a resumed
+     * run continues its conversation instead of starting a fresh one.
+     */
+    @Transactional
+    public void updateEnvironmentState(String runId, String kind, String name, Map<String, Object> state) {
+        db
+            .sql("UPDATE run_environments SET state_json = ? WHERE run_id = ? AND kind = ? AND name = ?")
+            .params(state == null ? null : writeJson(state), runId, kind, name)
+            .update();
+    }
+
     public List<String> findEnvironmentNames(String runId, String kind) {
         return db
             .sql("SELECT name FROM run_environments WHERE run_id = ? AND kind = ? ORDER BY created_at")
@@ -472,6 +493,14 @@ public class RunStore {
             parseInstant(rs, "ts"),
             rs.getString("type"),
             readVars(rs.getString("payload_json"))
+        );
+
+    private final RowMapper<RunEnvironment> ENVIRONMENT_MAPPER = (ResultSet rs, int rowNum) ->
+        new RunEnvironment(
+            rs.getString("run_id"),
+            rs.getString("kind"),
+            rs.getString("name"),
+            readVars(rs.getString("state_json"))
         );
 
     private final RowMapper<RunWait> WAIT_MAPPER = (ResultSet rs, int rowNum) ->

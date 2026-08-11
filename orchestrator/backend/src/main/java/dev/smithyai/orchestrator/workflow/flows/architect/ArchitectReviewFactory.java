@@ -8,7 +8,6 @@ import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
-import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.workflow.EventAction;
@@ -109,7 +108,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
         return (
             containerName.startsWith("architect.") &&
             containerName.contains(".pr-") &&
-            state.workflowType() == WorkflowType.ARCHITECT &&
+            ArchitectReviewInstance.WORKFLOW.equals(state.workflow()) &&
             !ReviewStage.DONE.value().equals(state.stage())
         );
     }

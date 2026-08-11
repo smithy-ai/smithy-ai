@@ -10,7 +10,6 @@ import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
-import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
@@ -155,7 +154,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     public boolean canRecover(String containerName, ContainerState state) {
         return (
             containerName.startsWith("smithy.") &&
-            state.workflowType() == WorkflowType.SMITHY &&
+            SmithyWorkflowInstance.WORKFLOW.equals(state.workflow()) &&
             !Stage.DONE.value().equals(state.stage())
         );
     }

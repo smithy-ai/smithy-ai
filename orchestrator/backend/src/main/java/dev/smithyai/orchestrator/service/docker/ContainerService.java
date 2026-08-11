@@ -155,9 +155,9 @@ public class ContainerService {
         // Labels
         args.add("--label");
         args.add("smithy.managed=true");
-        if (init.workflowType() != null) {
+        if (init.workflow() != null) {
             args.add("--label");
-            args.add("smithy.workflow=" + init.workflowType().value());
+            args.add("smithy.workflow=" + init.workflow());
         }
 
         // Volumes

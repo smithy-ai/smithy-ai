@@ -13,7 +13,6 @@ import dev.smithyai.orchestrator.service.claude.dto.LearnResult;
 import dev.smithyai.orchestrator.service.docker.*;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
-import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.CommentEntry;
@@ -27,6 +26,9 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class ArchitectLearnInstance extends AbstractWorkflowInstance {
+
+    /** Recorded on the container so a restart knows which flow owns it. */
+    public static final String WORKFLOW = "architect-learn";
 
     private final StateMachine<LearnStage> stateMachine;
     private final String architectEmail;
@@ -138,7 +140,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             .gitUsername("The Architect")
             .vcsToken(vcsConfig.architectToken())
             .extraRepos(List.of(new ContainerConfig.ExtraRepo(contextCloneUrl, "/context-repo", learnBranch)))
-            .workflowType(WorkflowType.ARCHITECT)
+            .workflow(WORKFLOW)
             .build();
     }
 

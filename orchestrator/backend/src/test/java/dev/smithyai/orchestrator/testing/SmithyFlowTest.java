@@ -12,6 +12,7 @@ import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.workflow.flows.smithy.SmithyWorkflowFactory;
+import dev.smithyai.orchestrator.workflow.flows.smithy.SmithyWorkflowInstance;
 import java.nio.file.Path;
 import java.util.List;
 import javax.sql.DataSource;
@@ -208,7 +209,7 @@ class SmithyFlowTest {
             .keySet()
             .forEach(key -> factory.getInstance(key));
         var state = dev.smithyai.orchestrator.service.docker.dto.ContainerState.init(
-            dev.smithyai.orchestrator.service.docker.dto.WorkflowType.SMITHY,
+            SmithyWorkflowInstance.WORKFLOW,
             "refine"
         );
         var recovered = factory.recoverInstance("smithy.acme.app.7", state);
@@ -240,11 +241,11 @@ class SmithyFlowTest {
     @Test
     void listsOnlyItsOwnContainersAsRecoverable() {
         var smithyState = dev.smithyai.orchestrator.service.docker.dto.ContainerState.init(
-            dev.smithyai.orchestrator.service.docker.dto.WorkflowType.SMITHY,
+            SmithyWorkflowInstance.WORKFLOW,
             "refine"
         );
         var doneState = dev.smithyai.orchestrator.service.docker.dto.ContainerState.init(
-            dev.smithyai.orchestrator.service.docker.dto.WorkflowType.SMITHY,
+            SmithyWorkflowInstance.WORKFLOW,
             "done"
         );
 

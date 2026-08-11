@@ -121,7 +121,7 @@ public class DashboardController {
                     result.add(
                         new InstanceDto(
                             instance.containerName(),
-                            state.workflowType().value(),
+                            state.workflow(),
                             state.stage(),
                             state.lastProcessedAt(),
                             state.ciPaused(),

@@ -65,7 +65,7 @@ public class WorkflowService {
                             "Recovered instance {} (stage={}, workflow={})",
                             containerName,
                             state.stage(),
-                            state.workflowType()
+                            state.workflow()
                         );
                         recovered++;
                         matched = true;
@@ -76,7 +76,7 @@ public class WorkflowService {
                     log.warn(
                         "No factory matched container {} (workflow={}, stage={})",
                         containerName,
-                        state.workflowType(),
+                        state.workflow(),
                         state.stage()
                     );
                 }

@@ -13,7 +13,6 @@ import dev.smithyai.orchestrator.service.claude.dto.PlanResult;
 import dev.smithyai.orchestrator.service.docker.*;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
-import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
@@ -28,6 +27,9 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
+
+    /** Recorded on the container so a restart knows which flow owns it. */
+    public static final String WORKFLOW = "smithy-development";
 
     private static final int MAX_CI_RETRIES = 5;
 
@@ -243,7 +245,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 .branch(branch)
                 .sourceBranch(ctx.baseBranch())
                 .cacheVolumes(dockerConfig.getCacheVolumeMap())
-                .workflowType(WorkflowType.SMITHY)
+                .workflow(WORKFLOW)
                 .build();
 
             session.initContainer(containerConfig, "refine");
@@ -873,7 +875,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                     .branch(prc.headBranch())
                     .sourceBranch(prc.baseBranch())
                     .cacheVolumes(dockerConfig.getCacheVolumeMap())
-                    .workflowType(WorkflowType.SMITHY)
+                    .workflow(WORKFLOW)
                     .build();
                 session.initContainer(containerConfig, Stage.BUILD.value());
                 // Fresh container has no Claude transcript — a stale session id must not be resumed

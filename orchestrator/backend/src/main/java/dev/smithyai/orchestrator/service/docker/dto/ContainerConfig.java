@@ -14,7 +14,7 @@ public record ContainerConfig(
     String gitUsername,
     String vcsToken,
     List<ExtraRepo> extraRepos,
-    WorkflowType workflowType
+    String workflow
 ) {
     public ContainerConfig {
         if (extraRepos == null) extraRepos = List.of();

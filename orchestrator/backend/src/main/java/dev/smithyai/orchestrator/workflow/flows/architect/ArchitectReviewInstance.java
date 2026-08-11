@@ -12,7 +12,6 @@ import dev.smithyai.orchestrator.service.claude.dto.ReviewResult;
 import dev.smithyai.orchestrator.service.docker.*;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
-import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.InlineComment;
@@ -23,6 +22,9 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class ArchitectReviewInstance extends AbstractWorkflowInstance {
+
+    /** Recorded on the container so a restart knows which flow owns it. */
+    public static final String WORKFLOW = "architect-review";
 
     private final StateMachine<ReviewStage> stateMachine;
     private final String architectEmail;
@@ -132,7 +134,7 @@ public class ArchitectReviewInstance extends AbstractWorkflowInstance {
             .gitUsername("The Architect")
             .vcsToken(vcsConfig.architectToken())
             .extraRepos(List.of(new ContainerConfig.ExtraRepo(contextCloneUrl, "/context-repo", "")))
-            .workflowType(WorkflowType.ARCHITECT)
+            .workflow(WORKFLOW)
             .build();
     }
 

@@ -8,7 +8,6 @@ import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
-import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.workflow.EventAction;
@@ -127,7 +126,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
         return (
             containerName.startsWith("architect.") &&
             containerName.contains(".learn-") &&
-            state.workflowType() == WorkflowType.ARCHITECT &&
+            ArchitectLearnInstance.WORKFLOW.equals(state.workflow()) &&
             !LearnStage.DONE.value().equals(state.stage())
         );
     }
