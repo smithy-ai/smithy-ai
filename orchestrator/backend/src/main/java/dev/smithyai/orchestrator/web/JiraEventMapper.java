@@ -97,7 +97,8 @@ public class JiraEventMapper {
                         return planApproved(payload, issue);
                     }
                 }
-                default -> {}
+                default -> {
+                }
             }
         }
         return null;
@@ -121,7 +122,10 @@ public class JiraEventMapper {
         var ctx = extractIssue(issue, true);
         if (ctx == null) return null;
         // Jira has no repo html url; the plan-link comment uses the VCS external URL
-        return new WorkflowEvent.IssueAssigned(ctx, smithyVcs.baseUrl() + "/" + ctx.info().owner() + "/" + ctx.info().repo());
+        return new WorkflowEvent.IssueAssigned(
+            ctx,
+            smithyVcs.baseUrl() + "/" + ctx.info().owner() + "/" + ctx.info().repo()
+        );
     }
 
     private WorkflowEvent planApproved(JsonNode payload, JsonNode issue) {
@@ -152,7 +156,7 @@ public class JiraEventMapper {
                         "",
                         key,
                         "I can't start on this story: the repository field is empty. " +
-                        "Set it to `owner/repo` (optionally `owner/repo@base-branch`) and re-assign me."
+                            "Set it to `owner/repo` (optionally `owner/repo@base-branch`) and re-assign me."
                     );
                 } catch (Exception e) {
                     log.warn("Failed to comment on {} about missing repo field", key, e);

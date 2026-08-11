@@ -148,7 +148,11 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public byte[] downloadAttachment(String url) {
         try {
-            var request = HttpRequest.newBuilder().uri(URI.create(url)).header(authHeaderName, authHeaderValue).GET().build();
+            var request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header(authHeaderName, authHeaderValue)
+                .GET()
+                .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() >= 400) {
                 throw new RuntimeException("GitLab attachment download failed: " + response.statusCode());
@@ -164,9 +168,12 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         post(
             "/projects/%s/repository/commits",
             Map.of(
-                "branch", branch,
-                "commit_message", message,
-                "actions", List.of(Map.of("action", "delete", "file_path", path))
+                "branch",
+                branch,
+                "commit_message",
+                message,
+                "actions",
+                List.of(Map.of("action", "delete", "file_path", path))
             ),
             projectId(owner, repo)
         );
@@ -464,13 +471,19 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
                 URLEncoder.encode(branch, StandardCharsets.UTF_8)
             );
         try {
-            var request = HttpRequest.newBuilder().uri(URI.create(url)).header(authHeaderName, authHeaderValue).GET().build();
+            var request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header(authHeaderName, authHeaderValue)
+                .GET()
+                .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 404) {
                 return null;
             }
             if (response.statusCode() >= 400) {
-                throw new RuntimeException("GitLab API error %d reading %s@%s".formatted(response.statusCode(), path, branch));
+                throw new RuntimeException(
+                    "GitLab API error %d reading %s@%s".formatted(response.statusCode(), path, branch)
+                );
             }
             return response.body();
         } catch (IOException | InterruptedException e) {
@@ -478,10 +491,49 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         }
     }
 
+    @Override
+    public Optional<String> readRepositoryFile(String owner, String repo, String path, String ref) {
+        String resolvedRef = resolveRef(owner, repo, ref);
+        if (resolvedRef.isBlank()) return Optional.empty();
+        return Optional.ofNullable(getRawFile(owner, repo, resolvedRef, path));
+    }
+
+    @Override
+    public List<String> listRepositoryFiles(String owner, String repo, String path, String ref) {
+        String pid = projectId(owner, repo);
+        String resolvedRef = resolveRef(owner, repo, ref);
+        if (resolvedRef.isBlank()) return List.of();
+
+        var files = new ArrayList<String>();
+        for (var node : getList(
+            "/projects/%s/repository/tree?path=%s&ref=%s",
+            pid,
+            urlEncode(path),
+            urlEncode(resolvedRef)
+        )) {
+            // "blob" is GitLab's term for a file entry; "tree" is a directory.
+            if ("blob".equals(node.path("type").asText(""))) {
+                String filePath = node.path("path").asText("");
+                if (!filePath.isBlank()) files.add(filePath);
+            }
+        }
+        return files;
+    }
+
     // ── HTTP helpers ─────────────────────────────────────────
 
+    /** The given ref, or the project's default branch when it is null or blank. */
+    private String resolveRef(String owner, String repo, String ref) {
+        if (ref != null && !ref.isBlank()) return ref;
+        return get("/projects/%s", projectId(owner, repo)).path("default_branch").asText("");
+    }
+
     private String projectId(String owner, String repo) {
-        return URLEncoder.encode(owner + "/" + repo, StandardCharsets.UTF_8);
+        return urlEncode(owner + "/" + repo);
+    }
+
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private JsonNode get(String pathTemplate, Object... args) {

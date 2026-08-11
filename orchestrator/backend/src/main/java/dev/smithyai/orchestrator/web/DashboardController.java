@@ -57,28 +57,32 @@ public class DashboardController {
                 boolean running = runningContainers.contains(instance.containerName());
                 try {
                     var state = instance.session().getState();
-                    result.add(new InstanceDto(
-                        instance.containerName(),
-                        state.workflowType().value(),
-                        state.stage(),
-                        state.lastProcessedAt(),
-                        state.ciPaused(),
-                        state.ciRetryCount(),
-                        running,
-                        instance.isHumanControlled()
-                    ));
+                    result.add(
+                        new InstanceDto(
+                            instance.containerName(),
+                            state.workflowType().value(),
+                            state.stage(),
+                            state.lastProcessedAt(),
+                            state.ciPaused(),
+                            state.ciRetryCount(),
+                            running,
+                            instance.isHumanControlled()
+                        )
+                    );
                 } catch (Exception e) {
                     log.warn("Could not read state for {}: {}", instance.containerName(), e.getMessage());
-                    result.add(new InstanceDto(
-                        instance.containerName(),
-                        null,
-                        null,
-                        null,
-                        false,
-                        0,
-                        running,
-                        instance.isHumanControlled()
-                    ));
+                    result.add(
+                        new InstanceDto(
+                            instance.containerName(),
+                            null,
+                            null,
+                            null,
+                            false,
+                            0,
+                            running,
+                            instance.isHumanControlled()
+                        )
+                    );
                 }
             }
         }

@@ -32,8 +32,8 @@ class JiraEventMapperTest {
         );
         var vcsConfig = new VcsProviderConfig("gitlab", "jira", null, null, null, jira);
         VcsClient vcs = mock(VcsClient.class);
-        when(vcs.cloneUrl(any(), any())).thenAnswer(inv ->
-            "https://gitlab.example.com/" + inv.getArgument(0) + "/" + inv.getArgument(1) + ".git"
+        when(vcs.cloneUrl(any(), any())).thenAnswer(
+            inv -> "https://gitlab.example.com/" + inv.getArgument(0) + "/" + inv.getArgument(1) + ".git"
         );
         when(vcs.baseUrl()).thenReturn("https://gitlab.example.com");
         return new JiraEventMapper(vcsConfig, vcs, issueTracker);
@@ -59,8 +59,7 @@ class JiraEventMapperTest {
 
     @Test
     void assignmentToBotProducesIssueAssigned() throws Exception {
-        String payload =
-            """
+        String payload = """
             { "webhookEvent": "jira:issue_updated",
               "issue": %s,
               "changelog": { "items": [ { "field": "assignee", "from": null, "to": "%s" } ] } }
@@ -76,8 +75,7 @@ class JiraEventMapperTest {
 
     @Test
     void assignmentWithoutRepoFieldIsIgnoredAndCommented() throws Exception {
-        String payload =
-            """
+        String payload = """
             { "webhookEvent": "jira:issue_updated",
               "issue": %s,
               "changelog": { "items": [ { "field": "assignee", "from": null, "to": "%s" } ] } }
@@ -89,8 +87,7 @@ class JiraEventMapperTest {
 
     @Test
     void unassignmentProducesIssueUnassigned() throws Exception {
-        String payload =
-            """
+        String payload = """
             { "webhookEvent": "jira:issue_updated",
               "issue": %s,
               "changelog": { "items": [ { "field": "assignee", "from": "%s", "to": "someone-else" } ] } }
@@ -101,8 +98,7 @@ class JiraEventMapperTest {
 
     @Test
     void planApprovedLabelProducesPlanApproved() throws Exception {
-        String payload =
-            """
+        String payload = """
             { "webhookEvent": "jira:issue_updated",
               "issue": %s,
               "changelog": { "items": [ { "field": "labels", "fromString": "", "toString": "plan-approved" } ] } }
@@ -113,8 +109,7 @@ class JiraEventMapperTest {
 
     @Test
     void statusTransitionProducesPlanApproved() throws Exception {
-        String payload =
-            """
+        String payload = """
             { "webhookEvent": "jira:issue_updated",
               "issue": %s,
               "changelog": { "items": [ { "field": "status", "fromString": "To Do", "toString": "In Development" } ] } }
@@ -125,8 +120,7 @@ class JiraEventMapperTest {
 
     @Test
     void humanCommentProducesIssueComment() throws Exception {
-        String payload =
-            """
+        String payload = """
             { "webhookEvent": "comment_created",
               "issue": %s,
               "comment": { "id": 5, "body": "please adjust", "author": { "accountId": "human-1" } } }
@@ -139,8 +133,7 @@ class JiraEventMapperTest {
 
     @Test
     void botCommentIsIgnored() throws Exception {
-        String payload =
-            """
+        String payload = """
             { "webhookEvent": "comment_created",
               "issue": %s,
               "comment": { "id": 5, "body": "plan posted", "author": { "accountId": "%s" } } }

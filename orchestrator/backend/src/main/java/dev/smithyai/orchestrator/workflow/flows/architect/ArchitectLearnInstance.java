@@ -193,10 +193,13 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     throw new RuntimeException("Failed to push context repo: " + pushResult.stderr());
                 }
 
-                var headResult = session.exec(List.of(
-                    "sh", "-c",
-                    "cd /context-repo && git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||'"
-                ));
+                var headResult = session.exec(
+                    List.of(
+                        "sh",
+                        "-c",
+                        "cd /context-repo && git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||'"
+                    )
+                );
                 if (headResult.exitCode() != 0) {
                     throw new RuntimeException("Failed to resolve context-repo default branch: " + headResult.stderr());
                 }

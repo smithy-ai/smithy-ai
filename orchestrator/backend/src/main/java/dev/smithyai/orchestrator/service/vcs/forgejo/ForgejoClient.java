@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.service.vcs.forgejo;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.forgejoclient.ApiClient;
 import dev.smithyai.forgejoclient.ApiException;
 import dev.smithyai.forgejoclient.api.IssueApi;
@@ -9,8 +10,12 @@ import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.*;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
@@ -270,6 +275,72 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
             if (e.isNotFound()) return false;
             throw e;
         }
+    }
+
+    @Override
+    public Optional<String> readRepositoryFile(String owner, String repo, String path, String ref) {
+        try {
+            String fileRef = resolveRef(owner, repo, ref);
+            var contents = api(() -> repoApi.repoGetContents(owner, repo, path, fileRef));
+            String content = contents.getContent();
+            if (content == null) return Optional.empty();
+            if ("base64".equalsIgnoreCase(contents.getEncoding())) {
+                // Forgejo wraps base64 payloads, so strip whitespace before decoding.
+                String normalized = content.replaceAll("\\s+", "");
+                return Optional.of(new String(Base64.getDecoder().decode(normalized), StandardCharsets.UTF_8));
+            }
+            return Optional.of(content);
+        } catch (ForgejoApiException e) {
+            if (e.isNotFound()) return Optional.empty();
+            throw e;
+        }
+    }
+
+    @Override
+    public List<String> listRepositoryFiles(String owner, String repo, String path, String ref) {
+        // The generated repoGetContentsList only lists the repository root, and
+        // repoGetContents types a directory listing as a single ContentsResponse,
+        // so go to the contents endpoint directly for an arbitrary directory.
+        try {
+            String url = "%s/api/v1/repos/%s/%s/contents/%s?ref=%s".formatted(
+                baseUrl,
+                encode(owner),
+                encode(repo),
+                encodePath(path),
+                encode(resolveRef(owner, repo, ref))
+            );
+            JsonNode node = rest.get().uri(URI.create(url)).retrieve().body(JsonNode.class);
+            if (node == null || !node.isArray()) return List.of();
+
+            var files = new ArrayList<String>();
+            for (JsonNode item : node) {
+                if ("file".equals(item.path("type").asText(""))) {
+                    String itemPath = item.path("path").asText("");
+                    if (!itemPath.isBlank()) files.add(itemPath);
+                }
+            }
+            return files;
+        } catch (HttpClientErrorException.NotFound e) {
+            return List.of();
+        } catch (ForgejoApiException e) {
+            if (e.isNotFound()) return List.of();
+            throw e;
+        }
+    }
+
+    private static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    /** Percent-encode each path segment, leaving the separators intact. */
+    private static String encodePath(String path) {
+        return Arrays.stream(path.split("/")).map(ForgejoClient::encode).collect(Collectors.joining("/"));
+    }
+
+    /** The given ref, or the repository's default branch when it is null or blank. */
+    private String resolveRef(String owner, String repo, String ref) {
+        if (ref != null && !ref.isBlank()) return ref;
+        return api(() -> repoApi.repoGet(owner, repo)).getDefaultBranch();
     }
 
     // ── VcsClient: URL helpers ───────────────────────────────

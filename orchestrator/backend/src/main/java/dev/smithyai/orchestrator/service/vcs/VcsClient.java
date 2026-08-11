@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.service.vcs;
 
 import dev.smithyai.orchestrator.service.vcs.dto.*;
 import java.util.List;
+import java.util.Optional;
 
 public interface VcsClient {
     // Pull/Merge Requests
@@ -68,6 +69,20 @@ public interface VcsClient {
      */
     default String getRawFile(String owner, String repo, String branch, String path) {
         throw new UnsupportedOperationException("getRawFile not supported by " + getClass().getSimpleName());
+    }
+
+    /**
+     * Read a repository file, resolving {@code ref} to the default branch when null.
+     * Empty when the file does not exist. Used to read per-repository configuration
+     * over the API, before any container exists.
+     */
+    default Optional<String> readRepositoryFile(String owner, String repo, String path, String ref) {
+        throw new UnsupportedOperationException("readRepositoryFile not supported by " + getClass().getSimpleName());
+    }
+
+    /** List file paths under a repository directory, resolving {@code ref} as above. */
+    default List<String> listRepositoryFiles(String owner, String repo, String path, String ref) {
+        throw new UnsupportedOperationException("listRepositoryFiles not supported by " + getClass().getSimpleName());
     }
 
     /** Delete a file on a branch with a single commit. */

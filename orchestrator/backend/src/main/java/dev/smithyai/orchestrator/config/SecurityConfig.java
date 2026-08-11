@@ -24,21 +24,24 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(auth ->
-            auth.requestMatchers("/webhooks/**")
-                .permitAll()
-                .requestMatchers("/api/health")
-                .permitAll()
-                .requestMatchers("/api/**")
-                .authenticated()
-                .anyRequest()
-                .permitAll()
-        )
+        http
+            .authorizeHttpRequests(auth ->
+                auth
+                    .requestMatchers("/webhooks/**")
+                    .permitAll()
+                    .requestMatchers("/api/health")
+                    .permitAll()
+                    .requestMatchers("/api/**")
+                    .authenticated()
+                    .anyRequest()
+                    .permitAll()
+            )
             .exceptionHandling(ex ->
                 ex.authenticationEntryPoint((req, res, authEx) -> res.setStatus(HttpStatus.UNAUTHORIZED.value()))
             )
             .formLogin(form ->
-                form.loginProcessingUrl("/api/login")
+                form
+                    .loginProcessingUrl("/api/login")
                     .successHandler((req, res, auth) -> res.setStatus(HttpStatus.OK.value()))
                     .failureHandler((req, res, authEx) -> res.setStatus(HttpStatus.UNAUTHORIZED.value()))
                     .permitAll()

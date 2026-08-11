@@ -135,10 +135,7 @@ public class GitLabEventMapper {
             }
         }
         if (!hasPlanApproved) {
-            log.debug(
-                "Issue label change skipped: 'Plan Approved' label not present (labels={})",
-                labelTitles(labels)
-            );
+            log.debug("Issue label change skipped: 'Plan Approved' label not present (labels={})", labelTitles(labels));
             return null;
         }
 
@@ -195,12 +192,24 @@ public class GitLabEventMapper {
         // Regular note → conversation comment
         String repoFull = payload.path("project").path("path_with_namespace").asText("");
         if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody, noteId, attrs.path("discussion_id").asText(""));
+            return new WorkflowEvent.PrConversationComment(
+                prc,
+                commentUser,
+                commentBody,
+                noteId,
+                attrs.path("discussion_id").asText("")
+            );
         }
 
         String headBranch = mr.path("source_branch").asText("");
         if (Naming.isSmithyBranch(headBranch)) {
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody, noteId, attrs.path("discussion_id").asText(""));
+            return new WorkflowEvent.PrConversationComment(
+                prc,
+                commentUser,
+                commentBody,
+                noteId,
+                attrs.path("discussion_id").asText("")
+            );
         }
 
         return null;

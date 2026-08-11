@@ -90,9 +90,7 @@ public class ContainerService {
     }
 
     public List<String> listAllManagedContainers() {
-        var result = docker.run(
-            List.of("ps", "-a", "--filter", "label=smithy.managed=true", "--format", "{{.Names}}")
-        );
+        var result = docker.run(List.of("ps", "-a", "--filter", "label=smithy.managed=true", "--format", "{{.Names}}"));
         if (result.exitCode() != 0) {
             log.warn("Failed to list managed containers: {}", result.stderr());
             return List.of();
@@ -294,7 +292,9 @@ public class ContainerService {
                 containerName,
                 "sh",
                 "-c",
-                "cat \"$(find /root/.claude/projects -name '" + sessionId + ".jsonl' 2>/dev/null | head -1)\" 2>/dev/null"
+                "cat \"$(find /root/.claude/projects -name '" +
+                    sessionId +
+                    ".jsonl' 2>/dev/null | head -1)\" 2>/dev/null"
             )
         );
         return result.stdout();

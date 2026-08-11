@@ -288,17 +288,17 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             // Extract open questions from the plan
             List<String> openQuestions = List.of();
             try {
-                String extractPrompt = renderer.render(
-                    "refinement_extract.md.j2",
-                    Map.of("plan_file_path", planPath)
-                );
+                String extractPrompt = renderer.render("refinement_extract.md.j2", Map.of("plan_file_path", planPath));
                 PlanResult planResult = claude.send(extractPrompt, PlanResult.class, "haiku");
                 openQuestions = planResult.openQuestions();
             } catch (Exception ex) {
                 log.warn("Failed to extract open questions for issue {}", ctx.issueRef(), ex);
             }
 
-            var pushResult = session.exec("smithy-commit-and-push", "Development plan for " + Naming.displayRef(ctx.issueRef()));
+            var pushResult = session.exec(
+                "smithy-commit-and-push",
+                "Development plan for " + Naming.displayRef(ctx.issueRef())
+            );
             if (pushResult.exitCode() != 0) {
                 throw new RuntimeException("Failed to commit and push plan: " + pushResult.stderr());
             }
@@ -313,12 +313,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                     comment.append("\n- ").append(q);
                 }
             }
-            issueTracker.createIssueComment(
-                info.owner(),
-                info.repo(),
-                ctx.issueRef(),
-                comment.toString()
-            );
+            issueTracker.createIssueComment(info.owner(), info.repo(), ctx.issueRef(), comment.toString());
 
             log.info("Refinement complete for issue {}", ctx.issueRef());
         } catch (Exception ex) {
@@ -328,7 +323,9 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
                 ctx.info(),
                 ctx.issueRef(),
                 null,
-                "Planning failed unexpectedly (" + ex.getClass().getSimpleName() + "). Unassign and re-assign me to retry."
+                "Planning failed unexpectedly (" +
+                    ex.getClass().getSimpleName() +
+                    "). Unassign and re-assign me to retry."
             );
         }
     }
@@ -377,7 +374,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             claude.send(prompt);
             syncSessionId();
 
-            var pushResult = session.exec("smithy-commit-and-push", "Update plan for " + Naming.displayRef(ctx.issueRef()));
+            var pushResult = session.exec(
+                "smithy-commit-and-push",
+                "Update plan for " + Naming.displayRef(ctx.issueRef())
+            );
             if (pushResult.exitCode() != 0) {
                 log.warn("smithy-commit-and-push failed in {}: {}", session.getContainerName(), pushResult.stderr());
             }
@@ -805,7 +805,13 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         }
     }
 
-    private void resumeBuild(RepoInfo info, String issueRef, Integer prNumber, String prompt, boolean skipAssignmentCheck) {
+    private void resumeBuild(
+        RepoInfo info,
+        String issueRef,
+        Integer prNumber,
+        String prompt,
+        boolean skipAssignmentCheck
+    ) {
         resumeBuild(null, info, issueRef, prNumber, prompt, skipAssignmentCheck, false, null);
     }
 

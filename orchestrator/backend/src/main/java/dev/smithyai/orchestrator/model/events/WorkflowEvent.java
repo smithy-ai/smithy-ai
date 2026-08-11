@@ -45,8 +45,12 @@ public sealed interface WorkflowEvent {
         String discussionId
     ) implements PrScoped {}
 
-    record PrReviewComment(PrContext prc, List<CommentData> comments, long commentId, String discussionId)
-        implements PrScoped {}
+    record PrReviewComment(
+        PrContext prc,
+        List<CommentData> comments,
+        long commentId,
+        String discussionId
+    ) implements PrScoped {}
 
     record ReviewSubmitted(PrContext prc, long reviewId, String reviewBody, String reviewer) implements PrScoped {}
 
