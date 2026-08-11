@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.service.vcs.gitlab;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import dev.smithyai.orchestrator.runtime.actions.Capability;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.*;
@@ -20,6 +21,16 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class GitLabClient implements VcsClient, IssueTrackerClient {
+
+    /**
+     * GitLab is the most complete provider here: it implements every optional
+     * operation, including creating and labelling issues, which is what a
+     * coordinator needs to fan work out.
+     */
+    @Override
+    public java.util.Set<Capability> capabilities() {
+        return java.util.EnumSet.allOf(Capability.class);
+    }
 
     private final String baseUrl;
     private final String externalUrl;

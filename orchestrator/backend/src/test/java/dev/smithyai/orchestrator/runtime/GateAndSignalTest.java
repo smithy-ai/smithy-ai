@@ -143,15 +143,13 @@ class GateAndSignalTest {
         var orphan = store.create("smithy-development", null, "refine", null);
         var context = contextFor(orphan);
 
-        var noParent = assertThrows(
-            IllegalArgumentException.class,
-            () -> signal.execute(context, Map.of("signal", "done"))
+        var noParent = assertThrows(IllegalArgumentException.class, () ->
+            signal.execute(context, Map.of("signal", "done"))
         );
         assertTrue(noParent.getMessage().contains("no parent"));
 
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> signal.execute(context, Map.of("signal", "done", "to", "run-that-never-existed"))
+        assertThrows(IllegalArgumentException.class, () ->
+            signal.execute(context, Map.of("signal", "done", "to", "run-that-never-existed"))
         );
     }
 }

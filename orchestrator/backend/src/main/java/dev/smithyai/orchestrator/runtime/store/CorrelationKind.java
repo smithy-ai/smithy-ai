@@ -10,6 +10,14 @@ public enum CorrelationKind {
     PR("pr"),
     BRANCH("branch"),
     CONTAINER("container"),
+    /**
+     * A routing key a definition composed itself.
+     *
+     * <p>A definition decides what identifies its runs — an issue in a
+     * repository, a pull request, a release train — so the key is opaque to the
+     * platform and only has to be stable for the same work.
+     */
+    KEY("key"),
     /** Anything provider-specific that does not fit the above. */
     EXTERNAL("external");
 

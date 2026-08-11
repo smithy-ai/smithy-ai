@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.smithyai.orchestrator.config.VcsProviderConfig.JiraProviderConfig;
+import dev.smithyai.orchestrator.runtime.actions.Capability;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.dto.AttachmentInfo;
 import dev.smithyai.orchestrator.service.vcs.dto.CommentEntry;
@@ -30,6 +31,15 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class JiraClient implements IssueTrackerClient {
+
+    /**
+     * Jira works as a parent-story tracker: it comments and assigns, but the
+     * work itself lives in repositories, so nothing here creates issues.
+     */
+    @Override
+    public java.util.Set<Capability> capabilities() {
+        return java.util.EnumSet.of(Capability.ISSUE_COMMENT, Capability.ISSUE_ASSIGN);
+    }
 
     private final String baseUrl;
     private final String botAccountId;

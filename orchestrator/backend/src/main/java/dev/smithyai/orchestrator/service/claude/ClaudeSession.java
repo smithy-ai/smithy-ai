@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.service.claude;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
@@ -9,6 +10,7 @@ import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.Getter;
@@ -108,6 +110,24 @@ public class ClaudeSession {
                 content,
                 e
             );
+        }
+    }
+
+    /**
+     * Ask for a structured answer against a schema built at runtime.
+     *
+     * <p>{@link #send(String, Class)} generates its schema from a Java DTO, which
+     * a YAML workflow cannot name. A definition declares the shape it wants
+     * instead, and gets back the parsed object.
+     */
+    public Map<String, Object> sendStructured(String prompt, String jsonSchema) {
+        boolean resume = started;
+        started = true;
+        String content = execute(prompt, defaultModel, "default", resume, jsonSchema);
+        try {
+            return MAPPER.readValue(content.strip(), new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            throw new ClaudeParseException("Failed to parse Claude output against the declared schema", content, e);
         }
     }
 

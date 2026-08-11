@@ -45,18 +45,10 @@ public class RunSpawnAction implements WorkflowAction {
         vars.remove("workflow");
         vars.remove("state");
         if (!vars.isEmpty()) {
-            store.updateVars(child.id(), vars);
+            store.mergeVars(child.id(), vars);
         }
 
         log.info("Run {} spawned child {} ({})", parentRunId, child.id(), workflow);
         return Map.of("runId", child.id(), "workflow", workflow);
-    }
-
-    private static String required(Map<String, Object> input, String key) {
-        Object value = input.get(key);
-        if (value == null || String.valueOf(value).isBlank()) {
-            throw new IllegalArgumentException("run.spawn requires '" + key + "'");
-        }
-        return String.valueOf(value);
     }
 }

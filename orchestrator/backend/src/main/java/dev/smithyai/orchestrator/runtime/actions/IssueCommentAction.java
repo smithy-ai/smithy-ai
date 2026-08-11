@@ -42,12 +42,4 @@ public class IssueCommentAction implements WorkflowAction {
         var comment = issues.createIssueComment(owner, repo, issueRef, body);
         return Map.of("commentId", comment.id());
     }
-
-    private static String required(Map<String, Object> input, String key) {
-        Object value = input.get(key);
-        if (value == null || String.valueOf(value).isBlank()) {
-            throw new IllegalArgumentException("issue.comment requires '" + key + "'");
-        }
-        return String.valueOf(value);
-    }
 }

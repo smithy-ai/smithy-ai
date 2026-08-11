@@ -18,6 +18,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class StubVcsClient implements VcsClient, IssueTrackerClient {
 
+    /** A stub stands in for every provider, so it declares everything. */
+    @Override
+    public java.util.Set<dev.smithyai.orchestrator.runtime.actions.Capability> capabilities() {
+        return java.util.EnumSet.allOf(dev.smithyai.orchestrator.runtime.actions.Capability.class);
+    }
+
     public final List<String> issueComments = new ArrayList<>();
     public final List<String> prComments = new ArrayList<>();
     public final List<PrData> createdPrs = new ArrayList<>();

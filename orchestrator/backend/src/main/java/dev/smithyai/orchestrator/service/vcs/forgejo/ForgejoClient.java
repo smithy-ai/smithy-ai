@@ -6,6 +6,7 @@ import dev.smithyai.forgejoclient.ApiException;
 import dev.smithyai.forgejoclient.api.IssueApi;
 import dev.smithyai.forgejoclient.api.RepositoryApi;
 import dev.smithyai.forgejoclient.model.*;
+import dev.smithyai.orchestrator.runtime.actions.Capability;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.*;
@@ -20,6 +21,25 @@ import org.springframework.web.client.RestClient;
 
 @Slf4j
 public class ForgejoClient implements VcsClient, IssueTrackerClient {
+
+    /**
+     * Forgejo reads repository files but has no reaction, discussion-reply or
+     * file-delete API here.
+     */
+    @Override
+    public java.util.Set<Capability> capabilities() {
+        return java.util.EnumSet.of(
+            Capability.PR_CREATE,
+            Capability.PR_COMMENT,
+            Capability.PR_REVIEW_INLINE,
+            Capability.PR_REQUEST_REVIEW,
+            Capability.ISSUE_COMMENT,
+            Capability.ISSUE_ASSIGN,
+            Capability.ISSUE_CREATE,
+            Capability.ISSUE_LABEL,
+            Capability.FILE_READ
+        );
+    }
 
     private final String baseUrl;
     private final IssueApi issueApi;

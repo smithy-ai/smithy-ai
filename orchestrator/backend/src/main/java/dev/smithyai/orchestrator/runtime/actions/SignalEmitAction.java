@@ -59,9 +59,8 @@ public class SignalEmitAction implements WorkflowAction {
     /** {@code to: parent} or an explicit run id; the parent is the common case. */
     private String resolveTarget(ActionContext context, Map<String, Object> input) {
         Object to = input.get("to");
-        String target = to == null || "parent".equals(String.valueOf(to))
-            ? context.run().parentRunId()
-            : String.valueOf(to);
+        String target =
+            to == null || "parent".equals(String.valueOf(to)) ? context.run().parentRunId() : String.valueOf(to);
         if (target == null || target.isBlank()) {
             throw new IllegalArgumentException(
                 "signal.emit has no target: run %s has no parent and no 'to' was given".formatted(context.run().id())

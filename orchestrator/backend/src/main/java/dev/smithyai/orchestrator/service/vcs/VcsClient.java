@@ -4,7 +4,7 @@ import dev.smithyai.orchestrator.service.vcs.dto.*;
 import java.util.List;
 import java.util.Optional;
 
-public interface VcsClient {
+public interface VcsClient extends ProviderClient {
     // Pull/Merge Requests
     PrData createPullRequest(
         String owner,

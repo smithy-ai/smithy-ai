@@ -1,0 +1,242 @@
+package dev.smithyai.orchestrator.runtime;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
+import dev.smithyai.orchestrator.model.IssueContext;
+import dev.smithyai.orchestrator.model.RepoInfo;
+import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.runtime.actions.*;
+import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinitionLoader;
+import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinitionParser;
+import dev.smithyai.orchestrator.runtime.engine.*;
+import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
+import dev.smithyai.orchestrator.runtime.store.*;
+import dev.smithyai.orchestrator.testing.StubVcsClient;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import javax.sql.DataSource;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+/**
+ * A definition actually running.
+ *
+ * <p>The previous attempt at this shipped a parser and a validator that nothing
+ * injected — a definition could be written and checked but never executed. These
+ * tests drive real YAML through routing, state transitions and steps.
+ */
+class RunEngineTest {
+
+    private static final RepoInfo REPO = new RepoInfo("acme", "platform", "https://git.invalid/acme/platform");
+
+    private static final String COORDINATOR = """
+        apiVersion: smithy.ai/v1alpha1
+        kind: Workflow
+        metadata:
+          name: feature-coordinator
+        vars:
+          maxReviewRounds: 3
+        routing:
+          - event: issue.assigned
+            when: "{{ repo.fullName == 'acme/platform' }}"
+            action: create
+            key: "{{ repo.fullName }}#{{ event.issueRef }}"
+          - event: [issue.plan_approved, issue.commented]
+            action: dispatch
+            key: "{{ repo.fullName }}#{{ event.issueRef }}"
+          - event: pr.merged
+            action: destroy
+            key: "{{ repo.fullName }}#{{ event.issueRef }}"
+        state:
+          initial: planning
+          terminal: done
+          planning:
+            on:
+              issue.assigned:
+                steps:
+                  - uses: state.var
+                    with:
+                      greeting: "planning {{ event.issueRef }}"
+                  - uses: gate.await
+                    id: approval
+                    with:
+                      key: plan-approval
+              issue.plan_approved:
+                to: executing
+                steps:
+                  - uses: metrics.record
+                    with:
+                      name: plan_approved
+          executing:
+            on:
+              issue.commented:
+                to: done
+                steps:
+                  - uses: metrics.record
+                    with:
+                      name: work_finished
+          done:
+            on: {}
+        """;
+
+    @TempDir
+    Path tempDir;
+
+    private RunStore store;
+    private RunEngine engine;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        var dataSource = new DriverManagerDataSource("jdbc:sqlite:" + tempDir.resolve("runs.db") + "?foreign_keys=on");
+        dataSource.setDriverClassName("org.sqlite.JDBC");
+        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        store = new RunStore(JdbcClient.create((DataSource) dataSource), new ObjectMapper());
+
+        var definitions = Files.createDirectory(tempDir.resolve("workflows"));
+        Files.writeString(definitions.resolve("feature-coordinator.yml"), COORDINATOR);
+
+        var renderer = new ExpressionRenderer();
+        var state = new StateActions();
+        // Only the store-backed actions: this definition never touches a
+        // container, which is the point — a coordinator does not need one.
+        var actions = new ActionRegistry(
+            List.of(
+                new CorrelateAction(store),
+                new RunSpawnAction(store),
+                new RunAwaitAction(store),
+                new GateAwaitAction(store),
+                new SignalEmitAction(store),
+                state.stateSetAction(store),
+                state.stateVarAction(store),
+                state.metricsRecordAction(store)
+            )
+        );
+
+        var stubs = new StubVcsClient();
+        var policy = new WorkflowPolicyConfig(null, null, definitions.toString(), true);
+        var workflows = new WorkflowRegistry(
+            new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
+            new CapabilityValidator(actions),
+            policy,
+            stubs,
+            stubs
+        );
+        workflows.loadAll();
+
+        engine = new RunEngine(
+            workflows,
+            new WorkflowRouter(renderer),
+            new StepExecutor(actions, renderer, store),
+            store,
+            new RunEnvironments(store, null, null)
+        );
+    }
+
+    private static WorkflowEvent assigned() {
+        return new WorkflowEvent.IssueAssigned(new IssueContext(REPO, "ECD-9", "Add search", "body", "main"), null);
+    }
+
+    private static WorkflowEvent approved() {
+        return new WorkflowEvent.PlanApproved(new IssueContext(REPO, "ECD-9", "Add search", "body", "main"), "alice");
+    }
+
+    private static WorkflowEvent commented() {
+        return new WorkflowEvent.IssueComment(
+            new IssueContext(REPO, "ECD-9", "Add search", "body", "main"),
+            "looks good"
+        );
+    }
+
+    @Test
+    void anEventStartsARunAndItsStepsExecute() {
+        var outcomes = engine.handle(assigned());
+
+        assertEquals(1, outcomes.size());
+        var outcome = outcomes.getFirst();
+        assertTrue(outcome.handled());
+        assertEquals("planning", outcome.toState());
+
+        var run = store.find(outcome.runId()).orElseThrow();
+        assertEquals("planning ECD-9", run.vars().get("greeting"), "the step wrote to the run");
+        assertEquals(3, run.vars().get("maxReviewRounds"), "and the workflow's own vars seeded it");
+        assertEquals(1, store.findPendingWaits(run.id()).size(), "and the gate is armed");
+    }
+
+    @Test
+    void aSecondEventFindsTheSameRunRatherThanStartingAnother() {
+        engine.handle(assigned());
+        engine.handle(assigned());
+
+        assertEquals(1, store.findRecent(10).size());
+    }
+
+    @Test
+    void aTransitionMovesTheRunToItsNextState() {
+        engine.handle(assigned());
+        var outcome = engine.handle(approved()).getFirst();
+
+        assertEquals("planning", outcome.fromState());
+        assertEquals("executing", outcome.toState());
+        assertEquals("executing", store.find(outcome.runId()).orElseThrow().state());
+    }
+
+    @Test
+    void reachingTheTerminalStateCompletesTheRun() {
+        engine.handle(assigned());
+        engine.handle(approved());
+        var outcome = engine.handle(commented()).getFirst();
+
+        var run = store.find(outcome.runId()).orElseThrow();
+        assertEquals("done", run.state());
+        assertEquals(RunStatus.COMPLETED, run.status());
+    }
+
+    @Test
+    void anEventTheCurrentStateDoesNotHandleIsIgnored() {
+        var started = engine.handle(assigned()).getFirst();
+
+        // 'planning' has no rule for issue.commented, so nothing happens and the
+        // run stays where it was rather than erroring.
+        var outcome = engine.handle(commented()).getFirst();
+
+        assertFalse(outcome.handled());
+        assertEquals("planning", store.find(started.runId()).orElseThrow().state());
+    }
+
+    @Test
+    void anEventForWorkThisWorkflowNeverStartedIsIgnored() {
+        var outcomes = engine.handle(approved());
+
+        assertEquals(1, outcomes.size());
+        assertFalse(outcomes.getFirst().handled());
+        assertTrue(store.findRecent(10).isEmpty(), "and no run is invented for it");
+    }
+
+    @Test
+    void everyStepAndEventLandsInTheRunsHistory() {
+        var outcome = engine.handle(assigned()).getFirst();
+        engine.handle(approved());
+
+        var types = store.findEvents(outcome.runId()).stream().map(RunEvent::type).toList();
+        assertEquals(List.of("issue.assigned", "issue.plan_approved", "plan_approved"), types);
+    }
+
+    @Test
+    void aDefinitionThatDropsAStateStrandsItsRunVisiblyRatherThanSilently() {
+        var outcome = engine.handle(assigned()).getFirst();
+        store.updateState(outcome.runId(), "a-state-nobody-defines");
+
+        var second = engine.handle(approved()).getFirst();
+
+        assertFalse(second.handled());
+        var types = store.findEvents(outcome.runId()).stream().map(RunEvent::type).toList();
+        assertTrue(types.contains("state.undefined"), "the stranding is recorded: " + types);
+    }
+}

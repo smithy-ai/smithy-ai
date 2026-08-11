@@ -53,7 +53,7 @@ class GitHubEventMapperTest {
         var configured = new GitHubEventMapper(
             botConfig(),
             vcsConfig(),
-            new WorkflowPolicyConfig("ship-it", null),
+            new WorkflowPolicyConfig("ship-it", null, null, null),
             null
         );
         var event = configured.map("issues", mapper.readTree(payload));

@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,5 +39,54 @@ public interface WorkflowAction {
      */
     default boolean idempotent() {
         return false;
+    }
+
+    // ── Reading a step's `with:` block ───────────────────────
+    //
+    // A definition is data, so a missing or misspelled key is the most common
+    // authoring mistake. These fail naming both the action and the key, because
+    // the alternative is a NullPointerException from inside a provider client.
+
+    default String required(Map<String, Object> input, String key) {
+        Object value = input.get(key);
+        if (value == null || String.valueOf(value).isBlank()) {
+            throw new IllegalArgumentException(type() + " requires '" + key + "'");
+        }
+        return String.valueOf(value);
+    }
+
+    default String optional(Map<String, Object> input, String key, String fallback) {
+        Object value = input.get(key);
+        return value == null || String.valueOf(value).isBlank() ? fallback : String.valueOf(value);
+    }
+
+    default int intInput(Map<String, Object> input, String key, int fallback) {
+        Object value = input.get(key);
+        if (value == null) return fallback;
+        if (value instanceof Number number) return number.intValue();
+        try {
+            return Integer.parseInt(String.valueOf(value).strip());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "%s expects a number for '%s', got '%s'".formatted(type(), key, value),
+                e
+            );
+        }
+    }
+
+    default boolean boolInput(Map<String, Object> input, String key, boolean fallback) {
+        Object value = input.get(key);
+        if (value == null) return fallback;
+        if (value instanceof Boolean bool) return bool;
+        return Boolean.parseBoolean(String.valueOf(value).strip());
+    }
+
+    /** A list input, tolerating the single value a definition often writes instead. */
+    default List<String> listInput(Map<String, Object> input, String key) {
+        Object value = input.get(key);
+        if (value == null) return List.of();
+        if (value instanceof List<?> list) return list.stream().map(String::valueOf).toList();
+        String single = String.valueOf(value).strip();
+        return single.isEmpty() ? List.of() : List.of(single);
     }
 }

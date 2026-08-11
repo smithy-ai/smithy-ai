@@ -142,6 +142,25 @@ public class RunStore {
             .update();
     }
 
+    /**
+     * Set some variables, leaving the rest alone.
+     *
+     * <p>What a step almost always wants: writing the pull request it just
+     * opened should not erase the workflow's own constants or the review round
+     * a previous transition recorded.
+     */
+    @Transactional
+    public void mergeVars(String runId, Map<String, Object> updates) {
+        if (updates == null || updates.isEmpty()) return;
+        var merged = new java.util.LinkedHashMap<String, Object>(
+            find(runId)
+                .map(Run::vars)
+                .orElseThrow(() -> new IllegalArgumentException("No run " + runId))
+        );
+        merged.putAll(updates);
+        updateVars(runId, merged);
+    }
+
     // ── Correlations ─────────────────────────────────────────
 
     /**

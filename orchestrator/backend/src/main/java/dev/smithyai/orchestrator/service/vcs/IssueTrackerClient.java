@@ -5,7 +5,7 @@ import dev.smithyai.orchestrator.service.vcs.dto.CommentEntry;
 import dev.smithyai.orchestrator.service.vcs.dto.IssueData;
 import java.util.List;
 
-public interface IssueTrackerClient {
+public interface IssueTrackerClient extends ProviderClient {
     IssueData getIssue(String owner, String repo, String issueRef);
 
     List<CommentEntry> getIssueComments(String owner, String repo, String issueRef);

@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.service.vcs.github;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import dev.smithyai.orchestrator.runtime.actions.Capability;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.*;
@@ -17,6 +18,22 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class GitHubClient implements VcsClient, IssueTrackerClient {
+
+    /**
+     * The pull-request and comment operations only; the file, reaction and
+     * issue-creation APIs are not wired up here yet.
+     */
+    @Override
+    public java.util.Set<Capability> capabilities() {
+        return java.util.EnumSet.of(
+            Capability.PR_CREATE,
+            Capability.PR_COMMENT,
+            Capability.PR_REVIEW_INLINE,
+            Capability.PR_REQUEST_REVIEW,
+            Capability.ISSUE_COMMENT,
+            Capability.ISSUE_ASSIGN
+        );
+    }
 
     private static final String GITHUB_COM_API = "https://api.github.com";
     private static final String GITHUB_COM_WEB = "https://github.com";
