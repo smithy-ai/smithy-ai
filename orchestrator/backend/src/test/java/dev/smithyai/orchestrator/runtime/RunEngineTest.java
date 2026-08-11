@@ -234,9 +234,12 @@ class RunEngineTest {
         store.updateState(outcome.runId(), "a-state-nobody-defines");
 
         var second = engine.handle(approved()).getFirst();
+        // A second event must not repeat the complaint.
+        engine.handle(approved());
 
         assertFalse(second.handled());
         var types = store.findEvents(outcome.runId()).stream().map(RunEvent::type).toList();
-        assertTrue(types.contains("state.undefined"), "the stranding is recorded: " + types);
+        assertEquals(1, types.stream().filter("state.undefined"::equals).count(), "recorded once: " + types);
+        assertEquals(RunStatus.WAITING, store.find(outcome.runId()).orElseThrow().status(), "and the run holds");
     }
 }

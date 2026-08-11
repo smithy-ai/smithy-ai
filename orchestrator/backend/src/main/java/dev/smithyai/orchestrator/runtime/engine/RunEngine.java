@@ -109,7 +109,12 @@ public class RunEngine implements SignalDelivery {
     }
 
     private Run create(WorkflowDefinition definition, String key) {
-        var run = store.create(definition.metadata().name(), null, definition.state().getInitial(), null);
+        var run = store.create(
+            definition.metadata().name(),
+            definition.metadata().version(),
+            definition.state().getInitial(),
+            null
+        );
         // Workflow-level vars seed the run, so a definition's constants — review
         // lenses, attempt caps, branch patterns — are readable as `vars.x`
         // without every step repeating them.
@@ -128,12 +133,17 @@ public class RunEngine implements SignalDelivery {
             return Outcome.ignored(definition.metadata().name());
         }
 
+        noteVersionChange(definition, run);
+
         var stage = definition.state().getStages().get(run.state());
         if (stage == null) {
-            // The definition changed under a run that was mid-flight. Surfaced
-            // rather than guessed at, because guessing here silently strands work.
+            // The definition changed under a run that was mid-flight, and the
+            // change was not benign. Surfaced rather than guessed at, because
+            // guessing here silently strands work — and recorded once, so the
+            // history says what happened without every later event repeating it.
             log.warn("Run {} is in state '{}', which {} no longer defines", run.id(), run.state(), run.workflowName());
-            store.appendEvent(run.id(), "state.undefined", Map.of("state", run.state()));
+            recordOnce(run.id(), "state.undefined", Map.of("state", run.state()));
+            store.updateStatus(run.id(), RunStatus.WAITING);
             return Outcome.ignored(definition.metadata().name());
         }
 
@@ -168,6 +178,34 @@ public class RunEngine implements SignalDelivery {
             store.updateStatus(run.id(), RunStatus.WAITING);
         }
         return new Outcome(definition.metadata().name(), run.id(), from, to == null ? from : to, true);
+    }
+
+    /**
+     * A run started under one version of a definition and is being handled by
+     * another. Not fatal on its own — most edits are additive — but it is the
+     * first thing to look at when a run behaves oddly, so it goes in the
+     * history rather than only in a log line.
+     */
+    private void noteVersionChange(WorkflowDefinition definition, Run run) {
+        String current = definition.metadata().version();
+        if (current == null || current.equals(run.workflowVersion())) return;
+        recordOnce(run.id(), "workflow.version_changed", versionChange(run.workflowVersion(), current));
+    }
+
+    private static Map<String, Object> versionChange(String from, String to) {
+        var payload = new LinkedHashMap<String, Object>();
+        payload.put("from", String.valueOf(from));
+        payload.put("to", to);
+        return payload;
+    }
+
+    /** Append only if this run has not already said it. */
+    private void recordOnce(String runId, String type, Map<String, Object> payload) {
+        boolean already = store
+            .findEvents(runId)
+            .stream()
+            .anyMatch(event -> type.equals(event.type()));
+        if (!already) store.appendEvent(runId, type, payload);
     }
 
     /**

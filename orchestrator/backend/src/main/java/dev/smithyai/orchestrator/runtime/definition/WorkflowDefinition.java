@@ -31,5 +31,10 @@ public record WorkflowDefinition(
         return actions != null ? actions : Map.of();
     }
 
-    public record WorkflowMetadata(String name, @JsonProperty("extends") String extendsWorkflow) {}
+    /**
+     * @param version optional, and compared against what a run recorded when it
+     *                started — a definition edited under a run that is mid-flight
+     *                is worth seeing in that run's history rather than guessing at
+     */
+    public record WorkflowMetadata(String name, @JsonProperty("extends") String extendsWorkflow, String version) {}
 }

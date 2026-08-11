@@ -1,8 +1,11 @@
 package dev.smithyai.orchestrator.web;
 
+import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.RunEvent;
 import dev.smithyai.orchestrator.runtime.store.RunRecorder;
+import dev.smithyai.orchestrator.runtime.store.RunStatus;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
+import dev.smithyai.orchestrator.runtime.store.RunWait;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.web.dto.InstanceDto;
@@ -15,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,21 +39,24 @@ public class DashboardController {
     private final ContainerService containerService;
     private final MetricsRecorder metrics;
     private final RunStore runStore;
+    private final RunEnvironments environments;
 
     public DashboardController(
         List<AbstractWorkflowFactory<?>> factories,
         ContainerService containerService,
         MetricsRecorder metrics,
-        RunStore runStore
+        RunStore runStore,
+        RunEnvironments environments
     ) {
         this.factories = factories;
         this.containerService = containerService;
         this.metrics = metrics;
         this.runStore = runStore;
+        this.environments = environments;
     }
 
     @GetMapping("/dashboard/metrics")
-    public java.util.Map<String, Object> metricsSummary() {
+    public Map<String, Object> metricsSummary() {
         return metrics.summarize();
     }
 
@@ -105,6 +112,54 @@ public class DashboardController {
                 })
                 .toList()
         );
+    }
+
+    /** What a run is blocked on — an approval nobody has given, a sibling that has not finished. */
+    @GetMapping("/dashboard/runs/{runId}/waits")
+    public ResponseEntity<List<RunWait>> getRunWaits(@PathVariable String runId) {
+        if (runStore.find(runId).isEmpty()) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(runStore.findPendingWaits(runId));
+    }
+
+    /**
+     * Approve a gate the run is holding at.
+     *
+     * <p>The approval a workflow waits for is usually a label or a comment on
+     * the issue, but that only works where the work is visible. A coordinator's
+     * plan spans repositories, so the dashboard has to be able to release it
+     * too — the gate does not care which of them does.
+     */
+    @PostMapping("/dashboard/runs/{runId}/waits/{key}")
+    public ResponseEntity<Map<String, Object>> approveWait(@PathVariable String runId, @PathVariable String key) {
+        if (runStore.find(runId).isEmpty()) return ResponseEntity.notFound().build();
+        int released = runStore.satisfyWait(runId, key);
+        runStore.appendEvent(runId, "gate.approved", Map.of("key", key, "via", "dashboard"));
+        log.info("Gate '{}' on run {} approved from the dashboard", key, runId);
+        return ResponseEntity.ok(Map.of("key", key, "released", released));
+    }
+
+    /**
+     * Stop a run.
+     *
+     * <p>Cancelling is a decision about the run, not about the container: the
+     * container goes, the history stays, and the dashboard keeps showing what
+     * happened and where it stopped.
+     */
+    @DeleteMapping("/dashboard/runs/{runId}")
+    public ResponseEntity<RunDto> cancelRun(@PathVariable String runId) {
+        var run = runStore.find(runId);
+        if (run.isEmpty()) return ResponseEntity.notFound().build();
+        if (run.get().isTerminal()) return ResponseEntity.ok(RunDto.from(run.get(), List.of(), false));
+
+        try {
+            environments.destroyContainer(run.get());
+        } catch (RuntimeException e) {
+            log.warn("Could not release the container while cancelling run {}", runId, e);
+        }
+        runStore.appendEvent(runId, "run.cancelled", Map.of("via", "dashboard"));
+        runStore.updateStatus(runId, RunStatus.CANCELLED);
+        log.info("Run {} cancelled from the dashboard", runId);
+        return ResponseEntity.ok(RunDto.from(runStore.find(runId).orElseThrow(), List.of(), false));
     }
 
     @GetMapping("/dashboard/instances")
