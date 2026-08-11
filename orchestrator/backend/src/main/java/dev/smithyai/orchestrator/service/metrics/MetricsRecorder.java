@@ -60,7 +60,7 @@ public class MetricsRecorder {
         record(event, project, ref, null);
     }
 
-    /** Event counts plus a few derived rates, for the dashboard. */
+    /** Event counts, for the dashboard. */
     public Map<String, Object> summarize() {
         var counts = new HashMap<String, Long>();
         if (Files.exists(path)) {
@@ -77,14 +77,8 @@ public class MetricsRecorder {
                 log.warn("Failed to read metrics from {}", path, e);
             }
         }
-        long approved = counts.getOrDefault("child_plan_approved", 0L);
-        long changeRounds = counts.getOrDefault("child_changes_requested", 0L);
         var result = new LinkedHashMap<String, Object>();
         result.put("counts", counts);
-        result.put(
-            "avgPlanReviewRounds",
-            approved > 0 ? Math.round((1.0 + (double) changeRounds / approved) * 100.0) / 100.0 : 0
-        );
         return result;
     }
 }

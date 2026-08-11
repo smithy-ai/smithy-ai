@@ -19,6 +19,20 @@ export async function fetchInstances(): Promise<Instance[]> {
   return res.json();
 }
 
+export interface MetricsSummary {
+  counts: Record<string, number>;
+}
+
+export async function fetchMetrics(): Promise<MetricsSummary> {
+  const res = await fetch("/api/dashboard/metrics");
+  if (res.status === 401 || res.status === 403) {
+    window.location.href = "/login";
+    return { counts: {} };
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function checkAuth(): Promise<boolean> {
   const res = await fetch("/api/auth/check");
   return res.ok;
