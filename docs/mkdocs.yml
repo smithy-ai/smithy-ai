@@ -26,6 +26,7 @@ nav:
     - Workflow: usage.md
     - Configuration: configuration.md
   - Advanced:
+    - Workflows: advanced/workflows.md
     - Custom Task Images: advanced/custom-task-images.md
 
 extra_css:

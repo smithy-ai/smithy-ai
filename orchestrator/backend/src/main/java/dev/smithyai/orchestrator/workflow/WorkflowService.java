@@ -1,6 +1,8 @@
 package dev.smithyai.orchestrator.workflow;
 
+import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.runtime.engine.RunEngine;
 import dev.smithyai.orchestrator.runtime.store.RunRecorder;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
@@ -19,16 +21,26 @@ public class WorkflowService {
     private final List<AbstractWorkflowFactory<?>> factories;
     private final ContainerService containerService;
     private final RunStore runStore;
+    private final RunEngine engine;
+    private final WorkflowPolicyConfig policy;
 
     public WorkflowService(
         List<AbstractWorkflowFactory<?>> factories,
         ContainerService containerService,
-        RunStore runStore
+        RunStore runStore,
+        RunEngine engine,
+        WorkflowPolicyConfig policy
     ) {
         this.factories = factories;
         this.containerService = containerService;
         this.runStore = runStore;
-        log.info("WorkflowService initialized with {} workflow factories", factories.size());
+        this.engine = engine;
+        this.policy = policy;
+        log.info(
+            "WorkflowService initialized with {} workflow factories; engine {}",
+            factories.size(),
+            policy.engineEnabled() ? "enabled" : "disabled (hardcoded flows only)"
+        );
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -117,7 +129,19 @@ public class WorkflowService {
         }
     }
 
+    /**
+     * Hand the event to whichever side is in charge.
+     *
+     * <p>The two are exclusive on purpose. Running both would give a repository
+     * two agents on the same issue, so switching over is a deliberate act: turn
+     * `workflow.engine` on once the definitions have been proven against the
+     * flows they replace, and the Java goes away after that.
+     */
     public void onEvent(WorkflowEvent event) {
+        if (policy.engineEnabled()) {
+            engine.handle(event);
+            return;
+        }
         for (var type : factories) {
             var action = type.decideEventAction(event);
             executeEventAction(type, action, event);

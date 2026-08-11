@@ -51,6 +51,17 @@ workflow:
   plan-approved-label: ${PLAN_APPROVED_LABEL:Plan Approved}
   branch-prefix: ${SMITHY_BRANCH_PREFIX:smithy/}
 
+  # Workflow definitions dropped here override the built-in ones by name, and
+  # anything new is picked up at startup. This is also where a coordinator's
+  # repository catalog goes — see workflows/feature-coordinator.yml.
+  definitions-dir: ${WORKFLOW_DIR:/config/workflows}
+
+  # Whether definitions drive the flows, or the hardcoded Java ones still do.
+  # The two are exclusive: running both would give a repository two agents on
+  # the same issue. Off until the ported definitions have been proven against
+  # the flows they replace.
+  engine: ${WORKFLOW_ENGINE:false}
+
 ci:
   # When false, a failed pipeline pauses the workflow and asks for approval
   # on the MR (reply with a thumbs-up) instead of debugging automatically.
