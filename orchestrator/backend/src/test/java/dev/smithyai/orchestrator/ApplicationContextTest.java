@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
+import dev.smithyai.orchestrator.runtime.actions.ActionRegistry;
+import dev.smithyai.orchestrator.runtime.engine.WorkflowRegistry;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.workflow.WorkflowService;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
@@ -48,6 +50,12 @@ class ApplicationContextTest {
     @Autowired
     private List<AbstractWorkflowFactory<?>> factories;
 
+    @Autowired
+    private WorkflowRegistry workflows;
+
+    @Autowired
+    private ActionRegistry actions;
+
     @Test
     void contextLoads() {
         assertNotNull(workflowService);
@@ -62,6 +70,31 @@ class ApplicationContextTest {
     void runStoreIsMigratedAndUsable() {
         var run = runStore.create("smithy-development", "v1", "refine", null);
         assertEquals("refine", runStore.find(run.id()).orElseThrow().state());
+    }
+
+    /**
+     * The strongest check the built-in definitions get without a real provider:
+     * a workflow only reaches the registry if every action it names exists and
+     * every capability those actions need is supported here. A typo in a
+     * {@code uses:} or an action that was never written fails this.
+     */
+    @Test
+    void everyBuiltInWorkflowIsRunnable() {
+        var names = workflows
+            .all()
+            .stream()
+            .map(w -> w.metadata().name())
+            .sorted()
+            .toList();
+        assertEquals(List.of("feature-coordinator", "smithy-development"), names);
+    }
+
+    /** Every action a definition may name is a bean, with no duplicate types. */
+    @Test
+    void theActionRegistryIsPopulated() {
+        assertNotNull(actions.find("agent.runStructured").orElse(null));
+        assertNotNull(actions.find("run.wave").orElse(null));
+        assertNotNull(actions.find("gate.await").orElse(null));
     }
 
     @Test

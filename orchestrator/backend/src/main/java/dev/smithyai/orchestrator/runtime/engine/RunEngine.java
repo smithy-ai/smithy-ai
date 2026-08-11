@@ -6,6 +6,7 @@ import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinition;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.CorrelationKind;
 import dev.smithyai.orchestrator.runtime.store.Run;
+import dev.smithyai.orchestrator.runtime.store.RunRecorder;
 import dev.smithyai.orchestrator.runtime.store.RunStatus;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import java.util.LinkedHashMap;
@@ -107,7 +108,10 @@ public class RunEngine implements SignalDelivery {
     private Outcome apply(WorkflowRouter.Decision decision, WorkflowEvent event) {
         var definition = definitionFor(decision, event);
         String key = scopedKey(decision);
-        var existing = store.findByCorrelation(CorrelationKind.KEY, key);
+        var existing =
+            decision.by() != null
+                ? byCorrelation(decision.by(), event)
+                : store.findByCorrelation(CorrelationKind.KEY, key);
 
         return switch (decision.action()) {
             case create -> dispatch(definition, existing.orElseGet(() -> create(definition, key)), event);
@@ -127,12 +131,60 @@ public class RunEngine implements SignalDelivery {
     }
 
     /**
+     * Find the run through something it registered earlier.
+     *
+     * <p>A pull-request or CI event carries no issue reference. The old flows
+     * recovered one by parsing it out of the branch name, which is how a flow's
+     * naming convention ended up inside the provider adapters. The run recorded
+     * what it opened; this reads that back.
+     */
+    private Optional<Run> byCorrelation(String by, WorkflowEvent event) {
+        return switch (by) {
+            case "pr" -> event instanceof WorkflowEvent.PrScoped pr
+                ? store.findByCorrelation(
+                      CorrelationKind.PR,
+                      RunRecorder.prRef(pr.prc().info().owner(), pr.prc().info().repo(), pr.prc().number())
+                  )
+                : Optional.empty();
+            case "issue" -> event instanceof WorkflowEvent.IssueScoped issue
+                ? store.findByCorrelation(
+                      CorrelationKind.ISSUE,
+                      RunRecorder.issueRef(
+                          issue.ctx().info().owner(),
+                          issue.ctx().info().repo(),
+                          issue.ctx().issueRef()
+                      )
+                  )
+                : Optional.empty();
+            case "branch" -> branchOf(event).flatMap(branch ->
+                store.findByCorrelation(
+                    CorrelationKind.BRANCH,
+                    RunRecorder.branchRef(event.info().owner(), event.info().repo(), branch)
+                )
+            );
+            case "container" -> Optional.empty();
+            default -> Optional.empty();
+        };
+    }
+
+    /** The branch a push or CI event is about. */
+    private static Optional<String> branchOf(WorkflowEvent event) {
+        return switch (event) {
+            case WorkflowEvent.HumanPush push -> Optional.ofNullable(push.branch());
+            case WorkflowEvent.CiFailure ci -> Optional.ofNullable(ci.ciRun().headBranch());
+            case WorkflowEvent.CiRecovery ci -> Optional.ofNullable(ci.ciRun().headBranch());
+            case WorkflowEvent.PrScoped pr -> Optional.ofNullable(pr.prc().headBranch());
+            default -> Optional.empty();
+        };
+    }
+
+    /**
      * A routing key is only unique within its workflow: two workflows may both
      * track the same story, and a shared correlation row would make the second
      * silently take over the first's run.
      */
     private static String scopedKey(WorkflowRouter.Decision decision) {
-        return decision.workflowName() + "|" + decision.key();
+        return decision.key() == null ? null : decision.workflowName() + "|" + decision.key();
     }
 
     /** A decision names a workflow; it may be one this repository brought with it. */

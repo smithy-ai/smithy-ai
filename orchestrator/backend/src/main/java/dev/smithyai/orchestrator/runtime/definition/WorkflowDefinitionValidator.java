@@ -6,6 +6,8 @@ import java.util.Set;
 
 public class WorkflowDefinitionValidator {
 
+    private static final Set<String> CORRELATIONS = Set.of("issue", "pr", "branch", "container");
+
     public void validate(String sourceName, WorkflowDefinition definition) {
         var errors = new ArrayList<String>();
         if (definition == null) {
@@ -51,8 +53,11 @@ public class WorkflowDefinitionValidator {
             }
             if (rule.action() == null) {
                 errors.add(location + ".action is required");
-            } else if (rule.action() != WorkflowRoutingAction.ignore && isBlank(rule.key())) {
-                errors.add(location + ".key is required for " + rule.action());
+            } else if (rule.action() != WorkflowRoutingAction.ignore && isBlank(rule.key()) && isBlank(rule.by())) {
+                errors.add(location + " needs a key template or a 'by' correlation for " + rule.action());
+            }
+            if (!isBlank(rule.by()) && !CORRELATIONS.contains(rule.by())) {
+                errors.add(location + ".by must be one of " + CORRELATIONS + ", got '" + rule.by() + "'");
             }
         }
     }

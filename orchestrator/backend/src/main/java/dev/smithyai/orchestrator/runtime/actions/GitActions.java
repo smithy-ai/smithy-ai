@@ -53,9 +53,14 @@ public class GitActions {
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var session = environments.container(context.run());
-                var result = optional(input, "strategy", "rebase").equals("rebase")
-                    ? session.exec("git", "pull", "--rebase")
-                    : session.exec("git", "pull");
+                var result = switch (optional(input, "strategy", "rebase")) {
+                    case "ff-only" -> session.exec("git", "pull", "--ff-only");
+                    case "merge" -> session.exec("git", "pull");
+                    default -> session.exec("git", "pull", "--rebase");
+                };
+                // Reported, not thrown: a pull that cannot fast-forward is a
+                // conflict for the agent to resolve, not a reason to abandon the
+                // transition.
                 return outcome(result);
             }
         };

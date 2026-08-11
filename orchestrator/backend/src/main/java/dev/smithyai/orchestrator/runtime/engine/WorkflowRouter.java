@@ -28,7 +28,11 @@ public class WorkflowRouter {
     }
 
     /** What a matching rule decided: which workflow, which run key, what to do. */
-    public record Decision(String workflowName, WorkflowRoutingAction action, String key) {}
+    /**
+     * @param by non-null when the run is found through a correlation the run
+     *           itself registered, rather than through a rendered key
+     */
+    public record Decision(String workflowName, WorkflowRoutingAction action, String key, String by) {}
 
     /**
      * Every decision the given definitions make about this event. A workflow
@@ -48,12 +52,16 @@ public class WorkflowRouter {
                 }
                 if (rule.action() == WorkflowRoutingAction.ignore) break;
 
+                if (rule.by() != null && !rule.by().isBlank()) {
+                    decisions.add(new Decision(definition.metadata().name(), rule.action(), null, rule.by()));
+                    break;
+                }
                 String key = renderer.render(rule.key(), context);
                 if (key == null || key.isBlank()) {
                     log.warn("{}: rule for {} produced an empty key", definition.metadata().name(), event.name());
                     break;
                 }
-                decisions.add(new Decision(definition.metadata().name(), rule.action(), key));
+                decisions.add(new Decision(definition.metadata().name(), rule.action(), key, null));
                 // First matching rule per definition wins, so ordering in the
                 // file is the arbitration a reader can see.
                 break;

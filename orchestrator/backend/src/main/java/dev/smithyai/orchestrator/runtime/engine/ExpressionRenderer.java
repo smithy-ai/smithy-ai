@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.runtime.engine;
 
 import com.hubspot.jinjava.Jinjava;
 import com.hubspot.jinjava.JinjavaConfig;
+import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.actions.ActionContext;
 import java.util.ArrayList;
@@ -130,20 +131,60 @@ public class ExpressionRenderer {
             case WorkflowEvent.IssueScoped e -> {
                 view.put("issueRef", e.ctx().issueRef());
                 view.put("issueTitle", e.ctx().title());
-                view.put("issueBody", e.ctx().body());
-                view.put("baseBranch", e.ctx().baseBranch());
+                view.put("issueBody", nullToEmpty(e.ctx().body()));
+                view.put("baseBranch", nullToEmpty(e.ctx().baseBranch()));
+                switch (e) {
+                    case WorkflowEvent.IssueComment c -> view.put("commentBody", c.commentBody());
+                    case WorkflowEvent.PlanApproved a -> view.put("approver", nullToEmpty(a.approver()));
+                    default -> {
+                        // Assignment and unassignment carry only the issue.
+                    }
+                }
             }
             case WorkflowEvent.PrScoped e -> {
                 view.put("prNumber", e.prc().number());
                 view.put("prTitle", e.prc().title());
                 view.put("headBranch", e.prc().headBranch());
                 view.put("baseBranch", e.prc().baseBranch());
+                // What a review conversation needs to answer in the right place.
+                switch (e) {
+                    case WorkflowEvent.PrConversationComment c -> {
+                        view.put("commentBody", c.commentBody());
+                        view.put("commentUser", c.commentUser());
+                        view.put("commentId", c.commentId());
+                        view.put("discussionId", nullToEmpty(c.discussionId()));
+                    }
+                    case WorkflowEvent.PrReviewComment c -> {
+                        view.put("comments", c.comments().stream().map(CommentData::toMap).toList());
+                        view.put("commentId", c.commentId());
+                        view.put("discussionId", nullToEmpty(c.discussionId()));
+                    }
+                    case WorkflowEvent.ReviewSubmitted r -> {
+                        view.put("reviewId", r.reviewId());
+                        view.put("reviewBody", nullToEmpty(r.reviewBody()));
+                        view.put("reviewer", nullToEmpty(r.reviewer()));
+                    }
+                    default -> {
+                        // The rest carry only the pull request itself.
+                    }
+                }
             }
+            case WorkflowEvent.HumanPush e -> view.put("branch", nullToEmpty(e.branch()));
+            case WorkflowEvent.CiFailure e -> {
+                view.put("branch", nullToEmpty(e.ciRun().headBranch()));
+                view.put("workflowId", nullToEmpty(e.workflowName()));
+            }
+            case WorkflowEvent.CiRecovery e -> view.put("branch", nullToEmpty(e.ciRun().headBranch()));
             default -> {
                 // Push and CI events expose only their repo and name.
             }
         }
         return view;
+    }
+
+    /** Null renders as the four letters "null", which is never what a template meant. */
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private Map<String, Object> repoView(WorkflowEvent event) {

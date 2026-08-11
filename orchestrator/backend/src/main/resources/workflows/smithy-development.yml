@@ -1,0 +1,474 @@
+# One issue, one repository, from assignment to a mergeable pull request.
+#
+# This is the port of the hardcoded flow in workflow/flows/smithy/. Behaviour
+# parity with that Java is the bar, and until it has been demonstrated on real
+# work the Java is still what runs: `workflow.engine` is off by default and the
+# two are exclusive.
+#
+# Where the Java differs and why, so a reviewer can check the port rather than
+# read it twice:
+#   - The plan file's path and the branch name were computed by Naming.java.
+#     They are templates in `vars` here, so a repository can want a different
+#     convention without a code change.
+#   - CI attempt counters were fields in the container's state file. They are run
+#     variables now, so they survive the container being rebuilt.
+#   - The comment burst that produced one agent turn was a queue inside the flow's
+#     event thread. It is `debounce:` on the transition now.
+
+apiVersion: smithy.ai/v1alpha1
+kind: Workflow
+metadata:
+  name: smithy-development
+  version: "1"
+
+vars:
+  botUser: smithy
+  # Where plans live on the branch. Removed before the pull request is
+  # finalized, so a plan never reaches the base branch.
+  planDir: "docs/plans"
+  branchPrefix: "smithy/"
+  # Read-only while planning; the build turn gets the rest.
+  refineTools: [Read, Glob, Grep, Bash, WebFetch]
+  buildTools: [Read, Glob, Grep, Bash, Edit, Write, WebFetch]
+  maxCiAttempts: 5
+
+routing:
+  - event: issue.assigned
+    action: create
+    key: "{{ repo.fullName }}#{{ event.issueRef }}"
+
+  - event: issue.unassigned
+    action: destroy
+    key: "{{ repo.fullName }}#{{ event.issueRef }}"
+
+  - event: [issue.commented, issue.plan_approved]
+    action: dispatch
+    key: "{{ repo.fullName }}#{{ event.issueRef }}"
+
+  - event: pr.unassigned
+    action: destroy
+    by: pr
+
+  - event: [pr.commented, pr.review_commented, pr.review_submitted, pr.ready_for_review]
+    action: dispatch
+    by: pr
+
+  # A push or a pipeline names a branch and nothing else.
+  - event: [push.human, ci.failed, ci.recovered]
+    action: dispatch
+    by: branch
+
+state:
+  initial: new
+  terminal: done
+
+  new:
+    on:
+      issue.assigned:
+        to: refine
+        steps:
+          - uses: container.init
+            id: workspace
+            with:
+              name: "smithy.{{ repo.owner }}.{{ repo.name }}.{{ event.issueRef }}"
+              cloneUrl: "{{ repo.cloneUrl }}"
+              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}"
+              sourceBranch: "{{ event.baseBranch }}"
+              stage: refine
+
+          - uses: state.var
+            with:
+              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}"
+              planPath: "{{ vars.planDir }}/{{ event.issueRef }}.md"
+              issueRef: "{{ event.issueRef }}"
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              baseBranch: "{{ event.baseBranch }}"
+
+          # Designs carry requirements the issue text omits, and the agent
+          # cannot follow a link out of its container.
+          - uses: attachments.fetch
+            id: attachments
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              issue: "{{ event.issueRef }}"
+
+          # Plan mode: the agent may read the repository but must not change it.
+          - uses: agent.run
+            id: plan
+            with:
+              mode: plan
+              tools: "{{ vars.refineTools }}"
+              template: refinement.md.j2
+              vars:
+                issue_ref: "{{ event.issueRef }}"
+                issue_title: "{{ event.issueTitle }}"
+                issue_body: "{{ event.issueBody }}"
+                plan_file_path: "{{ vars.planDir }}/{{ event.issueRef }}.md"
+                attachments: "{{ steps.attachments.paths }}"
+
+          # An empty plan is a dead end, not a crash: say so and wait for more
+          # context rather than leaving the issue silent.
+          - uses: issue.comment
+            if: "{{ not steps.plan.hasPlan }}"
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              issue: "{{ event.issueRef }}"
+              body: >-
+                Failed to generate a development plan — please add a comment with
+                more context and I will retry.
+
+          - uses: exec
+            if: "{{ steps.plan.hasPlan }}"
+            with:
+              shell: 'mkdir -p "$(dirname "$PLAN_PATH")" && cp "$SRC" "$PLAN_PATH"'
+              env:
+                PLAN_PATH: "{{ vars.planDir }}/{{ event.issueRef }}.md"
+                SRC: "{{ steps.plan.planFile }}"
+
+          - uses: exec
+            if: "{{ steps.plan.hasPlan }}"
+            with:
+              command: [smithy-commit-and-push, "Development plan for {{ event.issueRef }}"]
+
+          - uses: file.url
+            id: planLink
+            if: "{{ steps.plan.hasPlan }}"
+            with:
+              repoUrl: "{{ repo.cloneUrl }}"
+              branch: "{{ vars.branchPrefix }}{{ event.issueRef }}"
+              path: "{{ vars.planDir }}/{{ event.issueRef }}.md"
+
+          - uses: issue.comment
+            if: "{{ steps.plan.hasPlan }}"
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              issue: "{{ event.issueRef }}"
+              body: "Development plan: [{{ vars.planDir }}/{{ event.issueRef }}.md]({{ steps.planLink.url }})"
+
+          - uses: metrics.record
+            if: "{{ steps.plan.hasPlan }}"
+            with:
+              name: plan_posted
+
+  refine:
+    on:
+      # Refining the plan in conversation, before any code is written.
+      issue.commented:
+        debounce: 30s
+        steps:
+          - uses: git.pull
+            with:
+              strategy: ff-only
+
+          - uses: attachments.fetch
+            id: attachments
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              issue: "{{ vars.issueRef }}"
+
+          - uses: agent.run
+            with:
+              tools: "{{ vars.refineTools }}"
+              template: refinement_comment.md.j2
+              vars:
+                issue_ref: "{{ vars.issueRef }}"
+                comment_body: "{{ event.commentBody }}"
+                plan_file_path: "{{ vars.planPath }}"
+                attachments: "{{ steps.attachments.paths }}"
+
+          - uses: exec
+            with:
+              command: [smithy-commit-and-push, "Update plan for {{ vars.issueRef }}"]
+              failOnError: false
+
+      issue.plan_approved:
+        to: build
+        steps:
+          - uses: exec
+            id: rebase
+            with:
+              command: [smithy-rebase-onto, "{{ vars.branch }}", "{{ vars.baseBranch }}"]
+
+          # Draft, because it is a place to watch the work rather than a request
+          # to review it. It becomes ready when the agent is done.
+          - uses: pr.create
+            id: pr
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              title: "{{ event.issueTitle }}"
+              head: "{{ vars.branch }}"
+              base: "{{ vars.baseBranch }}"
+              body: "fixes {{ vars.issueRef }}"
+              draft: true
+
+          - uses: state.var
+            with:
+              prNumber: "{{ steps.pr.number }}"
+
+          # What the `by:` routing rules read: an event about this pull request
+          # or this branch finds this run, with nothing parsed out of a name.
+          - uses: correlate
+            with:
+              kind: pr
+              ref: "{{ vars.owner }}/{{ vars.repo }}!{{ steps.pr.number }}"
+
+          - uses: correlate
+            with:
+              kind: branch
+              ref: "{{ vars.owner }}/{{ vars.repo }}@{{ vars.branch }}"
+
+          - uses: pr.setAssignees
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ steps.pr.number }}"
+              assignees: "{{ vars.botUser }}"
+
+          - uses: metrics.record
+            with:
+              name: pr_opened
+              pr: "{{ steps.pr.number }}"
+
+          # Approving a plan should have visible feedback where the approval
+          # happened, not only on a pull request nobody has been told about.
+          - uses: issue.comment
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              issue: "{{ vars.issueRef }}"
+              body: "Plan approved — implementation started. Follow progress on the draft pull request."
+
+          - uses: attachments.fetch
+            id: attachments
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              issue: "{{ vars.issueRef }}"
+
+          # Building is a different job from planning: different tools, and no
+          # reason to carry the planning discussion into it.
+          - uses: agent.newSession
+
+          - uses: agent.run
+            with:
+              tools: "{{ vars.buildTools }}"
+              template: building.md.j2
+              vars:
+                issue_ref: "{{ vars.issueRef }}"
+                issue_title: "{{ event.issueTitle }}"
+                plan_file_path: "{{ vars.planPath }}"
+                attachments: "{{ steps.attachments.paths }}"
+
+          - uses: agent.ensureCommitted
+            with:
+              tools: "{{ vars.buildTools }}"
+
+          - uses: git.push
+            with:
+              tools: "{{ vars.buildTools }}"
+
+          - uses: pr.requestReview
+            if: "{{ event.approver != '' }}"
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ steps.pr.number }}"
+              reviewers: "{{ event.approver }}"
+
+          - uses: metrics.record
+            with:
+              name: build_completed
+
+  build:
+    on:
+      # Review conversation. Debounced because a reviewer submits several notes
+      # at once, and answering each on its own gives a commit per note.
+      pr.commented:
+        debounce: 30s
+        steps:
+          - uses: comment.react
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              commentId: "{{ event.commentId }}"
+
+          - uses: pr.isAssigned
+            id: mine
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              user: "{{ vars.botUser }}"
+
+          - uses: agent.run
+            id: answer
+            if: "{{ steps.mine.assigned }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+              template: review_comment.md.j2
+              vars:
+                pr_number: "{{ vars.prNumber }}"
+                issue_ref: "{{ vars.issueRef }}"
+                comments: "{{ event.batch }}"
+
+          - uses: agent.ensureCommitted
+            if: "{{ steps.mine.assigned }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+
+          - uses: git.push
+            if: "{{ steps.mine.assigned }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+
+          # One comment gets its answer threaded where it was asked. Threading a
+          # single answer into an arbitrary member of a burst reads as a
+          # non-sequitur, so a batch gets one reply at the top instead.
+          - uses: pr.reply
+            if: "{{ steps.mine.assigned and event.batchSize == 1 }}"
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              discussion: "{{ event.discussionId }}"
+              body: "{{ steps.answer.reply }}"
+
+          - uses: pr.reply
+            if: "{{ steps.mine.assigned and event.batchSize > 1 }}"
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              body: "{{ steps.answer.reply }}"
+
+      pr.review_submitted:
+        steps:
+          - uses: pr.reviewComments
+            id: review
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              reviewId: "{{ event.reviewId }}"
+              reviewer: "{{ event.reviewer }}"
+              body: "{{ event.reviewBody }}"
+
+          - uses: agent.run
+            if: "{{ steps.review.count > 0 }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+              template: review_comment.md.j2
+              vars:
+                pr_number: "{{ vars.prNumber }}"
+                issue_ref: "{{ vars.issueRef }}"
+                comments: "{{ steps.review.comments }}"
+
+          - uses: agent.ensureCommitted
+            if: "{{ steps.review.count > 0 }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+
+          - uses: git.push
+            if: "{{ steps.review.count > 0 }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+
+      # A human pushed to the branch. Take their work, do not fight it.
+      push.human:
+        steps:
+          - uses: pr.isAssigned
+            id: mine
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              user: "{{ vars.botUser }}"
+
+          - uses: exec
+            if: "{{ steps.mine.assigned }}"
+            with:
+              command: [smithy-fetch-reset, "{{ vars.branch }}"]
+
+      ci.failed:
+        steps:
+          # Bounded twice: by whether chasing CI is wanted at all, and by how
+          # many attempts one failure is worth.
+          - uses: ci.retryGuard
+            id: guard
+            with:
+              maxAttempts: "{{ vars.maxCiAttempts }}"
+
+          - uses: pr.comment
+            if: "{{ steps.guard.reason == 'autofix-disabled' }}"
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              body: "CI failed. Automatic CI fixing is disabled — approve this run's gate and I will debug it."
+
+          - uses: pr.comment
+            if: "{{ steps.guard.reason == 'attempts-exhausted' }}"
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              body: "Reached the maximum CI fix attempts. Approve this run's gate to continue debugging."
+
+          - uses: gate.await
+            if: "{{ not steps.guard.proceed }}"
+            with:
+              key: "ci-approval"
+
+          - uses: agent.run
+            if: "{{ steps.guard.proceed }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+              template: ci_failure.md.j2
+              vars:
+                pr_number: "{{ vars.prNumber }}"
+                issue_ref: "{{ vars.issueRef }}"
+                workflow_id: "{{ event.name }}"
+
+          - uses: agent.ensureCommitted
+            if: "{{ steps.guard.proceed }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+
+          - uses: git.push
+            if: "{{ steps.guard.proceed }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+
+          - uses: metrics.record
+            if: "{{ steps.guard.proceed }}"
+            with:
+              name: ci_failure
+              attempt: "{{ steps.guard.attempts }}"
+
+      ci.recovered:
+        steps:
+          - uses: ci.reset
+
+      # Marked ready for review: take the plan file off the branch so it never
+      # reaches the base branch, and let the container go.
+      pr.ready_for_review:
+        to: done
+        steps:
+          - uses: metrics.record
+            with:
+              name: pr_finalized
+
+          - uses: exec
+            with:
+              command: [smithy-cleanup-branch]
+              failOnError: false
+
+  done:
+    on: {}
