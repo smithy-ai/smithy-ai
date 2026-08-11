@@ -55,6 +55,16 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     }
 
     @Override
+    protected String workflowName() {
+        return "architect-review";
+    }
+
+    @Override
+    protected String initialState() {
+        return ReviewStage.NEW.value();
+    }
+
+    @Override
     public EventAction decideEventAction(WorkflowEvent event) {
         return switch (event) {
             case WorkflowEvent.ReviewRequested e -> {

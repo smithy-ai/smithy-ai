@@ -70,8 +70,18 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
         return this;
     }
 
+    /**
+     * One call records both the append-only metrics log and the run's own
+     * history, so the dashboard's counts and a single run's timeline can never
+     * tell different stories.
+     */
     private void metric(String event, RepoInfo info, String issueRef, Map<String, Object> extra) {
         if (metrics != null) metrics.record(event, info.owner() + "/" + info.repo(), issueRef, extra);
+        var payload = new HashMap<String, Object>();
+        payload.put("repo", info.owner() + "/" + info.repo());
+        payload.put("issueRef", issueRef);
+        if (extra != null) payload.putAll(extra);
+        recordEvent(event, payload);
     }
 
     public SmithyWorkflowInstance(
@@ -397,7 +407,10 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
     private void handlePlanApproved(WorkflowEvent.PlanApproved e) {
         var ctx = e.ctx();
         try {
-            session.updateState(s -> s.withStage("build").touch());
+            // Stage.BUILD.value(), not the bare string it used to be: the
+            // literal could drift from the enum the in-memory machine tracks.
+            session.updateState(s -> s.withStage(Stage.BUILD.value()).touch());
+            recordState(Stage.BUILD.value());
 
             String branch = Naming.branchName(ctx.issueRef(), ctx.title());
             String planPath = Naming.planFilePath(ctx.issueRef());

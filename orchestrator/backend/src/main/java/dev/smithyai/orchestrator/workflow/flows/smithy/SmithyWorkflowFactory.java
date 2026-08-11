@@ -68,6 +68,16 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     }
 
     @Override
+    protected String workflowName() {
+        return "smithy-development";
+    }
+
+    @Override
+    protected String initialState() {
+        return Stage.NEW.value();
+    }
+
+    @Override
     public EventAction decideEventAction(WorkflowEvent event) {
         var key = containerKey(event);
         if (key == null) return EventAction.IGNORE;

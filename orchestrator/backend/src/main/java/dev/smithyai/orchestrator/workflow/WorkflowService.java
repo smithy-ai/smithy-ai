@@ -1,6 +1,8 @@
 package dev.smithyai.orchestrator.workflow;
 
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.runtime.store.RunRecorder;
+import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
@@ -16,15 +18,23 @@ public class WorkflowService {
 
     private final List<AbstractWorkflowFactory<?>> factories;
     private final ContainerService containerService;
+    private final RunStore runStore;
 
-    public WorkflowService(List<AbstractWorkflowFactory<?>> factories, ContainerService containerService) {
+    public WorkflowService(
+        List<AbstractWorkflowFactory<?>> factories,
+        ContainerService containerService,
+        RunStore runStore
+    ) {
         this.factories = factories;
         this.containerService = containerService;
+        this.runStore = runStore;
         log.info("WorkflowService initialized with {} workflow factories", factories.size());
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void recoverInstances() {
+        logOrphanedRuns();
+
         var containers = containerService.listAllManagedContainers();
         if (containers.isEmpty()) {
             log.info("No managed containers found for recovery");
@@ -76,6 +86,35 @@ public class WorkflowService {
         }
 
         log.info("Recovery complete: {}/{} containers recovered", recovered, containers.size());
+    }
+
+    /**
+     * Report runs the store still considers active whose container is gone.
+     * Container recovery is still driven by {@code docker ps} — the store does
+     * not own the lifecycle yet — but a run with no container is a real state
+     * that used to be invisible, so surface it rather than let it sit silently.
+     */
+    private void logOrphanedRuns() {
+        try {
+            var active = runStore.findActive();
+            if (active.isEmpty()) return;
+
+            var orphaned = active
+                .stream()
+                .filter(run -> runStore.findEnvironmentNames(run.id(), RunRecorder.CONTAINER).isEmpty())
+                .toList();
+            log.info("Run store: {} active run(s), {} with no container attached", active.size(), orphaned.size());
+            orphaned.forEach(run ->
+                log.warn(
+                    "Run {} ({}) is active in state '{}' but holds no container",
+                    run.id(),
+                    run.workflowName(),
+                    run.state()
+                )
+            );
+        } catch (RuntimeException e) {
+            log.warn("Could not read the run store during recovery", e);
+        }
     }
 
     public void onEvent(WorkflowEvent event) {

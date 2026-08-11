@@ -4,6 +4,7 @@ import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.runtime.store.RunRecorder;
 import dev.smithyai.orchestrator.service.claude.ClaudeSession;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerSession;
@@ -12,6 +13,7 @@ import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,6 +36,35 @@ public abstract class AbstractWorkflowInstance {
 
     private static final Duration TAKEOVER_TTL = Duration.ofSeconds(30);
     private volatile Instant humanControlUntil = Instant.EPOCH;
+
+    /** The durable run this instance belongs to; null if the store was unavailable. */
+    private String runId;
+
+    private RunRecorder runs;
+
+    public void bindRun(RunRecorder runs, String runId) {
+        this.runs = runs;
+        this.runId = runId;
+    }
+
+    public String runId() {
+        return runId;
+    }
+
+    /** Record a state transition against the run as well as the container. */
+    protected void recordState(String state) {
+        if (runs != null) runs.recordState(runId, state);
+    }
+
+    /** Append to the run's history. Never throws — history must not break work. */
+    protected void recordEvent(String type, Map<String, Object> payload) {
+        if (runs != null) runs.recordEvent(runId, type, payload);
+    }
+
+    /** Index this run by a handle a later event will arrive on. */
+    protected void correlate(WorkflowEvent event) {
+        if (runs != null) runs.correlateEvent(runId, event);
+    }
 
     protected AbstractWorkflowInstance(
         ContainerSession session,

@@ -55,6 +55,16 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     }
 
     @Override
+    protected String workflowName() {
+        return "architect-learn";
+    }
+
+    @Override
+    protected String initialState() {
+        return LearnStage.NEW.value();
+    }
+
+    @Override
     public EventAction decideEventAction(WorkflowEvent event) {
         return switch (event) {
             case WorkflowEvent.PrMerged e -> {
