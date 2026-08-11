@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.workflow.flows.architect;
 
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
@@ -30,6 +31,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
+    private final RepositoryConfigResolver repositoryConfig;
     private final String architectEmail;
 
     public ArchitectReviewFactory(
@@ -37,6 +39,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
         VcsProviderConfig vcsConfig,
         BotConfig botConfig,
         ContainerService containerService,
+        RepositoryConfigResolver repositoryConfig,
         PromptRenderer renderer,
         @Qualifier("architectVcs") VcsClient vcsClient,
         @Qualifier("architectIssueTracker") IssueTrackerClient issueTracker
@@ -47,6 +50,7 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
         this.renderer = renderer;
         this.vcsClient = vcsClient;
         this.issueTracker = issueTracker;
+        this.repositoryConfig = repositoryConfig;
         this.architectEmail = botConfig.resolvedArchitectEmail();
     }
 
@@ -55,9 +59,9 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
         return switch (event) {
             case WorkflowEvent.ReviewRequested e -> {
                 var prc = e.prc();
-                String contextRepo = Naming.contextRepoName(prc.info().repo());
-                if (!vcsClient.repoExists(prc.info().owner(), contextRepo)) {
-                    log.warn("Context repo {}/{} does not exist, skipping review", prc.info().owner(), contextRepo);
+                var contextRepo = repositoryConfig.contextRepository(prc.info());
+                if (!vcsClient.repoExists(contextRepo.owner(), contextRepo.repo())) {
+                    log.warn("Context repo {} does not exist, skipping review", contextRepo.fullName());
                     yield EventAction.IGNORE;
                 }
                 String key = architectContainerName(prc.info().owner(), prc.info().repo(), "pr-" + prc.number());
@@ -85,7 +89,8 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
             vcsConfig,
             TOOLS,
             () -> removeInstance(key),
-            architectEmail
+            architectEmail,
+            repositoryConfig
         );
     }
 
@@ -114,10 +119,22 @@ public class ArchitectReviewFactory extends AbstractWorkflowFactory<ArchitectRev
             () -> removeInstance(containerName),
             stage,
             state.sessionId(),
-            architectEmail
+            architectEmail,
+            repositoryConfig
         );
     }
 
+    /**
+     * Sessions are keyed on the source repository, so a comment arriving on the
+     * architect's own context PR has to be mapped back to it. The branch gives
+     * the source PR number, but nothing carries the source repository — so this
+     * still relies on the default "&lt;repo&gt;-context" naming.
+     *
+     * <p>Consequence: a context repository configured under a different name or
+     * owner in {@code .smithy/config.yml} works for everything except routing
+     * follow-up comments on its PRs. Resolving that needs a persisted
+     * correlation from the context PR back to the owning run.
+     */
     static String resolveCommentKey(WorkflowEvent.PrConversationComment e, String prefix) {
         var info = e.prc().info();
         String lookupRepo = info.repo();

@@ -4,6 +4,7 @@ import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.CiConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
@@ -37,12 +38,14 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
     private final boolean ciAutofix;
+    private final RepositoryConfigResolver repositoryConfig;
     private final MetricsRecorder metrics;
 
     public SmithyWorkflowFactory(
         DockerConfig dockerConfig,
         CiConfig ciConfig,
         MetricsRecorder metrics,
+        RepositoryConfigResolver repositoryConfig,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
@@ -61,6 +64,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         this.issueTracker = issueTracker;
         this.ciAutofix = ciConfig.resolvedAutofix();
         this.metrics = metrics;
+        this.repositoryConfig = repositoryConfig;
     }
 
     @Override

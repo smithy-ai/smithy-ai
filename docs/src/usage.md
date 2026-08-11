@@ -69,7 +69,23 @@ This creates a feedback loop where project standards evolve based on real review
 
 ### Context repository
 
-Each repository can have a companion context repository named `<repo>-context`. This repository stores project knowledge as markdown files — coding standards, architectural decisions, common patterns, and lessons learned from past reviews. The Architect uses this knowledge base when reviewing PRs.
+Each repository can have a companion context repository. By default Smithy looks for `<repo>-context`. This repository stores project knowledge as markdown files — coding standards, architectural decisions, common patterns, and lessons learned from past reviews. The Architect uses this knowledge base when reviewing PRs, and the knowledgebase MCP is scoped to the same repository.
+
+To use a different context repository, add `.smithy/config.yml` to the source repository:
+
+```yaml
+context:
+  repository: shared-guidelines
+```
+
+Use `owner/repo` when the context repository lives under a different owner or group:
+
+```yaml
+context:
+  repository: platform/engineering-guidelines
+```
+
+One limitation for now: follow-up comments on the pull request The Architect opens against the context repository are only routed back to their session when the context repository uses the default `<repo>-context` name. Reviews and learning themselves work with any configured name.
 
 The context repository is created automatically by `setup_repo.py` during [demo setup](setup/demo.md), or you can create it manually.
 

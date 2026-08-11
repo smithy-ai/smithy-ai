@@ -107,26 +107,17 @@ public class EventMapper {
         int prNumber = payload.path("issue").path("number").asInt();
         String commentBody = payload.path("comment").path("body").asText("");
 
-        // Context repo: route to architect
-        String repoFull = payload.path("repository").path("full_name").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
-            var prc = extractPr(info, payload.path("issue"));
-            return new WorkflowEvent.PrConversationComment(
-                prc,
-                commentUser,
-                commentBody,
-                payload.path("comment").path("id").asLong(0),
-                ""
-            );
-        }
-
-        // Smithy: needs head branch from API to determine if smithy branch
+        // Needs the head branch from the API to tell whether this belongs to
+        // smithy or the architect. Keying on the branch rather than a
+        // "<repo>-context" name lets the context repository be named anything.
         try {
             log.debug("Fetching PR #{} from {}/{}", prNumber, info.owner(), info.repo());
             PrData pr = smithyClient.getPullRequest(info.owner(), info.repo(), prNumber);
             String headBranch = pr.headRef();
 
-            if (Naming.isSmithyBranch(headBranch)) {
+            boolean architectBranch =
+                Naming.isArchitectBranch(headBranch) && !commentUser.equals(botConfig.resolvedArchitectUser());
+            if (Naming.isSmithyBranch(headBranch) || architectBranch) {
                 String issueRef = Naming.parseIssueRefFromBranch(headBranch);
                 if (issueRef != null) {
                     var prc = new PrContext(
@@ -217,15 +208,17 @@ public class EventMapper {
         var pr = payload.path("pull_request");
         boolean merged = pr.path("merged").asBoolean(false);
         var info = repoInfo(payload);
+        String headBranch = pr.path("head").path("ref").asText("");
 
-        // Merged non-context-repo PRs → PrMerged (architect learns from these)
-        if (merged && !info.repo().endsWith("-context")) {
+        // Merged source PRs are what the architect learns from. The architect's
+        // own context PRs only drive learn-state cleanup, and are recognised by
+        // their branch so the context repository can be named anything.
+        if (merged && !Naming.isArchitectBranch(headBranch)) {
             var prc = extractPr(info, pr);
             return new WorkflowEvent.PrMerged(prc);
         }
 
-        // Everything else → PrClosed (architect uses for context-repo cleanup)
-        String headBranch = pr.path("head").path("ref").asText("");
+        // Everything else → PrClosed (the architect uses this for context PR cleanup)
         int prNumber = pr.path("number").asInt();
         return new WorkflowEvent.PrClosed(info, prNumber, merged, headBranch);
     }
@@ -268,10 +261,9 @@ public class EventMapper {
         String headBranch = pr.path("head").path("ref").asText("");
         var info = repoInfo(payload);
 
-        // Context repo PR comments → route to architect
-        String repoFull = payload.path("repository").path("full_name").asText("");
+        // Comments on the architect's own context PR route back to its learn session.
         long commentId = payload.path("comment").path("id").asLong(0);
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
+        if (Naming.isArchitectBranch(headBranch) && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             var prc = extractPr(info, pr);
             var cd = commentFromPayload(payload);
             return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body(), commentId, "");

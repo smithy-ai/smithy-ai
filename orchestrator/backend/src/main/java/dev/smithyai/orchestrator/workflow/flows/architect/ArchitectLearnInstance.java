@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.workflow.flows.architect;
 
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
@@ -29,6 +30,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private final StateMachine<LearnStage> stateMachine;
     private final String architectEmail;
+    private final RepositoryConfigResolver repositoryConfig;
 
     public ArchitectLearnInstance(
         ContainerSession session,
@@ -39,7 +41,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         VcsProviderConfig vcsConfig,
         List<String> tools,
         Runnable destroyCallback,
-        String architectEmail
+        String architectEmail,
+        RepositoryConfigResolver repositoryConfig
     ) {
         this(
             session,
@@ -52,7 +55,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             destroyCallback,
             LearnStage.NEW,
             null,
-            architectEmail
+            architectEmail,
+            repositoryConfig
         );
     }
 
@@ -67,7 +71,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
         Runnable destroyCallback,
         LearnStage initialStage,
         String existingSessionId,
-        String architectEmail
+        String architectEmail,
+        RepositoryConfigResolver repositoryConfig
     ) {
         super(
             session,
@@ -82,6 +87,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
             existingSessionId
         );
         this.architectEmail = architectEmail;
+        this.repositoryConfig = repositoryConfig;
         // @formatter:off
         this.stateMachine = StateMachine.builder(LearnStage.class, initialStage)
             .in(LearnStage.NEW)
@@ -122,8 +128,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
     // ── Init ─────────────────────────────────────────────────
 
     private ContainerConfig buildInit(PrContext prc, String learnBranch) {
-        String contextRepo = Naming.contextRepoName(prc.info().repo());
-        String contextCloneUrl = vcsClient.cloneUrl(prc.info().owner(), contextRepo);
+        var contextRepo = repositoryConfig.contextRepository(prc.info());
+        String contextCloneUrl = vcsClient.cloneUrl(contextRepo.owner(), contextRepo.repo());
         return ContainerConfig.builder()
             .cloneUrl(prc.info().cloneUrl())
             .branch(prc.headBranch())
@@ -140,7 +146,7 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
 
     private void learnTask(PrContext prc) {
         var info = prc.info();
-        String contextRepo = Naming.contextRepoName(info.repo());
+        var contextRepo = repositoryConfig.contextRepository(info);
         String learnBranch = Naming.architectBranchName(prc.number(), "learn");
 
         try {
@@ -156,7 +162,9 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     "repo",
                     info.repo(),
                     "context_repo",
-                    contextRepo,
+                    contextRepo.repo(),
+                    "context_owner",
+                    contextRepo.owner(),
                     "pr_number",
                     prc.number(),
                     "pr_title",
@@ -212,8 +220,8 @@ public class ArchitectLearnInstance extends AbstractWorkflowInstance {
                     prc.number()
                 );
                 var contextPr = vcsClient.createPullRequest(
-                    info.owner(),
-                    contextRepo,
+                    contextRepo.owner(),
+                    contextRepo.repo(),
                     title,
                     learnBranch,
                     contextBaseBranch,

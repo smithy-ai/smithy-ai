@@ -189,9 +189,10 @@ public class GitLabEventMapper {
             return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, attrs.path("discussion_id").asText(""));
         }
 
-        // Regular note → conversation comment
-        String repoFull = payload.path("project").path("path_with_namespace").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
+        // Regular note → conversation comment. Comments on the architect's own
+        // context MR route back to its learn session; keying on the branch
+        // rather than a "<repo>-context" name lets that repo be named anything.
+        if (Naming.isArchitectBranch(prc.headBranch()) && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             return new WorkflowEvent.PrConversationComment(
                 prc,
                 commentUser,
@@ -307,11 +308,13 @@ public class GitLabEventMapper {
 
     private WorkflowEvent mapMrMerge(JsonNode payload, JsonNode attrs) {
         var info = repoInfo(payload);
-        if (!info.repo().endsWith("-context")) {
+        String headBranch = attrs.path("source_branch").asText("");
+        // Merged source MRs are what the architect learns from; its own context
+        // MRs only drive cleanup and are recognised by branch, not repo name.
+        if (!Naming.isArchitectBranch(headBranch)) {
             var prc = extractPrFromMr(info, attrs);
             return new WorkflowEvent.PrMerged(prc);
         }
-        String headBranch = attrs.path("source_branch").asText("");
         int mrNumber = attrs.path("iid").asInt();
         return new WorkflowEvent.PrClosed(info, mrNumber, true, headBranch);
     }

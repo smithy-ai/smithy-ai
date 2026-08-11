@@ -108,24 +108,17 @@ public class GitHubEventMapper {
         int prNumber = payload.path("issue").path("number").asInt();
         String commentBody = payload.path("comment").path("body").asText("");
 
-        String repoFull = payload.path("repository").path("full_name").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
-            var prc = extractPrFromIssue(info, payload.path("issue"));
-            return new WorkflowEvent.PrConversationComment(
-                prc,
-                commentUser,
-                commentBody,
-                payload.path("comment").path("id").asLong(0),
-                ""
-            );
-        }
-
+        // Needs the head branch from the API to tell whether this belongs to
+        // smithy or the architect. Keying on the branch rather than a
+        // "<repo>-context" name lets the context repository be named anything.
         try {
             log.debug("Fetching PR #{} from {}/{}", prNumber, info.owner(), info.repo());
             PrData pr = smithyClient.getPullRequest(info.owner(), info.repo(), prNumber);
             String headBranch = pr.headRef();
 
-            if (Naming.isSmithyBranch(headBranch)) {
+            boolean architectBranch =
+                Naming.isArchitectBranch(headBranch) && !commentUser.equals(botConfig.resolvedArchitectUser());
+            if (Naming.isSmithyBranch(headBranch) || architectBranch) {
                 String issueRef = Naming.parseIssueRefFromBranch(headBranch);
                 if (issueRef != null) {
                     var prc = new PrContext(
@@ -215,13 +208,15 @@ public class GitHubEventMapper {
         var pr = payload.path("pull_request");
         boolean merged = pr.path("merged").asBoolean(false);
         var info = repoInfo(payload);
+        String headBranch = pr.path("head").path("ref").asText("");
 
-        if (merged && !info.repo().endsWith("-context")) {
+        // Merged source PRs are what the architect learns from; its own context
+        // PRs only drive cleanup and are recognised by branch, not repo name.
+        if (merged && !Naming.isArchitectBranch(headBranch)) {
             var prc = extractPr(info, pr);
             return new WorkflowEvent.PrMerged(prc);
         }
 
-        String headBranch = pr.path("head").path("ref").asText("");
         int prNumber = pr.path("number").asInt();
         return new WorkflowEvent.PrClosed(info, prNumber, merged, headBranch);
     }
@@ -281,8 +276,8 @@ public class GitHubEventMapper {
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
 
-        String repoFull = payload.path("repository").path("full_name").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
+        // Comments on the architect's own context PR route back to its learn session.
+        if (Naming.isArchitectBranch(headBranch) && !commentUser.equals(botConfig.resolvedArchitectUser())) {
             var info = repoInfo(payload);
             var prc = extractPr(info, pr);
             return new WorkflowEvent.PrConversationComment(

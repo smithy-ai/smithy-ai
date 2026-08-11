@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.workflow.flows.smithy;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
@@ -52,6 +53,13 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
 
     public SmithyWorkflowInstance withCiAutofix(boolean ciAutofix) {
         this.ciAutofix = ciAutofix;
+        return this;
+    }
+
+    private RepositoryConfigResolver repositoryConfig;
+
+    public SmithyWorkflowInstance withRepositoryConfig(RepositoryConfigResolver repositoryConfig) {
+        this.repositoryConfig = repositoryConfig;
         return this;
     }
 
@@ -199,7 +207,7 @@ public class SmithyWorkflowInstance extends AbstractWorkflowInstance {
             log.debug("Ignoring {} in stage {}", event.getClass().getSimpleName(), stateMachine.state());
             return;
         }
-        contextRepoName = event.info().owner() + "/" + Naming.contextRepoName(event.info().repo());
+        contextRepoName = repositoryConfig.contextRepository(event.info()).fullName();
         log.info("Setting context repo name: {}", contextRepoName);
         claude.setContextRepoName(contextRepoName);
         stateMachine.fire(event);

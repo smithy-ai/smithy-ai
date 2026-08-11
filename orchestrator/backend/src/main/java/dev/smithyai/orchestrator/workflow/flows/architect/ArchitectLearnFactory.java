@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.workflow.flows.architect;
 
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.DockerConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
@@ -30,6 +31,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
     private final PromptRenderer renderer;
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
+    private final RepositoryConfigResolver repositoryConfig;
     private final String architectEmail;
 
     public ArchitectLearnFactory(
@@ -37,6 +39,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
         VcsProviderConfig vcsConfig,
         BotConfig botConfig,
         ContainerService containerService,
+        RepositoryConfigResolver repositoryConfig,
         PromptRenderer renderer,
         @Qualifier("architectVcs") VcsClient vcsClient,
         @Qualifier("architectIssueTracker") IssueTrackerClient issueTracker
@@ -47,6 +50,7 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
         this.renderer = renderer;
         this.vcsClient = vcsClient;
         this.issueTracker = issueTracker;
+        this.repositoryConfig = repositoryConfig;
         this.architectEmail = botConfig.resolvedArchitectEmail();
     }
 
@@ -55,9 +59,9 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
         return switch (event) {
             case WorkflowEvent.PrMerged e -> {
                 var prc = e.prc();
-                String contextRepo = Naming.contextRepoName(prc.info().repo());
-                if (!vcsClient.repoExists(prc.info().owner(), contextRepo)) {
-                    log.warn("Context repo {}/{} does not exist, skipping learning", prc.info().owner(), contextRepo);
+                var contextRepo = repositoryConfig.contextRepository(prc.info());
+                if (!vcsClient.repoExists(contextRepo.owner(), contextRepo.repo())) {
+                    log.warn("Context repo {} does not exist, skipping learning", contextRepo.fullName());
                     yield EventAction.IGNORE;
                 }
                 String key = ArchitectReviewFactory.architectContainerName(
@@ -68,6 +72,9 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
                 yield new EventAction.Create(key);
             }
             case WorkflowEvent.PrClosed e -> {
+                // Mapping a closed context PR back to its source session still
+                // relies on the default "<repo>-context" naming — see
+                // ArchitectReviewFactory#resolveCommentKey for why.
                 if (!e.info().repo().endsWith("-context")) yield EventAction.IGNORE;
                 String sourcePrId = Naming.parseIssueRefFromBranch(e.headBranch());
                 if (sourcePrId == null) yield EventAction.IGNORE;
@@ -100,7 +107,8 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             vcsConfig,
             TOOLS,
             () -> removeInstance(key),
-            architectEmail
+            architectEmail,
+            repositoryConfig
         );
     }
 
@@ -129,7 +137,8 @@ public class ArchitectLearnFactory extends AbstractWorkflowFactory<ArchitectLear
             () -> removeInstance(containerName),
             stage,
             state.sessionId(),
-            architectEmail
+            architectEmail,
+            repositoryConfig
         );
     }
 }
