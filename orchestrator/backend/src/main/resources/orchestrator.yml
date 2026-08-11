@@ -45,6 +45,12 @@ vcs:
     plan-approved-label: ${JIRA_PLAN_APPROVED_LABEL:plan-approved}
     plan-approved-status: ${JIRA_PLAN_APPROVED_STATUS:}
 
+workflow:
+  # The label that unlocks implementation, and the prefix of the branches the
+  # agent works on. The event adapters read these rather than hardcoding them.
+  plan-approved-label: ${PLAN_APPROVED_LABEL:Plan Approved}
+  branch-prefix: ${SMITHY_BRANCH_PREFIX:smithy/}
+
 ci:
   # When false, a failed pipeline pauses the workflow and asks for approval
   # on the MR (reply with a thumbs-up) instead of debugging automatically.

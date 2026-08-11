@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
+import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
@@ -19,13 +20,20 @@ public class GitLabEventMapper {
     private final VcsClient smithyClient;
     private final String botUser;
     private final String smithyEmail;
+    private final String planApprovedLabel;
 
-    public GitLabEventMapper(BotConfig botConfig, VcsProviderConfig vcsConfig, VcsClient smithyClient) {
+    public GitLabEventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        WorkflowPolicyConfig workflowPolicy,
+        VcsClient smithyClient
+    ) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
+        this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
         log.info(
             "GitLabEventMapper initialized: smithyBot='{}', architectBot='{}'",
             botUser,
@@ -128,7 +136,7 @@ public class GitLabEventMapper {
         boolean hasPlanApproved = false;
         if (labels.isArray()) {
             for (var l : labels) {
-                if ("Plan Approved".equals(l.path("title").asText(""))) {
+                if (planApprovedLabel.equals(l.path("title").asText(""))) {
                     hasPlanApproved = true;
                     break;
                 }

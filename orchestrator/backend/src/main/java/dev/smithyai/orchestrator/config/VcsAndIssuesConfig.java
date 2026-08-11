@@ -69,12 +69,13 @@ public class VcsAndIssuesConfig {
     public GitLabEventMapper gitLabEventMapper(
         VcsProviderConfig vcs,
         BotConfig botConfig,
+        WorkflowPolicyConfig workflowPolicy,
         @Qualifier("smithyVcs") VcsClient smithyVcs
     ) {
         if (!"gitlab".equals(vcs.resolvedProvider())) {
             return null;
         }
-        return new GitLabEventMapper(botConfig, vcs, smithyVcs);
+        return new GitLabEventMapper(botConfig, vcs, workflowPolicy, smithyVcs);
     }
 
     @Bean
@@ -82,12 +83,13 @@ public class VcsAndIssuesConfig {
     public GitHubEventMapper gitHubEventMapper(
         VcsProviderConfig vcs,
         BotConfig botConfig,
+        WorkflowPolicyConfig workflowPolicy,
         @Qualifier("smithyVcs") VcsClient smithyVcs
     ) {
         if (!"github".equals(vcs.resolvedProvider())) {
             return null;
         }
-        return new GitHubEventMapper(botConfig, vcs, smithyVcs);
+        return new GitHubEventMapper(botConfig, vcs, workflowPolicy, smithyVcs);
     }
 
     @Bean

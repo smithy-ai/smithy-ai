@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
+import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
@@ -22,10 +23,12 @@ public class EventMapper {
     private final VcsClient smithyClient;
     private final String botUser;
     private final String smithyEmail;
+    private final String planApprovedLabel;
 
     public EventMapper(
         BotConfig botConfig,
         VcsProviderConfig vcsConfig,
+        WorkflowPolicyConfig workflowPolicy,
         @Qualifier("smithyVcs") VcsClient smithyClient
     ) {
         this.botConfig = botConfig;
@@ -33,6 +36,7 @@ public class EventMapper {
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
+        this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
     }
 
     // ── Issue events ─────────────────────────────
@@ -68,14 +72,14 @@ public class EventMapper {
             var issueLabels = payload.path("issue").path("labels");
             if (issueLabels.isArray()) {
                 for (var l : issueLabels) {
-                    if ("Plan Approved".equals(l.path("name").asText(""))) {
-                        labelName = "Plan Approved";
+                    if (planApprovedLabel.equals(l.path("name").asText(""))) {
+                        labelName = planApprovedLabel;
                         break;
                     }
                 }
             }
         }
-        if (!"Plan Approved".equals(labelName)) return null;
+        if (!planApprovedLabel.equals(labelName)) return null;
 
         String approver = payload.path("sender").path("login").asText("");
         var ctx = extractIssue(payload);

@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
+import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.*;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
@@ -18,13 +19,20 @@ public class GitHubEventMapper {
     private final VcsClient smithyClient;
     private final String botUser;
     private final String smithyEmail;
+    private final String planApprovedLabel;
 
-    public GitHubEventMapper(BotConfig botConfig, VcsProviderConfig vcsConfig, VcsClient smithyClient) {
+    public GitHubEventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        WorkflowPolicyConfig workflowPolicy,
+        VcsClient smithyClient
+    ) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
+        this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
         log.info(
             "GitHubEventMapper initialized: smithyBot='{}', architectBot='{}'",
             botUser,
@@ -77,7 +85,7 @@ public class GitHubEventMapper {
 
     private WorkflowEvent mapIssueLabeled(JsonNode payload) {
         String labelName = payload.path("label").path("name").asText("");
-        if (!"Plan Approved".equals(labelName)) return null;
+        if (!planApprovedLabel.equals(labelName)) return null;
 
         String approver = payload.path("sender").path("login").asText("");
         var ctx = extractIssue(payload);

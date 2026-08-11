@@ -76,3 +76,10 @@ context:
 ```
 
 `context.repository` can be either a repository name in the same owner/group or an `owner/repo` value. When omitted, Smithy uses `<repo>-context`.
+
+## Workflow settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `PLAN_APPROVED_LABEL` | `Plan Approved` | Label that unlocks Smithy's implementation phase |
+| `SMITHY_BRANCH_PREFIX` | `smithy/` | Prefix of the branches the agent works on |

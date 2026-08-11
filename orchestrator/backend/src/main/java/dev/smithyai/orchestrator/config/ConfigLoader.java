@@ -68,6 +68,11 @@ public class ConfigLoader {
         return config.ci() != null ? config.ci() : new CiConfig(null);
     }
 
+    @Bean
+    public WorkflowPolicyConfig workflowPolicyConfig() {
+        return config.workflow() != null ? config.workflow() : WorkflowPolicyConfig.defaults();
+    }
+
     private static String loadRawYaml(Environment env) {
         // 1. Check for explicit config path via env var or CLI arg
         String configPath = env.getProperty("ORCHESTRATOR_CONFIG", env.getProperty("config", (String) null));

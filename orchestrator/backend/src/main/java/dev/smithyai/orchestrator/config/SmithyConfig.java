@@ -6,5 +6,6 @@ public record SmithyConfig(
     VcsProviderConfig vcs,
     BotConfig bots,
     KnowledgebaseConfig knowledgebase,
-    CiConfig ci
+    CiConfig ci,
+    WorkflowPolicyConfig workflow
 ) {}
