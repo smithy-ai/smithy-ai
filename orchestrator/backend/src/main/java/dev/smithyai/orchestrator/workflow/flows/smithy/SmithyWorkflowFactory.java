@@ -8,6 +8,7 @@ import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
+import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerState;
 import dev.smithyai.orchestrator.service.docker.dto.WorkflowType;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
@@ -36,10 +37,12 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
     private final VcsClient vcsClient;
     private final IssueTrackerClient issueTracker;
     private final boolean ciAutofix;
+    private final MetricsRecorder metrics;
 
     public SmithyWorkflowFactory(
         DockerConfig dockerConfig,
         CiConfig ciConfig,
+        MetricsRecorder metrics,
         VcsProviderConfig vcsConfig,
         KnowledgebaseConfig knowledgebaseConfig,
         BotConfig botConfig,
@@ -57,6 +60,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
         this.vcsClient = vcsClient;
         this.issueTracker = issueTracker;
         this.ciAutofix = ciConfig.resolvedAutofix();
+        this.metrics = metrics;
     }
 
     @Override
@@ -95,16 +99,18 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             botConfig,
             augmentTools(REFINE_TOOLS),
             () -> removeInstance(key)
-        ).withCiAutofix(ciAutofix);
+        ).withCiAutofix(ciAutofix).withMetrics(metrics);
     }
 
     @Override
     protected SmithyWorkflowInstance resurrectInstance(String key, WorkflowEvent event) {
-        boolean prComment =
+        boolean resurrectable =
             event instanceof WorkflowEvent.PrConversationComment ||
             event instanceof WorkflowEvent.PrReviewComment ||
-            event instanceof WorkflowEvent.ReviewSubmitted;
-        if (!prComment) return null;
+            event instanceof WorkflowEvent.ReviewSubmitted ||
+            // Finalize must never be dropped: the plan-file cleanup runs there
+            event instanceof WorkflowEvent.PrFinalized;
+        if (!resurrectable) return null;
 
         log.info("Resurrecting {} in build stage for {}", key, event.getClass().getSimpleName());
         var session = containerService.createSession(key);
@@ -121,7 +127,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(key),
             Stage.BUILD,
             null
-        ).withCiAutofix(ciAutofix);
+        ).withCiAutofix(ciAutofix).withMetrics(metrics);
     }
 
     @Override
@@ -151,7 +157,7 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(containerName),
             stage,
             state.sessionId()
-        ).withCiAutofix(ciAutofix);
+        ).withCiAutofix(ciAutofix).withMetrics(metrics);
     }
 
     private List<String> augmentTools(List<String> baseTools) {

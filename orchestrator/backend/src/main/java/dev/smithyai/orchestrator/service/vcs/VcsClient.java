@@ -70,6 +70,19 @@ public interface VcsClient {
         throw new UnsupportedOperationException("getRawFile not supported by " + getClass().getSimpleName());
     }
 
+    /** Delete a file on a branch with a single commit. */
+    default void deleteFile(String owner, String repo, String branch, String path, String message) {
+        throw new UnsupportedOperationException("deleteFile not supported by " + getClass().getSimpleName());
+    }
+
+    /**
+     * Find the first branch whose name starts with the given prefix, or null.
+     * Used to locate smithy's work branch ("smithy/&lt;ref&gt;-&lt;slug&gt;") from an issue ref.
+     */
+    default String findBranchByPrefix(String owner, String repo, String prefix) {
+        throw new UnsupportedOperationException("findBranchByPrefix not supported by " + getClass().getSimpleName());
+    }
+
     // URL helpers (provider-specific URL patterns)
     String fileBrowseUrl(String repoHtmlUrl, String branch, String path);
 
