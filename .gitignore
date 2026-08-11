@@ -34,3 +34,8 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# SQLite run store (local runs)
+*.db
+*.db-wal
+*.db-shm

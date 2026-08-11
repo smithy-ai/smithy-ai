@@ -1,8 +1,10 @@
 package dev.smithyai.orchestrator;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
+import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.workflow.WorkflowService;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import java.util.List;
@@ -27,6 +29,9 @@ import org.springframework.test.context.TestPropertySource;
         "FORGEJO_URL=http://forgejo.invalid:3000",
         "SMITHY_FORGEJO_TOKEN=test-smithy-token",
         "ARCHITECT_FORGEJO_TOKEN=test-architect-token",
+        // Without this the datasource points at /config, which does not exist
+        // outside the container.
+        "DB_PATH=build/tmp/smithy-context-test.db",
     }
 )
 class ApplicationContextTest {
@@ -38,12 +43,25 @@ class ApplicationContextTest {
     private RepositoryConfigResolver repositoryConfigResolver;
 
     @Autowired
+    private RunStore runStore;
+
+    @Autowired
     private List<AbstractWorkflowFactory<?>> factories;
 
     @Test
     void contextLoads() {
         assertNotNull(workflowService);
         assertNotNull(repositoryConfigResolver);
+    }
+
+    /**
+     * Also proves Flyway actually migrated the configured datasource at startup:
+     * without the schema this insert fails.
+     */
+    @Test
+    void runStoreIsMigratedAndUsable() {
+        var run = runStore.create("smithy-development", "v1", "refine", null);
+        assertEquals("refine", runStore.find(run.id()).orElseThrow().state());
     }
 
     @Test

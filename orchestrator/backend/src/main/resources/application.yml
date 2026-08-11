@@ -8,3 +8,18 @@ spring:
       enabled: true
   main:
     banner-mode: off
+
+  datasource:
+    # The run store lives on the same mounted volume as the rest of the
+    # orchestrator's state. WAL lets readers run alongside the single writer;
+    # busy_timeout covers the brief moments a write holds the lock.
+    url: jdbc:sqlite:${DB_PATH:/config/smithy.db}?journal_mode=WAL&busy_timeout=5000&foreign_keys=on
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite takes one writer at a time; a small pool keeps contention on the
+      # driver rather than in the database.
+      maximum-pool-size: 4
+      pool-name: run-store
+
+  flyway:
+    locations: classpath:db/migration
