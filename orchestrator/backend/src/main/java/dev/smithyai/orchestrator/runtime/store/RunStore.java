@@ -352,6 +352,79 @@ public class RunStore {
         db.sql("DELETE FROM run_environments WHERE kind = ? AND name = ?").params(kind, name).update();
     }
 
+    // ── Waits ────────────────────────────────────────────────
+
+    /**
+     * Arm a wait, or report on the one already armed.
+     *
+     * <p>A run blocked on something — a human approval, a sibling reaching a
+     * state — records it here rather than parking a thread, because the thing it
+     * waits for arrives as a webhook minutes or days later. Re-arming a key that
+     * was already satisfied reports satisfied, which is what makes a replayed
+     * transition walk past a gate it already cleared.
+     *
+     * @return whether the wait is already satisfied
+     */
+    @Transactional
+    public boolean openWait(String runId, String kind, String waitKey) {
+        var existing = findWait(runId, waitKey);
+        if (existing.isPresent()) return existing.get().satisfiedAt() != null;
+
+        db
+            .sql("INSERT INTO run_waits (run_id, kind, wait_key, created_at) VALUES (?, ?, ?, ?)")
+            .params(runId, kind, waitKey, iso(Instant.now()))
+            .update();
+        return false;
+    }
+
+    public Optional<RunWait> findWait(String runId, String waitKey) {
+        return db
+            .sql("SELECT * FROM run_waits WHERE run_id = ? AND wait_key = ? ORDER BY id DESC LIMIT 1")
+            .params(runId, waitKey)
+            .query(WAIT_MAPPER)
+            .optional();
+    }
+
+    /**
+     * Release a run's wait on a key, whatever armed it.
+     *
+     * <p>Deliberately indifferent to kind: a wait for {@code children-done} is
+     * satisfied the same way whether a human approved it in the dashboard or a
+     * child run signalled it.
+     *
+     * <p>A release that arrives before anything is waiting is recorded rather
+     * than dropped, and satisfies the wait when it is armed. That window is real:
+     * a coordinator arms its join in the same transition that spawns the children
+     * it joins on, so a fast child can report back first. Dropping the release
+     * would hang the coordinator forever.
+     *
+     * @return how many pending waits this released
+     */
+    @Transactional
+    public int satisfyWait(String runId, String waitKey) {
+        int released = db
+            .sql("UPDATE run_waits SET satisfied_at = ? WHERE run_id = ? AND wait_key = ? AND satisfied_at IS NULL")
+            .params(iso(Instant.now()), runId, waitKey)
+            .update();
+        if (released == 0 && findWait(runId, waitKey).isEmpty()) {
+            String now = iso(Instant.now());
+            db
+                .sql("INSERT INTO run_waits (run_id, kind, wait_key, satisfied_at, created_at) VALUES (?, ?, ?, ?, ?)")
+                .params(runId, "early", waitKey, now, now)
+                .update();
+        }
+        return released;
+    }
+
+    /** Everything a run is currently blocked on — what the dashboard shows as "waiting". */
+    public List<RunWait> findPendingWaits(String runId) {
+        return db
+            .sql("SELECT * FROM run_waits WHERE run_id = ? AND satisfied_at IS NULL ORDER BY id")
+            .param(runId)
+            .query(WAIT_MAPPER)
+            .list();
+    }
+
     // ── Helpers ──────────────────────────────────────────────
 
     private static String iso(Instant instant) {
@@ -399,6 +472,16 @@ public class RunStore {
             parseInstant(rs, "ts"),
             rs.getString("type"),
             readVars(rs.getString("payload_json"))
+        );
+
+    private final RowMapper<RunWait> WAIT_MAPPER = (ResultSet rs, int rowNum) ->
+        new RunWait(
+            rs.getLong("id"),
+            rs.getString("run_id"),
+            rs.getString("kind"),
+            rs.getString("wait_key"),
+            parseInstant(rs, "satisfied_at"),
+            parseInstant(rs, "created_at")
         );
 
     private static Instant parseInstant(ResultSet rs, String column) throws SQLException {
