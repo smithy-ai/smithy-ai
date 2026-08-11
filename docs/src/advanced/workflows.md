@@ -10,6 +10,11 @@ Definitions are read at startup, in this order — later ones win by name:
 1. **Built in**, from the orchestrator's own jar.
 2. **`workflow.definitions-dir`** (`WORKFLOW_DIR`, default `/config/workflows`) — mount
    a directory here and drop `.yml` files in it.
+3. **A repository's own `.smithy/workflows/*.yml`**, read over the provider API
+   when an event from that repository arrives. A team that wants its own flow
+   does not need a file on the orchestrator's disk, any more than they need one
+   to have CI. These are cached briefly and every failure is soft: a broken
+   definition costs that workflow, not the repository's ability to be worked on.
 
 Replacing a built-in means writing a file with the same `metadata.name`. A file
 that fails to parse or validate is logged and skipped; it does not stop the

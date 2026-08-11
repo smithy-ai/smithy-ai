@@ -169,4 +169,22 @@ public class WorkflowRegistry {
     public Set<Capability> supportedCapabilities() {
         return supported;
     }
+
+    /**
+     * Whether a definition this registry did not load could run here.
+     *
+     * <p>Repository-owned definitions arrive on the event path rather than at
+     * startup, so they are checked the same way but at the moment they are
+     * first seen — a repository with a workflow this provider cannot support
+     * loses that workflow, and says so, rather than failing mid-transition.
+     */
+    public boolean runnable(WorkflowDefinition definition) {
+        try {
+            validator.validate(definition.metadata().name(), definition, supported);
+            return true;
+        } catch (WorkflowDefinitionException e) {
+            log.warn("Repository workflow '{}' cannot run here: {}", definition.metadata().name(), e.getMessage());
+            return false;
+        }
+    }
 }

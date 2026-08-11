@@ -135,7 +135,8 @@ class RunEngineTest {
             new WorkflowRouter(renderer),
             new StepExecutor(actions, renderer, store),
             store,
-            new RunEnvironments(store, null, null)
+            new RunEnvironments(store, null, null),
+            null
         );
     }
 

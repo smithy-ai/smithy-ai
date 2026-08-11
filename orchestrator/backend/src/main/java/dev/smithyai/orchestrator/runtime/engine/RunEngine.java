@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.runtime.engine;
 
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.runtime.definition.RepositoryWorkflowLoader;
 import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinition;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.CorrelationKind;
@@ -34,19 +35,22 @@ public class RunEngine implements SignalDelivery {
     private final StepExecutor executor;
     private final RunStore store;
     private final RunEnvironments environments;
+    private final RepositoryWorkflowLoader repositoryWorkflows;
 
     public RunEngine(
         WorkflowRegistry registry,
         WorkflowRouter router,
         StepExecutor executor,
         RunStore store,
-        RunEnvironments environments
+        RunEnvironments environments,
+        RepositoryWorkflowLoader repositoryWorkflows
     ) {
         this.registry = registry;
         this.router = router;
         this.executor = executor;
         this.store = store;
         this.environments = environments;
+        this.repositoryWorkflows = repositoryWorkflows;
     }
 
     /** What an event did, for logs and for the tests that assert on routing. */
@@ -63,7 +67,7 @@ public class RunEngine implements SignalDelivery {
      */
     public java.util.List<Outcome> handle(WorkflowEvent event) {
         var outcomes = new java.util.ArrayList<Outcome>();
-        for (var decision : router.route(event, registry.all())) {
+        for (var decision : router.route(event, candidates(event))) {
             try {
                 outcomes.add(apply(decision, event));
             } catch (RuntimeException e) {
@@ -77,8 +81,28 @@ public class RunEngine implements SignalDelivery {
         return outcomes;
     }
 
+    /**
+     * The definitions that get a say about this event: the ones this
+     * orchestrator has loaded, plus any the event's own repository carries.
+     */
+    private java.util.List<WorkflowDefinition> candidates(WorkflowEvent event) {
+        var repositoryOwned =
+            repositoryWorkflows == null
+                ? java.util.List.<WorkflowDefinition>of()
+                : repositoryWorkflows
+                      .forRepository(event.info())
+                      .stream()
+                      .map(dev.smithyai.orchestrator.runtime.definition.LoadedWorkflowDefinition::definition)
+                      .filter(definition -> registry.runnable(definition))
+                      .toList();
+        if (repositoryOwned.isEmpty()) return registry.all();
+        var all = new java.util.ArrayList<>(registry.all());
+        all.addAll(repositoryOwned);
+        return all;
+    }
+
     private Outcome apply(WorkflowRouter.Decision decision, WorkflowEvent event) {
-        var definition = registry.require(decision.workflowName());
+        var definition = definitionFor(decision, event);
         String key = scopedKey(decision);
         var existing = store.findByCorrelation(CorrelationKind.KEY, key);
 
@@ -106,6 +130,21 @@ public class RunEngine implements SignalDelivery {
      */
     private static String scopedKey(WorkflowRouter.Decision decision) {
         return decision.workflowName() + "|" + decision.key();
+    }
+
+    /** A decision names a workflow; it may be one this repository brought with it. */
+    private WorkflowDefinition definitionFor(WorkflowRouter.Decision decision, WorkflowEvent event) {
+        return registry
+            .find(decision.workflowName())
+            .orElseGet(() ->
+                candidates(event)
+                    .stream()
+                    .filter(candidate -> candidate.metadata().name().equals(decision.workflowName()))
+                    .findFirst()
+                    .orElseThrow(() ->
+                        new IllegalStateException("No workflow definition named '" + decision.workflowName() + "'")
+                    )
+            );
     }
 
     private Run create(WorkflowDefinition definition, String key) {

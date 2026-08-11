@@ -160,7 +160,8 @@ class FeatureCoordinatorTest {
             new WorkflowRouter(renderer),
             executor,
             store,
-            new RunEnvironments(store, null, null)
+            new RunEnvironments(store, null, null),
+            null
         );
     }
 
