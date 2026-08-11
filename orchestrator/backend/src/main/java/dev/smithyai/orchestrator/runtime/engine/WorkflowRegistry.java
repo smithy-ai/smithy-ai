@@ -64,20 +64,92 @@ public class WorkflowRegistry {
     @PostConstruct
     public void loadAll() {
         byName.clear();
+        var raw = new LinkedHashMap<String, LoadedWorkflowDefinition>();
         for (var loaded : loader.load(Path.of(policy.resolvedDefinitionsDir()))) {
+            var replaced = raw.put(loaded.definition().metadata().name(), loaded);
+            if (replaced != null) {
+                log.info(
+                    "Workflow '{}' from {} overrides {}",
+                    loaded.definition().metadata().name(),
+                    loaded.source(),
+                    replaced.source()
+                );
+            }
+        }
+
+        // A workflow that extends another shadows it: the base is a template to
+        // be configured, not something to run alongside its configured form.
+        // Without this an operator's catalog-carrying coordinator and the empty
+        // built-in it extends would both claim the same story.
+        var shadowed = raw
+            .values()
+            .stream()
+            .map(loaded -> loaded.definition().metadata().extendsWorkflow())
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+
+        for (var loaded : raw.values()) {
             String name = loaded.definition().metadata().name();
+            if (shadowed.contains(name)) {
+                log.info("Workflow '{}' is a base for another workflow and will not run on its own", name);
+                continue;
+            }
+            LoadedWorkflowDefinition resolved;
             try {
-                validator.validate(loaded.source(), loaded.definition(), supported);
+                resolved = resolveExtends(loaded, raw);
+                validator.validate(resolved.source(), resolved.definition(), supported);
             } catch (WorkflowDefinitionException e) {
                 log.error("Workflow '{}' from {} is not runnable here: {}", name, loaded.source(), e.getMessage());
                 continue;
             }
-            var replaced = byName.put(name, loaded);
-            if (replaced != null) {
-                log.info("Workflow '{}' from {} overrides {}", name, loaded.source(), replaced.source());
-            }
+            byName.put(name, resolved);
         }
         log.info("{} workflow definition(s) available: {}", byName.size(), byName.keySet());
+    }
+
+    /**
+     * Resolve {@code metadata.extends}.
+     *
+     * <p>Deliberately narrow: the child takes the parent's routing, states and
+     * composite actions wholesale and contributes only variables. That is what
+     * configuring a shipped workflow needs — a coordinator's repository catalog,
+     * a different bot user — and it means "extends" cannot quietly change what
+     * a workflow does, only what it is pointed at.
+     */
+    private LoadedWorkflowDefinition resolveExtends(
+        LoadedWorkflowDefinition loaded,
+        Map<String, LoadedWorkflowDefinition> available
+    ) {
+        String parentName = loaded.definition().metadata().extendsWorkflow();
+        if (parentName == null || parentName.isBlank()) return loaded;
+
+        var parent = available.get(parentName);
+        if (parent == null) {
+            throw new WorkflowDefinitionException(
+                "extends '%s', which is not among the loaded workflows %s".formatted(parentName, available.keySet())
+            );
+        }
+        if (parent.definition().metadata().extendsWorkflow() != null) {
+            throw new WorkflowDefinitionException(
+                "extends '%s', which extends something itself — one level only".formatted(parentName)
+            );
+        }
+
+        var vars = new LinkedHashMap<String, Object>(parent.definition().vars());
+        vars.putAll(loaded.definition().vars());
+        var base = parent.definition();
+        var merged = new WorkflowDefinition(
+            base.apiVersion(),
+            base.kind(),
+            loaded.definition().metadata(),
+            base.defaults(),
+            vars,
+            base.routing(),
+            base.state(),
+            base.actions()
+        );
+        log.info("Workflow '{}' extends '{}'", loaded.definition().metadata().name(), parentName);
+        return new LoadedWorkflowDefinition(loaded.source() + " (extends " + parentName + ")", merged);
     }
 
     public Optional<WorkflowDefinition> find(String name) {

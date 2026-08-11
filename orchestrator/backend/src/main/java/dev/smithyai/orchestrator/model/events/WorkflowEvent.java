@@ -164,4 +164,24 @@ public interface WorkflowEvent {
             return "ci.recovered";
         }
     }
+
+    // ── Internal ────────────────────────────────
+
+    /**
+     * One run telling another something, without going out through the VCS.
+     *
+     * <p>The only event here that no provider produces. A child used to reach
+     * its parent by posting a comment the parent string-matched back out of the
+     * bot's own output; a definition names this as {@code signal:<name>} the
+     * same way it names any other event.
+     *
+     * @param info the repository the sender was working in, so a signal reads
+     *             like any other event in a template
+     */
+    record Signal(RepoInfo info, String signal, java.util.Map<String, Object> payload) implements WorkflowEvent {
+        @Override
+        public String name() {
+            return "signal:" + signal;
+        }
+    }
 }

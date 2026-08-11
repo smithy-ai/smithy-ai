@@ -44,7 +44,7 @@ class GateAndSignalTest {
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         store = new RunStore(JdbcClient.create((DataSource) dataSource), new ObjectMapper());
         gate = new GateAwaitAction(store);
-        signal = new SignalEmitAction(store);
+        signal = new SignalEmitAction(store, null);
     }
 
     private static WorkflowEvent event() {

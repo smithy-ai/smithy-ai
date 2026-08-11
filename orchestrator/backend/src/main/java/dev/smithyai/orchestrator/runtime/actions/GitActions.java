@@ -33,7 +33,7 @@ public class GitActions {
 
     /** Fast-forward the working tree — what a human push into the branch requires. */
     @Bean
-    WorkflowAction gitPullAction(RunEnvironments environments) {
+    public WorkflowAction gitPullAction(RunEnvironments environments) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -69,7 +69,7 @@ public class GitActions {
      * transition reuses the recorded outcome.
      */
     @Bean
-    WorkflowAction gitPushAction(RunEnvironments environments) {
+    public WorkflowAction gitPushAction(RunEnvironments environments) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -113,7 +113,7 @@ public class GitActions {
 
     /** Whether the working tree has anything uncommitted — a guard for a following step's {@code if:}. */
     @Bean
-    WorkflowAction gitStatusAction(RunEnvironments environments) {
+    public WorkflowAction gitStatusAction(RunEnvironments environments) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -149,7 +149,7 @@ public class GitActions {
      * a shell script.
      */
     @Bean
-    WorkflowAction execAction(RunEnvironments environments) {
+    public WorkflowAction execAction(RunEnvironments environments) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -184,7 +184,7 @@ public class GitActions {
 
     /** Ask the agent to commit anything it left in the working tree. */
     @Bean
-    WorkflowAction agentEnsureCommittedAction(RunEnvironments environments) {
+    public WorkflowAction agentEnsureCommittedAction(RunEnvironments environments) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -212,7 +212,7 @@ public class GitActions {
 
     /** Release the run's container. Its history stays in the run store. */
     @Bean
-    WorkflowAction instanceDestroyAction(RunEnvironments environments) {
+    public WorkflowAction instanceDestroyAction(RunEnvironments environments) {
         return new WorkflowAction() {
             @Override
             public String type() {

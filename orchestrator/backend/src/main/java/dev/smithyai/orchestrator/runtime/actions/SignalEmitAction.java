@@ -1,5 +1,7 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
+import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.runtime.engine.SignalDelivery;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -25,9 +27,11 @@ import org.springframework.stereotype.Component;
 public class SignalEmitAction implements WorkflowAction {
 
     private final RunStore store;
+    private final SignalDelivery delivery;
 
-    public SignalEmitAction(RunStore store) {
+    public SignalEmitAction(RunStore store, @org.springframework.context.annotation.Lazy SignalDelivery delivery) {
         this.store = store;
+        this.delivery = delivery;
     }
 
     @Override
@@ -51,9 +55,25 @@ public class SignalEmitAction implements WorkflowAction {
 
         store.appendEvent(target, "signal:" + name, payload);
         int released = store.satisfyWait(target, name);
+        boolean handled = deliver(context, target, name, payload);
 
         log.info("Run {} signalled '{}' to {} (released {} wait(s))", context.run().id(), name, target, released);
-        return Map.of("signal", name, "to", target, "released", released);
+        return Map.of("signal", name, "to", target, "released", released, "handled", handled);
+    }
+
+    /**
+     * Wake the target if it has a transition for this signal. Never fatal to
+     * the sender: a coordinator that fails to react must not roll back the
+     * child's work, which has already happened.
+     */
+    private boolean deliver(ActionContext context, String target, String name, Map<String, Object> payload) {
+        if (delivery == null) return false;
+        try {
+            return delivery.deliver(target, new WorkflowEvent.Signal(context.event().info(), name, payload));
+        } catch (RuntimeException e) {
+            log.error("Run {} could not react to signal '{}'", target, name, e);
+            return false;
+        }
     }
 
     /** {@code to: parent} or an explicit run id; the parent is the common case. */

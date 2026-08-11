@@ -112,7 +112,7 @@ class RunEngineTest {
                 new RunSpawnAction(store),
                 new RunAwaitAction(store),
                 new GateAwaitAction(store),
-                new SignalEmitAction(store),
+                new SignalEmitAction(store, null),
                 state.stateSetAction(store),
                 state.stateVarAction(store),
                 state.metricsRecordAction(store)

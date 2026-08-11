@@ -32,7 +32,7 @@ public class CiActions {
      * comment or an issue label.
      */
     @Bean
-    WorkflowAction ciRetryGuardAction(RunStore store, CiConfig ciConfig) {
+    public WorkflowAction ciRetryGuardAction(RunStore store, CiConfig ciConfig) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -67,7 +67,7 @@ public class CiActions {
 
     /** Clear the counters — the pipeline went green, or a human said carry on. */
     @Bean
-    WorkflowAction ciResetAction(RunStore store) {
+    public WorkflowAction ciResetAction(RunStore store) {
         return new WorkflowAction() {
             @Override
             public String type() {

@@ -24,7 +24,7 @@ public class PullRequestActions {
      * landed between the provider call and the record of it.
      */
     @Bean
-    WorkflowAction prCreateAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prCreateAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -71,7 +71,7 @@ public class PullRequestActions {
     }
 
     @Bean
-    WorkflowAction prCommentAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prCommentAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -94,7 +94,7 @@ public class PullRequestActions {
     }
 
     @Bean
-    WorkflowAction prRequestReviewAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prRequestReviewAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -130,7 +130,7 @@ public class PullRequestActions {
      * ingestion on a provider round trip for every event.
      */
     @Bean
-    WorkflowAction prReadAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prReadAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
         return new WorkflowAction() {
             @Override
             public String type() {

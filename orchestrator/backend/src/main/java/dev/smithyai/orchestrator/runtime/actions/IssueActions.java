@@ -30,7 +30,7 @@ public class IssueActions {
      * The parent link is recorded in the run store by {@code correlate}.
      */
     @Bean
-    WorkflowAction issueCreateAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public WorkflowAction issueCreateAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -62,7 +62,7 @@ public class IssueActions {
 
     /** Assign an issue — how a coordinator hands a child issue to the bot. */
     @Bean
-    WorkflowAction issueAssignAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public WorkflowAction issueAssignAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -96,7 +96,7 @@ public class IssueActions {
     }
 
     @Bean
-    WorkflowAction issueLabelAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public WorkflowAction issueLabelAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -128,7 +128,7 @@ public class IssueActions {
 
     /** Read an issue back from the tracker, which is ground truth for its state. */
     @Bean
-    WorkflowAction issueReadAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public WorkflowAction issueReadAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
         return new WorkflowAction() {
             @Override
             public String type() {

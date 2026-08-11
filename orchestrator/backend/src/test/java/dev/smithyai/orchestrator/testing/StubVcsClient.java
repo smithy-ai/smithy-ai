@@ -27,7 +27,11 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     public final List<String> issueComments = new ArrayList<>();
     public final List<String> prComments = new ArrayList<>();
     public final List<PrData> createdPrs = new ArrayList<>();
-    public final List<String> createdIssues = new ArrayList<>();
+
+    /** Where an issue was created and what it says — a coordinator's fan-out is judged on this. */
+    public record CreatedIssue(String owner, String repo, String issueRef, String title, String body) {}
+
+    public final List<CreatedIssue> createdIssues = new ArrayList<>();
     public final Map<String, String> repositoryFiles = new ConcurrentHashMap<>();
 
     /** Repositories that exist; anything not listed is reported missing. */
@@ -63,16 +67,9 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
 
     @Override
     public IssueData createIssue(String owner, String repo, String title, String body, List<String> labels) {
-        createdIssues.add(title);
-        return new IssueData(
-            String.valueOf(createdIssues.size()),
-            title,
-            body,
-            "open",
-            List.of(),
-            "main",
-            labels == null ? List.of() : labels
-        );
+        String issueRef = String.valueOf(createdIssues.size() + 1);
+        createdIssues.add(new CreatedIssue(owner, repo, issueRef, title, body));
+        return new IssueData(issueRef, title, body, "open", List.of(), "main", labels == null ? List.of() : labels);
     }
 
     @Override

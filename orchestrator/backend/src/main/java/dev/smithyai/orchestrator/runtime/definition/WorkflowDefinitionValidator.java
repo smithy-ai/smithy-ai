@@ -20,8 +20,16 @@ public class WorkflowDefinitionValidator {
             errors.add("metadata.name is required");
         }
 
-        validateRouting(errors, definition);
-        validateState(errors, definition);
+        // A workflow that extends another contributes only variables: its
+        // routing and states come from the base, so requiring them here would
+        // make the common case — configuring a shipped workflow — impossible.
+        boolean extending = definition.metadata() != null && !isBlank(definition.metadata().extendsWorkflow());
+        if (!extending) {
+            validateRouting(errors, definition);
+            validateState(errors, definition);
+        } else if (definition.state() != null || !definition.routing().isEmpty()) {
+            errors.add("a workflow with metadata.extends may only set vars, not routing or state");
+        }
         validateCompositeActions(errors, definition);
 
         if (!errors.isEmpty()) {

@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-public class RunEngine {
+public class RunEngine implements SignalDelivery {
 
     private final WorkflowRegistry registry;
     private final WorkflowRouter router;
@@ -79,16 +79,17 @@ public class RunEngine {
 
     private Outcome apply(WorkflowRouter.Decision decision, WorkflowEvent event) {
         var definition = registry.require(decision.workflowName());
-        var existing = store.findByCorrelation(CorrelationKind.KEY, decision.key());
+        String key = scopedKey(decision);
+        var existing = store.findByCorrelation(CorrelationKind.KEY, key);
 
         return switch (decision.action()) {
-            case create -> dispatch(definition, existing.orElseGet(() -> create(definition, decision.key())), event);
+            case create -> dispatch(definition, existing.orElseGet(() -> create(definition, key)), event);
             case dispatch -> existing
                 .map(run -> dispatch(definition, run, event))
                 .orElseGet(() -> {
                     // Normal, not an error: an event about work this workflow
                     // never started — a human's pull request, someone else's issue.
-                    log.debug("{}: no run for key {}", decision.workflowName(), decision.key());
+                    log.debug("{}: no run for key {}", decision.workflowName(), key);
                     return Outcome.ignored(decision.workflowName());
                 });
             case destroy -> existing
@@ -96,6 +97,15 @@ public class RunEngine {
                 .orElseGet(() -> Outcome.ignored(decision.workflowName()));
             case ignore -> Outcome.ignored(decision.workflowName());
         };
+    }
+
+    /**
+     * A routing key is only unique within its workflow: two workflows may both
+     * track the same story, and a shared correlation row would make the second
+     * silently take over the first's run.
+     */
+    private static String scopedKey(WorkflowRouter.Decision decision) {
+        return decision.workflowName() + "|" + decision.key();
     }
 
     private Run create(WorkflowDefinition definition, String key) {
@@ -190,8 +200,33 @@ public class RunEngine {
         return payload;
     }
 
-    /** The run a routing key points at, for callers that only want to look. */
-    public Optional<Run> findByKey(String key) {
-        return store.findByCorrelation(CorrelationKind.KEY, key);
+    /**
+     * Deliver a signal straight to one run.
+     *
+     * <p>The transition runs on the sender's thread. That is deliberate: a
+     * child announcing it is ready and its coordinator reacting are one causal
+     * step, and queueing the second half would let the coordinator observe a
+     * child state that has already moved on.
+     */
+    @Override
+    public boolean deliver(String targetRunId, WorkflowEvent.Signal signal) {
+        var run = store.find(targetRunId);
+        if (run.isEmpty()) {
+            log.warn("Signal {} addressed to unknown run {}", signal.name(), targetRunId);
+            return false;
+        }
+        var definition = registry.find(run.get().workflowName());
+        if (definition.isEmpty()) {
+            // The target runs a hardcoded flow, or a definition that is no
+            // longer loaded. The signal is still recorded in its history.
+            log.debug("Run {} has no loaded definition; signal {} recorded only", targetRunId, signal.name());
+            return false;
+        }
+        return dispatch(definition.get(), run.get(), signal).handled();
+    }
+
+    /** The run a workflow's routing key points at, for callers that only want to look. */
+    public Optional<Run> findByKey(String workflowName, String key) {
+        return store.findByCorrelation(CorrelationKind.KEY, workflowName + "|" + key);
     }
 }

@@ -1,0 +1,232 @@
+# Coordinates one feature across several repositories.
+#
+# The behaviour reference is the hardcoded "foreman" flow parked at the
+# `parked/foreman-reference` tag — 1033 lines of Java that kept its children in
+# a JSON file inside its own container and encoded parentage as a "Parent story:"
+# marker in each child issue's body. None of that is here: children are ordinary
+# issues, and the parent/child graph lives in the run store.
+#
+# Nothing in this file is provider-specific. A parent story in Jira with children
+# as GitLab issues works the same as a story and children in one Forgejo
+# instance, because no tracker-native subtask, epic or tasklist is involved.
+#
+# CONFIGURATION: `catalog` is empty on purpose — the built-in cannot know your
+# repositories. Drop a file named feature-coordinator.yml into the workflow
+# directory to replace this one, or write your own workflow with
+# `metadata.extends: feature-coordinator` and just your catalog under `vars`.
+
+apiVersion: smithy.ai/v1alpha1
+kind: Workflow
+metadata:
+  name: feature-coordinator
+
+vars:
+  # Repositories this coordinator may fan work out to. The agent plans against
+  # this list and nothing else.
+  catalog: []
+  # The workflow each child issue is worked by.
+  childWorkflow: smithy-development
+  # Who child issues are assigned to once their dependencies are done.
+  botUser: smithy
+  # A child plan that still misses after this many rounds is escalated to a
+  # human rather than argued with indefinitely.
+  maxReviewRounds: 3
+  # A plan review is several focused passes that must all agree — different
+  # lenses catch different failure modes, and one combined pass reliably misses
+  # the cross-repository contract mismatches this exists to catch.
+  reviewLenses:
+    - >-
+      contract consistency — endpoint paths, payload shapes, queue and message
+      names and config keys must match the feature plan and every sibling plan
+    - >-
+      scope and acceptance criteria — the plan covers the issue's intent
+      completely, and nothing outside it
+    - >-
+      testing approach — the tests the issue's acceptance criteria demand are
+      actually planned
+
+routing:
+  - event: issue.assigned
+    action: create
+    key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
+  - event: [issue.plan_approved, issue.commented]
+    action: dispatch
+    key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
+
+state:
+  initial: new
+  terminal: done
+
+  new:
+    on:
+      issue.assigned:
+        to: awaiting_approval
+        steps:
+          # One workspace for the whole feature. Only the first catalog
+          # repository is cloned: with a large catalog, cloning everything up
+          # front costs more than the planning turn itself, and the agent asks
+          # for the rest as its plan needs them.
+          - uses: container.init
+            id: workspace
+            with:
+              name: "coordinator.{{ repo.owner }}.{{ repo.name }}.{{ event.issueRef }}"
+              cloneUrl: "{{ repo.cloneUrl }}"
+              branch: ""
+
+          - uses: agent.runStructured
+            id: plan
+            with:
+              template: coordinator_plan.md.j2
+              tools: [Read, Glob, Grep, Bash]
+              vars:
+                story_ref: "{{ event.issueRef }}"
+                story_title: "{{ event.issueTitle }}"
+                story_body: "{{ event.issueBody }}"
+                catalog: "{{ vars.catalog }}"
+              # owner and repo are separate fields rather than one "owner/repo"
+              # string, so no step has to take a substring of anything.
+              output:
+                summary: string
+                issues:
+                  - owner: string
+                    repo: string
+                    title: string
+                    body: string
+                    dependsOn: [integer]
+
+          - uses: state.var
+            with:
+              plan: "{{ steps.plan.issues }}"
+              storyOwner: "{{ repo.owner }}"
+              storyRepo: "{{ repo.name }}"
+              storyRef: "{{ event.issueRef }}"
+
+          - uses: issue.comment
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              issue: "{{ event.issueRef }}"
+              body: "{{ steps.plan.summary }}"
+
+          - uses: metrics.record
+            with:
+              name: plan_posted
+              issues: "{{ steps.plan.issues }}"
+
+          # Nothing happens until a human approves. The gate holds across
+          # restarts because it is a row in the run store, not a parked thread.
+          - uses: gate.await
+            id: approval
+            with:
+              key: plan-approval
+
+  awaiting_approval:
+    on:
+      issue.plan_approved:
+        to: executing
+        steps:
+          - uses: foreach
+            id: fanout
+            with:
+              items: "{{ vars.plan }}"
+            steps:
+              # An ordinary issue in the target repository. No sub-issue, no
+              # epic, no tasklist — not every tracker has them, and the story
+              # may not even live in the same system as the work.
+              - uses: issue.create
+                id: child_issue
+                with:
+                  owner: "{{ item.owner }}"
+                  repo: "{{ item.repo }}"
+                  title: "{{ item.title }}"
+                  body: "{{ item.body }}"
+
+              - uses: run.spawn
+                id: child
+                with:
+                  workflow: "{{ vars.childWorkflow }}"
+                  state: new
+                  owner: "{{ item.owner }}"
+                  repo: "{{ item.repo }}"
+                  issueRef: "{{ steps.child_issue.issueRef }}"
+                  index: "{{ index }}"
+                  dependsOn: "{{ item.dependsOn }}"
+
+              # This replaces the "Parent story:" marker the foreman appended to
+              # each issue body and regex-parsed back out: an event about this
+              # issue now finds its run through the store.
+              - uses: correlate
+                with:
+                  kind: issue
+                  ref: "{{ item.owner }}/{{ item.repo }}#{{ steps.child_issue.issueRef }}"
+                  run: "{{ steps.child.runId }}"
+
+          # Only the children whose dependencies are already satisfied start —
+          # the rest wait for the wave they belong to.
+          - uses: run.wave
+            id: wave
+
+          - uses: foreach
+            with:
+              items: "{{ steps.wave.released }}"
+            steps:
+              - uses: issue.assign
+                with:
+                  owner: "{{ item.owner }}"
+                  repo: "{{ item.repo }}"
+                  issue: "{{ item.issueRef }}"
+                  assignees: "{{ vars.botUser }}"
+
+          - uses: metrics.record
+            with:
+              name: children_spawned
+              children: "{{ steps.fanout.count }}"
+
+  executing:
+    on:
+      # A child announcing it finished, straight from its run rather than via a
+      # comment on the story that this workflow would have to recognise.
+      "signal:child-done":
+        steps:
+          - uses: run.wave
+            id: wave
+
+          - uses: foreach
+            with:
+              items: "{{ steps.wave.released }}"
+            steps:
+              - uses: issue.assign
+                with:
+                  owner: "{{ item.owner }}"
+                  repo: "{{ item.repo }}"
+                  issue: "{{ item.issueRef }}"
+                  assignees: "{{ vars.botUser }}"
+
+          - uses: issue.comment
+            if: "{{ steps.wave.released | length > 0 }}"
+            with:
+              owner: "{{ vars.storyOwner }}"
+              repo: "{{ vars.storyRepo }}"
+              issue: "{{ vars.storyRef }}"
+              body: "A child finished — next wave assigned."
+
+          - uses: issue.comment
+            if: "{{ steps.wave.complete }}"
+            with:
+              owner: "{{ vars.storyOwner }}"
+              repo: "{{ vars.storyRepo }}"
+              issue: "{{ vars.storyRef }}"
+              body: "Every child issue is done — this feature is complete."
+
+          - uses: state.set
+            if: "{{ steps.wave.complete }}"
+            with:
+              state: done
+
+          - uses: metrics.record
+            if: "{{ steps.wave.complete }}"
+            with:
+              name: run_completed
+
+  done:
+    on: {}
