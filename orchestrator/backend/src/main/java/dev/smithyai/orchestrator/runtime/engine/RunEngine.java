@@ -36,6 +36,7 @@ public class RunEngine implements SignalDelivery {
     private final RunStore store;
     private final RunEnvironments environments;
     private final RepositoryWorkflowLoader repositoryWorkflows;
+    private final EventDebouncer debouncer;
 
     public RunEngine(
         WorkflowRegistry registry,
@@ -43,7 +44,8 @@ public class RunEngine implements SignalDelivery {
         StepExecutor executor,
         RunStore store,
         RunEnvironments environments,
-        RepositoryWorkflowLoader repositoryWorkflows
+        RepositoryWorkflowLoader repositoryWorkflows,
+        EventDebouncer debouncer
     ) {
         this.registry = registry;
         this.router = router;
@@ -51,6 +53,7 @@ public class RunEngine implements SignalDelivery {
         this.store = store;
         this.environments = environments;
         this.repositoryWorkflows = repositoryWorkflows;
+        this.debouncer = debouncer;
     }
 
     /** What an event did, for logs and for the tests that assert on routing. */
@@ -190,6 +193,22 @@ public class RunEngine implements SignalDelivery {
         if (transition == null) {
             log.debug("{}: state '{}' does not handle {}", run.workflowName(), run.state(), event.name());
             return Outcome.ignored(definition.metadata().name());
+        }
+
+        var window = transition.debounceWindow();
+        if (window != null && !(event instanceof WorkflowEvent.Batch)) {
+            // The burst has not finished arriving yet. Nothing is lost: the
+            // transition runs once the window closes, over everything collected.
+            String batchKey = run.id() + ":" + event.name();
+            debouncer.submit(batchKey, window, event, events ->
+                dispatch(
+                    definition,
+                    store.find(run.id()).orElse(run),
+                    new WorkflowEvent.Batch(events.getLast(), events)
+                )
+            );
+            store.updateStatus(run.id(), RunStatus.WAITING);
+            return new Outcome(definition.metadata().name(), run.id(), run.state(), run.state(), false);
         }
 
         String transitionId = StepExecutor.transitionId(run.state(), event.name());

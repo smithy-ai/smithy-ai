@@ -116,6 +116,14 @@ public class ExpressionRenderer {
 
     private Map<String, Object> eventView(WorkflowEvent event) {
         if (event == null) return Map.of();
+        // A batch reads as its most recent member, plus the whole burst under
+        // `event.batch` for a step that wants to answer all of it at once.
+        if (event instanceof WorkflowEvent.Batch batch) {
+            var view = new LinkedHashMap<>(eventView(batch.latest()));
+            view.put("batch", batch.events().stream().map(this::eventView).toList());
+            view.put("batchSize", batch.events().size());
+            return view;
+        }
         var view = new LinkedHashMap<String, Object>();
         view.put("name", event.name());
         switch (event) {

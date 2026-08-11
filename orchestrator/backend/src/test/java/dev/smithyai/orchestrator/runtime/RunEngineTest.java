@@ -78,7 +78,11 @@ class RunEngineTest {
             on:
               issue.commented:
                 to: done
+                debounce: 150ms
                 steps:
+                  - uses: state.var
+                    with:
+                      handledComments: "{{ event.batchSize }}"
                   - uses: metrics.record
                     with:
                       name: work_finished
@@ -136,7 +140,8 @@ class RunEngineTest {
             new StepExecutor(actions, renderer, store),
             store,
             new RunEnvironments(store, null, null),
-            null
+            null,
+            new EventDebouncer()
         );
     }
 
@@ -189,14 +194,42 @@ class RunEngineTest {
     }
 
     @Test
-    void reachingTheTerminalStateCompletesTheRun() {
+    void reachingTheTerminalStateCompletesTheRun() throws Exception {
         engine.handle(assigned());
-        engine.handle(approved());
-        var outcome = engine.handle(commented()).getFirst();
+        var started = engine.handle(approved()).getFirst();
+        engine.handle(commented());
+        settleBatch();
 
-        var run = store.find(outcome.runId()).orElseThrow();
+        var run = store.find(started.runId()).orElseThrow();
         assertEquals("done", run.state());
         assertEquals(RunStatus.COMPLETED, run.status());
+    }
+
+    @Test
+    void aBurstOfTheSameEventBecomesOneTransition() throws Exception {
+        engine.handle(assigned());
+        var started = engine.handle(approved()).getFirst();
+
+        // Three comments land inside the window — a reviewer's burst. Handling
+        // each on its own would mean three agent turns and three commits.
+        engine.handle(commented());
+        engine.handle(commented());
+        engine.handle(commented());
+        settleBatch();
+
+        var run = store.find(started.runId()).orElseThrow();
+        assertEquals(3, run.vars().get("handledComments"), "the steps saw the whole burst");
+        var finished = store
+            .findEvents(run.id())
+            .stream()
+            .filter(event -> "work_finished".equals(event.type()))
+            .count();
+        assertEquals(1, finished, "and ran once");
+    }
+
+    /** Wait out the definition's debounce window. */
+    private static void settleBatch() throws InterruptedException {
+        Thread.sleep(400);
     }
 
     @Test

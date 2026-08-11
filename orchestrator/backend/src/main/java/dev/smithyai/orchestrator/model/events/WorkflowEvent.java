@@ -184,4 +184,27 @@ public interface WorkflowEvent {
             return "signal:" + signal;
         }
     }
+
+    /**
+     * A burst of the same event, delivered together.
+     *
+     * <p>Routes exactly like one of them, because it is one of them as far as a
+     * definition is concerned — the difference is that the steps can see all of
+     * them, so a reviewer's four comments become one agent turn and one commit
+     * rather than four of each.
+     *
+     * @param latest the event that closed the batch, and the one whose fields a
+     *               template reads when it does not care about the rest
+     */
+    record Batch(WorkflowEvent latest, List<WorkflowEvent> events) implements WorkflowEvent {
+        @Override
+        public RepoInfo info() {
+            return latest.info();
+        }
+
+        @Override
+        public String name() {
+            return latest.name();
+        }
+    }
 }

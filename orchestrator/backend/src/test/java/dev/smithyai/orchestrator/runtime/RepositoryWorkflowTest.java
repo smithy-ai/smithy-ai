@@ -113,7 +113,8 @@ class RepositoryWorkflowTest {
             new StepExecutor(actions, renderer, store),
             store,
             new RunEnvironments(store, null, null),
-            new RepositoryWorkflowLoader(vcs, parser)
+            new RepositoryWorkflowLoader(vcs, parser),
+            new EventDebouncer()
         );
     }
 

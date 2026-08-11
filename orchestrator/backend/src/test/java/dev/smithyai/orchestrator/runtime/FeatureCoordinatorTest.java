@@ -161,7 +161,8 @@ class FeatureCoordinatorTest {
             executor,
             store,
             new RunEnvironments(store, null, null),
-            null
+            null,
+            new EventDebouncer()
         );
     }
 
