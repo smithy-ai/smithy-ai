@@ -16,6 +16,7 @@ import {
 import { fetchInstances, fetchMetrics } from "../api/client";
 import { LogsPanel, ORCHESTRATOR_LOG_SOURCE } from "./LogsPanel";
 import { SessionPanel } from "./SessionPanel";
+import { RunsTable } from "./RunsTable";
 
 export function DashboardPage() {
   const { data: instances, isLoading } = useQuery({
@@ -69,6 +70,7 @@ export function DashboardPage() {
           <Tabs value={activeTab} onChange={setActiveTab}>
             <Tabs.List mb="md">
               <Tabs.Tab value="instances">Instances</Tabs.Tab>
+              <Tabs.Tab value="runs">Runs</Tabs.Tab>
               <Tabs.Tab value="session">Session</Tabs.Tab>
               <Tabs.Tab value="logs">Logs</Tabs.Tab>
             </Tabs.List>
@@ -151,6 +153,10 @@ export function DashboardPage() {
                   </Table.Tbody>
                 </Table>
               )}
+            </Tabs.Panel>
+
+            <Tabs.Panel value="runs">
+              <RunsTable />
             </Tabs.Panel>
 
             <Tabs.Panel value="session">

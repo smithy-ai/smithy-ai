@@ -1,9 +1,13 @@
 package dev.smithyai.orchestrator.web;
 
+import dev.smithyai.orchestrator.runtime.store.RunEvent;
+import dev.smithyai.orchestrator.runtime.store.RunRecorder;
+import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.web.dto.InstanceDto;
 import dev.smithyai.orchestrator.web.dto.MessageRequest;
+import dev.smithyai.orchestrator.web.dto.RunDto;
 import dev.smithyai.orchestrator.web.dto.TakeoverDto;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowFactory;
 import dev.smithyai.orchestrator.workflow.shared.AbstractWorkflowInstance;
@@ -30,20 +34,77 @@ public class DashboardController {
     private final List<AbstractWorkflowFactory<?>> factories;
     private final ContainerService containerService;
     private final MetricsRecorder metrics;
+    private final RunStore runStore;
 
     public DashboardController(
         List<AbstractWorkflowFactory<?>> factories,
         ContainerService containerService,
-        MetricsRecorder metrics
+        MetricsRecorder metrics,
+        RunStore runStore
     ) {
         this.factories = factories;
         this.containerService = containerService;
         this.metrics = metrics;
+        this.runStore = runStore;
     }
 
     @GetMapping("/dashboard/metrics")
     public java.util.Map<String, Object> metricsSummary() {
         return metrics.summarize();
+    }
+
+    /**
+     * Runs, newest first — including finished and failed ones. This is the view
+     * that survives a container being removed.
+     */
+    @GetMapping("/dashboard/runs")
+    public List<RunDto> listRuns(@RequestParam(defaultValue = "100") int limit) {
+        var running = new HashSet<>(containerService.listManagedContainers());
+        return runStore
+            .findRecent(Math.clamp(limit, 1, 500))
+            .stream()
+            .map(run -> {
+                var containers = runStore.findEnvironmentNames(run.id(), RunRecorder.CONTAINER);
+                boolean live = containers.stream().anyMatch(running::contains);
+                return RunDto.from(run, containers, live);
+            })
+            .toList();
+    }
+
+    @GetMapping("/dashboard/runs/{runId}")
+    public ResponseEntity<RunDto> getRun(@PathVariable String runId) {
+        return runStore
+            .find(runId)
+            .map(run -> {
+                var containers = runStore.findEnvironmentNames(run.id(), RunRecorder.CONTAINER);
+                var running = new HashSet<>(containerService.listManagedContainers());
+                return ResponseEntity.ok(RunDto.from(run, containers, containers.stream().anyMatch(running::contains)));
+            })
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /** A run's timeline, oldest first. */
+    @GetMapping("/dashboard/runs/{runId}/events")
+    public ResponseEntity<List<RunEvent>> getRunEvents(@PathVariable String runId) {
+        if (runStore.find(runId).isEmpty()) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(runStore.findEvents(runId));
+    }
+
+    /** Direct children of a run — the shape a fan-out workflow produces. */
+    @GetMapping("/dashboard/runs/{runId}/children")
+    public ResponseEntity<List<RunDto>> getRunChildren(@PathVariable String runId) {
+        if (runStore.find(runId).isEmpty()) return ResponseEntity.notFound().build();
+        var running = new HashSet<>(containerService.listManagedContainers());
+        return ResponseEntity.ok(
+            runStore
+                .findChildren(runId)
+                .stream()
+                .map(child -> {
+                    var containers = runStore.findEnvironmentNames(child.id(), RunRecorder.CONTAINER);
+                    return RunDto.from(child, containers, containers.stream().anyMatch(running::contains));
+                })
+                .toList()
+        );
     }
 
     @GetMapping("/dashboard/instances")

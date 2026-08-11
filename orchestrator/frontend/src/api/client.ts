@@ -19,6 +19,52 @@ export async function fetchInstances(): Promise<Instance[]> {
   return res.json();
 }
 
+/**
+ * A workflow run. Unlike an Instance, this exists for finished and failed runs
+ * too — the runs list is history, not a view of the running containers.
+ */
+export interface Run {
+  id: string;
+  workflowName: string;
+  status: string;
+  state: string;
+  parentRunId: string | null;
+  containers: string[];
+  live: boolean;
+  createdAt: string;
+  updatedAt: string;
+  terminalAt: string | null;
+}
+
+export async function fetchRuns(limit = 100): Promise<Run[]> {
+  const res = await fetch(`/api/dashboard/runs?limit=${limit}`);
+  if (res.status === 401 || res.status === 403) {
+    window.location.href = "/login";
+    return [];
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface RunEvent {
+  id: number;
+  runId: string;
+  seq: number;
+  ts: string;
+  type: string;
+  payload: Record<string, unknown>;
+}
+
+export async function fetchRunEvents(runId: string): Promise<RunEvent[]> {
+  const res = await fetch(`/api/dashboard/runs/${encodeURIComponent(runId)}/events`);
+  if (res.status === 401 || res.status === 403) {
+    window.location.href = "/login";
+    return [];
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 export interface MetricsSummary {
   counts: Record<string, number>;
 }
