@@ -389,6 +389,38 @@ public class ReviewActions {
         };
     }
 
+    /** A link to a pull request that works outside the network the orchestrator is on. */
+    @Bean
+    public WorkflowAction prLinkAction(
+        @Qualifier("smithyVcsClient") VcsClient vcs,
+        dev.smithyai.orchestrator.config.VcsProviderConfig vcsConfig
+    ) {
+        return new WorkflowAction() {
+            @Override
+            public String type() {
+                return "pr.link";
+            }
+
+            @Override
+            public boolean idempotent() {
+                return true;
+            }
+
+            @Override
+            public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                return Map.of(
+                    "url",
+                    vcs.prUrl(
+                        vcsConfig.resolvedExternalUrl(),
+                        required(input, "owner"),
+                        required(input, "repo"),
+                        intInput(input, "number", 0)
+                    )
+                );
+            }
+        };
+    }
+
     /** A browsable link to a file on a branch — provider URL shapes differ. */
     @Bean
     public WorkflowAction fileUrlAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
