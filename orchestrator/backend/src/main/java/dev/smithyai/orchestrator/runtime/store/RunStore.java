@@ -215,6 +215,90 @@ public class RunStore {
             .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
+    // ── Steps ────────────────────────────────────────────────
+
+    /**
+     * Record that a step is starting. Returns false if it already completed —
+     * the caller should skip it and reuse {@link #findStepOutput}.
+     */
+    @Transactional
+    public boolean beginStep(String runId, String transitionId, String stepId) {
+        var existing = db
+            .sql("SELECT status FROM run_steps WHERE run_id = ? AND transition_id = ? AND step_id = ?")
+            .params(runId, transitionId, stepId)
+            .query(String.class)
+            .optional();
+        if (existing.filter("completed"::equals).isPresent()) return false;
+
+        db
+            .sql(
+                """
+                INSERT INTO run_steps (run_id, transition_id, step_id, status, started_at) VALUES (?, ?, ?, 'running', ?)
+                ON CONFLICT (run_id, transition_id, step_id) DO UPDATE SET status = 'running', started_at = excluded.started_at
+                """
+            )
+            .params(runId, transitionId, stepId, iso(Instant.now()))
+            .update();
+        return true;
+    }
+
+    @Transactional
+    public void completeStep(String runId, String transitionId, String stepId, Map<String, Object> output) {
+        db
+            .sql(
+                """
+                UPDATE run_steps SET status = 'completed', output_json = ?, ended_at = ?
+                WHERE run_id = ? AND transition_id = ? AND step_id = ?
+                """
+            )
+            .params(output == null ? null : writeJson(output), iso(Instant.now()), runId, transitionId, stepId)
+            .update();
+    }
+
+    @Transactional
+    public void failStep(String runId, String transitionId, String stepId, String error) {
+        db
+            .sql(
+                """
+                UPDATE run_steps SET status = 'failed', output_json = ?, ended_at = ?
+                WHERE run_id = ? AND transition_id = ? AND step_id = ?
+                """
+            )
+            .params(writeJson(Map.of("error", String.valueOf(error))), iso(Instant.now()), runId, transitionId, stepId)
+            .update();
+    }
+
+    public Optional<Map<String, Object>> findStepOutput(String runId, String transitionId, String stepId) {
+        return db
+            .sql(
+                """
+                SELECT output_json FROM run_steps
+                WHERE run_id = ? AND transition_id = ? AND step_id = ? AND status = 'completed'
+                """
+            )
+            .params(runId, transitionId, stepId)
+            .query(String.class)
+            .optional()
+            .map(this::readVars);
+    }
+
+    /** Completed step outputs for a transition, keyed by step id. */
+    public Map<String, Map<String, Object>> findStepOutputs(String runId, String transitionId) {
+        var result = new java.util.LinkedHashMap<String, Map<String, Object>>();
+        db
+            .sql(
+                """
+                SELECT step_id, output_json FROM run_steps
+                WHERE run_id = ? AND transition_id = ? AND status = 'completed' ORDER BY started_at
+                """
+            )
+            .params(runId, transitionId)
+            .query((ResultSet rs, int i) -> Map.entry(rs.getString("step_id"), readVars(rs.getString("output_json"))))
+            .list()
+            .forEach(entry -> result.put(entry.getKey(), entry.getValue()));
+        return result;
+    }
+
     // ── Environments ─────────────────────────────────────────
 
     /**
