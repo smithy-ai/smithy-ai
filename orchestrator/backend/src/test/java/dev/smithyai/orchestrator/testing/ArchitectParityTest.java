@@ -61,6 +61,11 @@ class ArchitectParityTest {
         List<String> reviewAnchors
     ) {}
 
+    private static WorkflowEvent.PrMerged prMerged() {
+        var prc = new PrContext(REPO, 3, "Add caching", "Adds a cache layer.", true, "feature/cache", "main");
+        return new WorkflowEvent.PrMerged(prc);
+    }
+
     private static WorkflowEvent.ReviewRequested reviewRequested() {
         var prc = new PrContext(REPO, 3, "Add caching", "Adds a cache layer.", false, "feature/cache", "main");
         return new WorkflowEvent.ReviewRequested(prc);
@@ -98,7 +103,16 @@ class ArchitectParityTest {
         var vcs = new StubVcsClient();
         docker.enqueueClaudeStructured(REVIEW_JSON);
 
-        var store = freshStore("architect-yaml-" + System.identityHashCode(docker));
+        var engine = engineFor(docker, vcs, "architect-yaml-" + System.identityHashCode(docker));
+        var handled = engine.handle(reviewRequested()).stream().filter(RunEngine.Outcome::handled).toList();
+        assertEquals(1, handled.size(), "exactly the reviewer claimed it: " + handled);
+        assertEquals("architect-review", handled.getFirst().workflowName());
+        return observe(docker, vcs);
+    }
+
+    /** The whole engine, wired the way the application wires it. */
+    private RunEngine engineFor(FakeDockerCli docker, StubVcsClient vcs, String storeName) {
+        var store = freshStore(storeName);
         var containers = new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker);
         var environments = new RunEnvironments(store, containers, new KnowledgebaseConfig(false, null, null));
         var renderer = new ExpressionRenderer();
@@ -164,7 +178,7 @@ class ArchitectParityTest {
         );
         registry.loadAll();
 
-        var engine = new RunEngine(
+        return new RunEngine(
             registry,
             new WorkflowRouter(renderer),
             new StepExecutor(actions, renderer, store),
@@ -173,12 +187,6 @@ class ArchitectParityTest {
             new RepositoryWorkflowLoader(vcs, new WorkflowDefinitionParser()),
             new EventDebouncer()
         );
-
-        var handled = engine.handle(reviewRequested()).stream().filter(RunEngine.Outcome::handled).toList();
-        assertEquals(1, handled.size(), "exactly the reviewer claimed it: " + handled);
-        assertEquals("architect-review", handled.getFirst().workflowName());
-
-        return observe(docker, vcs);
     }
 
     // ── The comparison ───────────────────────────────────────
@@ -221,6 +229,113 @@ class ArchitectParityTest {
         // Inline anchoring is the whole value of a review over a comment.
         assertEquals(List.of("src/Main.java:12"), java.reviewAnchors());
         assertEquals(java.reviewAnchors(), yaml.reviewAnchors());
+    }
+
+    // ── Learning from a merged pull request ──────────────────
+
+    /** What the agent decided to write down, in the shape each side asks for. */
+    private static final String LEARNING_JSON = """
+        {"action": "UPDATE",
+         "title": "Cache access goes through the repository layer",
+         "description": "PR #3 argued about this twice."}
+        """;
+
+    private Observed runJavaLearn(FakeDockerCli docker) throws Exception {
+        var vcs = new StubVcsClient();
+        docker.enqueueClaudeStructured(LEARNING_JSON);
+        docker.onExec("symbolic-ref", new dev.smithyai.orchestrator.service.docker.dto.ExecResult(0, "main", ""));
+
+        var factory = new dev.smithyai.orchestrator.workflow.flows.architect.ArchitectLearnFactory(
+            dockerConfig(),
+            vcsProviderConfig(),
+            botConfig(),
+            new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker),
+            new RepositoryConfigResolver(vcs),
+            new PromptRenderer(new DefaultResourceLoader()),
+            vcs,
+            vcs
+        );
+        factory.runs = new RunRecorder(freshStore("learn-java-" + System.identityHashCode(docker)));
+
+        var event = prMerged();
+        factory.getOrCreateInstance("architect.acme.app.learn-3", event).onEvent(event);
+        Thread.sleep(600);
+        return observeLearn(docker, vcs);
+    }
+
+    private Observed runDefinitionLearn(FakeDockerCli docker) {
+        var vcs = new StubVcsClient();
+        docker.enqueueClaudeStructured(LEARNING_JSON);
+        docker.onExec("symbolic-ref", new dev.smithyai.orchestrator.service.docker.dto.ExecResult(0, "main", ""));
+
+        var engine = engineFor(docker, vcs, "learn-yaml-" + System.identityHashCode(docker));
+        var handled = engine.handle(prMerged()).stream().filter(RunEngine.Outcome::handled).toList();
+        assertEquals(1, handled.size(), "exactly the learner claimed it: " + handled);
+        assertEquals("architect-learn", handled.getFirst().workflowName());
+        return observeLearn(docker, vcs);
+    }
+
+    @Test
+    void bothSidesProposeTheGuidelineChangeOnTheGuidelinesRepository() throws Exception {
+        var java = runJavaLearn(new FakeDockerCli());
+        var yaml = runDefinitionLearn(new FakeDockerCli());
+
+        // Proposed, never merged: the people who own the guidelines decide.
+        assertEquals(1, java.reviewSummaries().size(), "the Java flow opens one: " + java.reviewSummaries());
+        assertEquals(java.reviewSummaries(), yaml.reviewSummaries());
+        assertTrue(
+            java.reviewSummaries().getFirst().contains("Cache access goes through the repository layer"),
+            java.reviewSummaries().toString()
+        );
+    }
+
+    @Test
+    void bothSidesPushTheGuidelinesBranchBeforeProposing() throws Exception {
+        var java = runJavaLearn(new FakeDockerCli());
+        var yaml = runDefinitionLearn(new FakeDockerCli());
+
+        assertTrue(
+            java
+                .reviewAnchors()
+                .stream()
+                .anyMatch(c -> c.contains("git push")),
+            java.reviewAnchors().toString()
+        );
+        assertTrue(
+            yaml
+                .reviewAnchors()
+                .stream()
+                .anyMatch(c -> c.contains("git push")),
+            yaml.reviewAnchors().toString()
+        );
+    }
+
+    /** Reuses the Observed shape: summaries are PR titles here, anchors are commands. */
+    private static Observed observeLearn(FakeDockerCli docker, StubVcsClient vcs) {
+        var containers = new ArrayList<String>();
+        var mounts = new ArrayList<String>();
+        var commands = new ArrayList<String>();
+        for (var args : docker.invocations) {
+            if (!args.isEmpty() && "create".equals(args.getFirst())) {
+                int i = args.indexOf("--name");
+                if (i >= 0 && i + 1 < args.size()) containers.add(args.get(i + 1));
+                for (String arg : args) {
+                    if (arg.startsWith("EXTRA_REPOS=") && arg.length() > "EXTRA_REPOS=".length()) {
+                        mounts.add(arg.substring("EXTRA_REPOS=".length()));
+                    }
+                }
+            }
+            if (!args.isEmpty() && "exec".equals(args.getFirst())) commands.add(String.join(" ", args));
+        }
+        return new Observed(
+            containers,
+            mounts,
+            vcs.createdPrs
+                .stream()
+                .map(pr -> pr.title() + " -> " + pr.baseRef())
+                .toList(),
+            commands
+        );
     }
 
     // ── Plumbing ─────────────────────────────────────────────
