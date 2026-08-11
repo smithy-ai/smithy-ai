@@ -12,9 +12,7 @@ import java.util.regex.Pattern;
 
 public final class Naming {
 
-    public static final Pattern CONTAINER_RE = Pattern.compile(
-        "^(smithy|architect|foreman)\\.([^.]+)\\.([^.]+)\\.(.+)$"
-    );
+    public static final Pattern CONTAINER_RE = Pattern.compile("^(smithy|architect)\\.([^.]+)\\.([^.]+)\\.(.+)$");
     public static final Pattern ID_RE = Pattern.compile("^([A-Za-z0-9-]+)(?:\\.(refine|build))?$");
     // Issue ref in a branch: a plain number ("123") or an issue-tracker key ("ECD-4309").
     // Keys are uppercase, slugs lowercase, so the boundary is unambiguous.
