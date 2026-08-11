@@ -24,7 +24,7 @@ public abstract class AbstractWorkflowFactory<T extends AbstractWorkflowInstance
      * is going to replace, so the churn would be thrown away.
      */
     @Autowired
-    protected RunRecorder runs;
+    public RunRecorder runs;
 
     /** The workflow name recorded in the run store, e.g. "smithy-development". */
     protected abstract String workflowName();

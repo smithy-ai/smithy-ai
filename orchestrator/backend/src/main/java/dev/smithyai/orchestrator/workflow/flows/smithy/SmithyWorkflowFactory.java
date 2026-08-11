@@ -115,7 +115,8 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             () -> removeInstance(key)
         )
             .withCiAutofix(ciAutofix)
-            .withMetrics(metrics);
+            .withMetrics(metrics)
+            .withRepositoryConfig(repositoryConfig);
     }
 
     @Override
@@ -146,7 +147,8 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             null
         )
             .withCiAutofix(ciAutofix)
-            .withMetrics(metrics);
+            .withMetrics(metrics)
+            .withRepositoryConfig(repositoryConfig);
     }
 
     @Override
@@ -178,7 +180,8 @@ public class SmithyWorkflowFactory extends AbstractWorkflowFactory<SmithyWorkflo
             state.sessionId()
         )
             .withCiAutofix(ciAutofix)
-            .withMetrics(metrics);
+            .withMetrics(metrics)
+            .withRepositoryConfig(repositoryConfig);
     }
 
     private List<String> augmentTools(List<String> baseTools) {
