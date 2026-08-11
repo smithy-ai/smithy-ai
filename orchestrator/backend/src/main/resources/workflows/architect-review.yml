@@ -1,0 +1,142 @@
+# Reviews a pull request against the architectural guidelines a repository points at.
+#
+# The port of workflow/flows/architect/ArchitectReviewInstance. Distinct from the
+# development workflow in one important way: it holds no working state and writes
+# nothing to the branch. It reads, reviews, answers follow-up questions, and goes.
+#
+# `workflow.engine` is off by default, so the Java is still what runs until parity
+# has been demonstrated.
+
+apiVersion: smithy.ai/v1alpha1
+kind: Workflow
+metadata:
+  name: architect-review
+  version: "1"
+
+vars:
+  # The reviewer commits nothing, so it needs no write tools.
+  tools: [Read, Glob, Grep, Bash]
+  gitUsername: "The Architect"
+
+routing:
+  # Being asked for a review is the only way this starts. It never volunteers.
+  - event: pr.review_requested
+    action: create
+    key: "{{ repo.fullName }}!{{ event.prNumber }}"
+
+  # Follow-up questions on the review it left.
+  - event: pr.commented
+    action: dispatch
+    by: pr
+
+state:
+  initial: new
+  terminal: done
+
+  new:
+    on:
+      pr.review_requested:
+        to: reviewing
+        steps:
+          # Where this repository keeps its guidelines. Read from the
+          # repository's own config, so a team decides that for themselves.
+          - uses: repo.context
+            id: context
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+
+          # The branch under review, with the guidelines cloned beside it: the
+          # agent has to read both to say whether one follows the other.
+          - uses: container.init
+            with:
+              name: "architect.{{ repo.owner }}.{{ repo.name }}.pr-{{ event.prNumber }}"
+              cloneUrl: "{{ repo.cloneUrl }}"
+              branch: "{{ event.headBranch }}"
+              sourceBranch: "{{ event.baseBranch }}"
+              gitUsername: "{{ vars.gitUsername }}"
+              extraRepos:
+                - cloneUrl: "{{ steps.context.cloneUrl }}"
+                  path: /context-repo
+
+          - uses: state.var
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              prNumber: "{{ event.prNumber }}"
+
+          - uses: correlate
+            with:
+              kind: pr
+              ref: "{{ repo.owner }}/{{ repo.name }}!{{ event.prNumber }}"
+
+          - uses: agent.runStructured
+            id: review
+            with:
+              tools: "{{ vars.tools }}"
+              template: architect_review.md.j2
+              contextRepo: "{{ steps.context.repo }}"
+              vars:
+                owner: "{{ repo.owner }}"
+                repo: "{{ repo.name }}"
+                context_owner: "{{ steps.context.owner }}"
+                context_repo: "{{ steps.context.repo }}"
+                pr_number: "{{ event.prNumber }}"
+                pr_title: "{{ event.prTitle }}"
+                base_branch: "{{ event.baseBranch }}"
+              # Comments anchored to lines, because a review that can only leave
+              # one top-level note makes the reader find every line it means.
+              output:
+                summary: string
+                comments:
+                  - path: string
+                    line: integer
+                    body: string
+
+          - uses: pr.review
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              number: "{{ event.prNumber }}"
+              summary: "{{ steps.review.summary }}"
+              comments: "{{ steps.review.comments }}"
+
+  reviewing:
+    on:
+      # Someone pushing back on the review. Answering is the whole value of
+      # keeping the session alive rather than reviewing and leaving.
+      pr.commented:
+        debounce: 30s
+        steps:
+          - uses: comment.react
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              commentId: "{{ event.commentId }}"
+
+          - uses: agent.runStructured
+            id: answer
+            with:
+              tools: "{{ vars.tools }}"
+              template: architect_review_comment.md.j2
+              vars:
+                pr_number: "{{ vars.prNumber }}"
+                comments: "{{ event.batch }}"
+              output:
+                summary: string
+                comments:
+                  - path: string
+                    line: integer
+                    body: string
+
+          - uses: pr.review
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              summary: "{{ steps.answer.summary }}"
+              comments: "{{ steps.answer.comments }}"
+
+  done:
+    on: {}

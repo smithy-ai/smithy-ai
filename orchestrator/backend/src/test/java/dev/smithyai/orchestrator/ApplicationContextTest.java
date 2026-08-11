@@ -86,7 +86,7 @@ class ApplicationContextTest {
             .map(w -> w.metadata().name())
             .sorted()
             .toList();
-        assertEquals(List.of("feature-coordinator", "smithy-development"), names);
+        assertEquals(List.of("architect-review", "feature-coordinator", "smithy-development"), names);
     }
 
     /** Every action a definition may name is a bean, with no duplicate types. */

@@ -333,6 +333,62 @@ public class ReviewActions {
         };
     }
 
+    /**
+     * Post a review: a summary plus comments anchored to lines.
+     *
+     * <p>Inline comments are the point — a review that can only leave one
+     * top-level note makes the reader find every line it refers to. Comments
+     * without a path are dropped rather than posted somewhere arbitrary, and a
+     * review with nothing in it is not posted at all.
+     */
+    @Bean
+    public WorkflowAction prReviewAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+        return new WorkflowAction() {
+            @Override
+            public String type() {
+                return "pr.review";
+            }
+
+            @Override
+            public Set<Capability> requires() {
+                return Set.of(Capability.PR_REVIEW_INLINE);
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                String summary = optional(input, "summary", "");
+                var inline = new ArrayList<dev.smithyai.orchestrator.service.vcs.dto.InlineComment>();
+                if (input.get("comments") instanceof List<?> comments) {
+                    for (Object entry : comments) {
+                        if (!(entry instanceof Map<?, ?> comment)) continue;
+                        var fields = (Map<String, Object>) comment;
+                        String path = optional(fields, "path", "");
+                        if (path.isBlank()) continue;
+                        inline.add(
+                            new dev.smithyai.orchestrator.service.vcs.dto.InlineComment(
+                                path,
+                                optional(fields, "body", ""),
+                                intInput(fields, "line", 0)
+                            )
+                        );
+                    }
+                }
+                if (summary.isBlank() && inline.isEmpty()) return Map.of("posted", false, "comments", 0);
+
+                vcs.createPullReview(
+                    required(input, "owner"),
+                    required(input, "repo"),
+                    intInput(input, "number", 0),
+                    summary,
+                    optional(input, "event", "COMMENT"),
+                    inline.isEmpty() ? null : inline
+                );
+                return Map.of("posted", true, "comments", inline.size());
+            }
+        };
+    }
+
     /** A browsable link to a file on a branch — provider URL shapes differ. */
     @Bean
     public WorkflowAction fileUrlAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
