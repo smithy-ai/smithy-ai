@@ -17,9 +17,14 @@ import org.springframework.stereotype.Component;
 public class IssueCommentAction implements WorkflowAction {
 
     private final IssueTrackerClient issues;
+    private final IssueTrackerClient repoIssues;
 
-    public IssueCommentAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public IssueCommentAction(
+        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
+    ) {
         this.issues = issues;
+        this.repoIssues = repoIssues;
     }
 
     @Override
@@ -39,7 +44,7 @@ public class IssueCommentAction implements WorkflowAction {
         String issueRef = required(input, "issue");
         String body = required(input, "body");
 
-        var comment = issues.createIssueComment(owner, repo, issueRef, body);
+        var comment = Trackers.pick(this, input, issues, repoIssues).createIssueComment(owner, repo, issueRef, body);
         return Map.of("commentId", comment.id());
     }
 }

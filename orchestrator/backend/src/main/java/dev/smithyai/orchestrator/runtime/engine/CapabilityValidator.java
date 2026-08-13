@@ -37,12 +37,15 @@ public class CapabilityValidator {
     public void validate(String source, WorkflowDefinition definition, Set<Capability> supported) {
         var errors = new ArrayList<String>();
         var usedTypes = new ArrayList<String>();
+        var composites = definition.actions();
         definition
             .state()
             .getStages()
             .forEach((stageName, stage) ->
-                stage.on().forEach((eventName, transition) -> collectSteps(transition.steps(), usedTypes))
+                stage.on().forEach((eventName, transition) -> collectSteps(transition.steps(), composites, usedTypes))
             );
+        // A composite only reaches here through a transition that uses it, so
+        // one declared and never referenced is not held against the definition.
 
         for (String type : usedTypes) {
             var action = actions.find(type);
@@ -67,10 +70,25 @@ public class CapabilityValidator {
         }
     }
 
-    private void collectSteps(List<WorkflowStepDefinition> steps, List<String> into) {
+    private void collectSteps(
+        List<WorkflowStepDefinition> steps,
+        java.util.Map<
+            String,
+            dev.smithyai.orchestrator.runtime.definition.WorkflowCompositeActionDefinition
+        > composites,
+        List<String> into
+    ) {
         for (var step : steps) {
-            if (step.uses() != null) into.add(step.uses());
-            collectSteps(step.steps(), into);
+            if (step.uses() == null) continue;
+            // A step may name a composite the definition declared rather than a
+            // registered action; what needs checking is what the composite does.
+            var composite = composites.get(step.uses());
+            if (composite != null) {
+                collectSteps(composite.steps(), composites, into);
+            } else {
+                into.add(step.uses());
+            }
+            collectSteps(step.steps(), composites, into);
         }
     }
 }

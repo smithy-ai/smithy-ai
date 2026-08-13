@@ -191,9 +191,10 @@ public interface WorkflowEvent {
     record CiFailure(RepoInfo info, CiRunInfo ciRun, String workflowName) implements WorkflowEvent {
         @Override
         public String identity() {
-            // A pipeline can fail repeatedly on the same branch, and each failure
-            // deserves its own attempt rather than the first one's recorded result.
-            return String.valueOf(workflowName) + "@" + System.identityHashCode(ciRun);
+            // From what the event says, never from the object: a redelivery
+            // builds a new CiRunInfo, and an identity taken from the instance
+            // would make a retry look like a fresh failure and run the fix again.
+            return String.valueOf(workflowName) + "@" + ciRun.headBranch() + "#" + ciRun.prNumber();
         }
 
         @Override

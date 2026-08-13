@@ -78,7 +78,14 @@ public class RunWaveAction implements WorkflowAction {
             }
         }
 
-        boolean complete = !children.isEmpty() && children.stream().allMatch(child -> child.status().isTerminal());
+        // Every child actually delivered — not merely stopped. A cancelled or
+        // failed child means the feature is not done, however quiet it has gone.
+        boolean complete =
+            !children.isEmpty() && children.stream().allMatch(child -> child.status() == RunStatus.COMPLETED);
+        long abandoned = children
+            .stream()
+            .filter(child -> child.status().isTerminal() && child.status() != RunStatus.COMPLETED)
+            .count();
         if (!released.isEmpty()) {
             log.info("Run {} released {} child run(s)", context.run().id(), released.size());
         }
@@ -95,6 +102,13 @@ public class RunWaveAction implements WorkflowAction {
             children
                 .stream()
                 .filter(child -> child.status().isTerminal())
+                .count(),
+            "abandoned",
+            abandoned,
+            "pending",
+            children
+                .stream()
+                .filter(child -> !child.status().isTerminal())
                 .count()
         );
     }

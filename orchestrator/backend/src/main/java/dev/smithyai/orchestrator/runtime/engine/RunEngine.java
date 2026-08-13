@@ -146,7 +146,10 @@ public class RunEngine implements SignalDelivery {
                     return Outcome.ignored(decision.workflowName());
                 });
             case destroy -> existing
-                .map(run -> close(run, RunStatus.COMPLETED))
+                // Cancelled, not completed: a human taking the agent off a task
+                // has not delivered it, and anything waiting on it must keep
+                // waiting.
+                .map(run -> close(run, RunStatus.CANCELLED))
                 .orElseGet(() -> Outcome.ignored(decision.workflowName()));
             case ignore -> Outcome.ignored(decision.workflowName());
         };
@@ -295,7 +298,11 @@ public class RunEngine implements SignalDelivery {
      */
     private Outcome dispatch(WorkflowDefinition definition, Run run, WorkflowEvent event) {
         synchronized (lockFor(run.id())) {
-            return dispatchSerially(definition, run, event);
+            // Re-read inside the lock. The run was resolved before it, so another
+            // event may have moved it since — and acting on the state it used to
+            // be in runs the wrong transition.
+            var current = store.find(run.id()).orElse(run);
+            return dispatchSerially(definition, current, event);
         }
     }
 
@@ -360,7 +367,7 @@ public class RunEngine implements SignalDelivery {
         store.appendEvent(run.id(), event.name(), null);
 
         try {
-            executor.execute(run, event, transitionId, transition.steps());
+            executor.execute(run, event, transitionId, transition.steps(), Map.of(), definition.actions());
         } catch (RuntimeException e) {
             // A failed transition leaves the run where it was, so the fix is to
             // resend the event rather than to reconstruct state by hand.
@@ -499,7 +506,10 @@ public class RunEngine implements SignalDelivery {
             log.warn("Signal {} addressed to unknown run {}", signal.name(), targetRunId);
             return false;
         }
-        var definition = registry.find(run.get().workflowName());
+        var definition = candidates(signal)
+            .stream()
+            .filter(candidate -> candidate.metadata().name().equals(run.get().workflowName()))
+            .findFirst();
         if (definition.isEmpty()) {
             // The target runs a hardcoded flow, or a definition that is no
             // longer loaded. The signal is still recorded in its history.

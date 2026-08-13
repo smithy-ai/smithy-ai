@@ -67,6 +67,72 @@ routing:
     action: dispatch
     key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
 
+# Named step lists a transition can reference, so approval by label and approval
+# from the dashboard cannot drift apart.
+actions:
+  fanOut:
+    steps:
+      - uses: foreach
+        id: fanout
+        with:
+          items: "{{ vars.plan }}"
+        steps:
+          # An ordinary issue in the target repository. No sub-issue, no
+          # epic, no tasklist — not every tracker has them, and the story
+          # may not even live in the same system as the work.
+          - uses: issue.create
+            id: child_issue
+            with:
+              # In the repository, not in the story tracker: the story may
+              # be a Jira ticket and the work is not.
+              tracker: repo
+              owner: "{{ item.owner }}"
+              repo: "{{ item.repo }}"
+              title: "{{ item.title }}"
+              body: "{{ item.body }}"
+
+          - uses: run.spawn
+            id: child
+            with:
+              workflow: "{{ vars.childWorkflow }}"
+              state: new
+              owner: "{{ item.owner }}"
+              repo: "{{ item.repo }}"
+              issueRef: "{{ steps.child_issue.issueRef }}"
+              index: "{{ index }}"
+              dependsOn: "{{ item.dependsOn }}"
+
+          # This replaces the "Parent story:" marker the foreman appended to
+          # each issue body and regex-parsed back out: an event about this
+          # issue now finds its run through the store.
+          - uses: correlate
+            with:
+              kind: issue
+              ref: "{{ item.owner }}/{{ item.repo }}#{{ steps.child_issue.issueRef }}"
+              run: "{{ steps.child.runId }}"
+
+      # Only the children whose dependencies are already satisfied start —
+      # the rest wait for the wave they belong to.
+      - uses: run.wave
+        id: wave
+
+      - uses: foreach
+        with:
+          items: "{{ steps.wave.released }}"
+        steps:
+          - uses: issue.assign
+            with:
+              tracker: repo
+              owner: "{{ item.owner }}"
+              repo: "{{ item.repo }}"
+              issue: "{{ item.issueRef }}"
+              assignees: "{{ vars.botUser }}"
+
+      - uses: metrics.record
+        with:
+          name: children_spawned
+          children: "{{ steps.fanout.count }}"
+
 state:
   initial: new
   terminal: done
@@ -80,11 +146,19 @@ state:
           # repository is cloned: with a large catalog, cloning everything up
           # front costs more than the planning turn itself, and the agent asks
           # for the rest as its plan needs them.
+          # From the catalog, not from the story: a story tracked in Jira has no
+          # repository behind it, and the event's clone URL is then nothing at all.
+          - uses: repo.cloneUrl
+            id: workspace_repo
+            with:
+              owner: "{{ vars.catalog[0].owner }}"
+              repo: "{{ vars.catalog[0].repo }}"
+
           - uses: container.init
             id: workspace
             with:
               name: "coordinator.{{ repo.owner }}.{{ repo.name }}.{{ event.issueRef }}"
-              cloneUrl: "{{ repo.cloneUrl }}"
+              cloneUrl: "{{ steps.workspace_repo.cloneUrl }}"
               branch: ""
 
           - uses: agent.runStructured
@@ -139,66 +213,15 @@ state:
       issue.plan_approved:
         to: executing
         steps:
-          - uses: foreach
-            id: fanout
-            with:
-              items: "{{ vars.plan }}"
-            steps:
-              # An ordinary issue in the target repository. No sub-issue, no
-              # epic, no tasklist — not every tracker has them, and the story
-              # may not even live in the same system as the work.
-              - uses: issue.create
-                id: child_issue
-                with:
-                  # In the repository, not in the story tracker: the story may
-                  # be a Jira ticket and the work is not.
-                  tracker: repo
-                  owner: "{{ item.owner }}"
-                  repo: "{{ item.repo }}"
-                  title: "{{ item.title }}"
-                  body: "{{ item.body }}"
+          - uses: fanOut
 
-              - uses: run.spawn
-                id: child
-                with:
-                  workflow: "{{ vars.childWorkflow }}"
-                  state: new
-                  owner: "{{ item.owner }}"
-                  repo: "{{ item.repo }}"
-                  issueRef: "{{ steps.child_issue.issueRef }}"
-                  index: "{{ index }}"
-                  dependsOn: "{{ item.dependsOn }}"
-
-              # This replaces the "Parent story:" marker the foreman appended to
-              # each issue body and regex-parsed back out: an event about this
-              # issue now finds its run through the store.
-              - uses: correlate
-                with:
-                  kind: issue
-                  ref: "{{ item.owner }}/{{ item.repo }}#{{ steps.child_issue.issueRef }}"
-                  run: "{{ steps.child.runId }}"
-
-          # Only the children whose dependencies are already satisfied start —
-          # the rest wait for the wave they belong to.
-          - uses: run.wave
-            id: wave
-
-          - uses: foreach
-            with:
-              items: "{{ steps.wave.released }}"
-            steps:
-              - uses: issue.assign
-                with:
-                  tracker: repo
-                  owner: "{{ item.owner }}"
-                  repo: "{{ item.repo }}"
-                  issue: "{{ item.issueRef }}"
-                  assignees: "{{ vars.botUser }}"
-
-          - uses: metrics.record
-            with:
-              name: children_spawned
-              children: "{{ steps.fanout.count }}"
+      # The same thing, released from the dashboard instead of by a label. Both
+      # run the one definition of what approval means.
+      "signal:gate-approved":
+        to: executing
+        steps:
+          - uses: fanOut
+            if: "{{ event.key == 'plan-approval' }}"
 
   executing:
     on:
@@ -236,6 +259,19 @@ state:
               repo: "{{ vars.storyRepo }}"
               issue: "{{ vars.storyRef }}"
               body: "Every child issue is done — this feature is complete."
+
+          # Nothing left running, but not everything delivered — someone took the
+          # agent off a task, or one of them failed. Saying so beats going quiet.
+          - uses: issue.comment
+            if: "{{ steps.wave.pending == 0 and steps.wave.abandoned > 0 }}"
+            with:
+              owner: "{{ vars.storyOwner }}"
+              repo: "{{ vars.storyRepo }}"
+              issue: "{{ vars.storyRef }}"
+              body: >-
+                {{ steps.wave.abandoned }} of {{ steps.wave.total }} child issues were
+                cancelled or failed, so this feature is not complete. Re-assign them to
+                pick the work back up.
 
           - uses: state.set
             if: "{{ steps.wave.complete }}"

@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.runtime.engine;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.actions.ActionContext;
 import dev.smithyai.orchestrator.runtime.actions.ActionRegistry;
+import dev.smithyai.orchestrator.runtime.definition.WorkflowCompositeActionDefinition;
 import dev.smithyai.orchestrator.runtime.definition.WorkflowStepDefinition;
 import dev.smithyai.orchestrator.runtime.store.Run;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
@@ -53,7 +54,7 @@ public class StepExecutor {
         String transitionId,
         List<WorkflowStepDefinition> steps
     ) {
-        return execute(run, event, transitionId, steps, Map.of());
+        return execute(run, event, transitionId, steps, Map.of(), Map.of());
     }
 
     /**
@@ -68,6 +69,17 @@ public class StepExecutor {
         List<WorkflowStepDefinition> steps,
         Map<String, Object> extraVars
     ) {
+        return execute(run, event, transitionId, steps, extraVars, Map.of());
+    }
+
+    public Map<String, Map<String, Object>> execute(
+        Run run,
+        WorkflowEvent event,
+        String transitionId,
+        List<WorkflowStepDefinition> steps,
+        Map<String, Object> extraVars,
+        Map<String, WorkflowCompositeActionDefinition> composites
+    ) {
         // Seed with anything a previous attempt completed, so `steps.<id>` still
         // resolves for steps that are skipped this time round.
         var outputs = new LinkedHashMap<>(store.findStepOutputs(run.id(), transitionId));
@@ -81,6 +93,18 @@ public class StepExecutor {
 
             if (!renderer.isTruthy(step.condition(), context)) {
                 log.debug("Run {}: skipping step {} — condition false", run.id(), stepId);
+                continue;
+            }
+
+            // A step may name a composite the definition declared rather than a
+            // registered action: a list of steps under a name, so two transitions
+            // can do the same thing without saying it twice.
+            var composite = composites.get(step.uses());
+            if (composite != null) {
+                var scoped = new LinkedHashMap<String, Object>(vars);
+                scoped.putAll(renderer.renderInputs(step.with(), context));
+                var nested = execute(run, event, transitionId + ":" + stepId, composite.steps(), scoped, composites);
+                outputs.put(stepId, Map.of("steps", nested));
                 continue;
             }
 

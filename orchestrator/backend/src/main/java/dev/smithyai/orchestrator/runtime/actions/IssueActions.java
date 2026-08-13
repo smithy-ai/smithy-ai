@@ -22,23 +22,6 @@ import org.springframework.context.annotation.Configuration;
 public class IssueActions {
 
     /**
-     * Which tracker a step means.
-     *
-     * <p>{@code story} is where the triggering issue lives — Jira, if that is
-     * how stories are tracked. {@code repo} is the repository's own issues,
-     * which is what a coordinator creates and assigns. They are the same system
-     * in most deployments and different in exactly the one this exists for.
-     */
-    private static IssueTrackerClient trackerFor(
-        WorkflowAction action,
-        Map<String, Object> input,
-        IssueTrackerClient story,
-        IssueTrackerClient repository
-    ) {
-        return "repo".equals(action.optional(input, "tracker", "story")) ? repository : story;
-    }
-
-    /**
      * Create an issue in a repository.
      *
      * <p>This is how a coordinator fans work out. Deliberately an ordinary issue
@@ -64,7 +47,7 @@ public class IssueActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                var created = trackerFor(this, input, issues, repoIssues).createIssue(
+                var created = Trackers.pick(this, input, issues, repoIssues).createIssue(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "title"),
@@ -107,7 +90,7 @@ public class IssueActions {
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 List<String> assignees = listInput(input, "assignees");
                 if (assignees.isEmpty()) assignees = listInput(input, "to");
-                trackerFor(this, input, issues, repoIssues).setIssueAssignees(
+                Trackers.pick(this, input, issues, repoIssues).setIssueAssignees(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "issue"),
@@ -146,7 +129,7 @@ public class IssueActions {
                 String issue = required(input, "issue");
                 var labels = listInput(input, "labels");
                 if (labels.isEmpty()) labels = List.of(required(input, "label"));
-                var tracker = trackerFor(this, input, issues, repoIssues);
+                var tracker = Trackers.pick(this, input, issues, repoIssues);
                 labels.forEach(label -> tracker.addIssueLabel(owner, repo, issue, label));
                 return Map.of("labels", labels);
             }
@@ -172,7 +155,7 @@ public class IssueActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                var issue = trackerFor(this, input, issues, repoIssues).getIssue(
+                var issue = Trackers.pick(this, input, issues, repoIssues).getIssue(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "issue")

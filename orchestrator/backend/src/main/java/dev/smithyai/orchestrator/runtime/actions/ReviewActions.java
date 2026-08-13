@@ -263,6 +263,7 @@ public class ReviewActions {
     @Bean
     public WorkflowAction attachmentsFetchAction(
         @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues,
         RunEnvironments environments
     ) {
         return new WorkflowAction() {
@@ -285,7 +286,7 @@ public class ReviewActions {
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var session = environments.container(context.run());
                 var paths = AttachmentHelper.fetchAndInject(
-                    issues,
+                    Trackers.pick(this, input, issues, repoIssues),
                     session,
                     required(input, "owner"),
                     required(input, "repo"),
@@ -385,6 +386,35 @@ public class ReviewActions {
                     inline.isEmpty() ? null : inline
                 );
                 return Map.of("posted", true, "comments", inline.size());
+            }
+        };
+    }
+
+    /**
+     * Where a repository is cloned from.
+     *
+     * <p>A coordinator's workspace comes from its catalog, not from the story:
+     * a story in Jira has no repository behind it at all, and taking the clone
+     * URL from the event meant trying to clone the string "null".
+     */
+    @Bean
+    public WorkflowAction repoCloneUrlAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+        return new WorkflowAction() {
+            @Override
+            public String type() {
+                return "repo.cloneUrl";
+            }
+
+            @Override
+            public boolean idempotent() {
+                return true;
+            }
+
+            @Override
+            public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                String owner = required(input, "owner");
+                String repo = required(input, "repo");
+                return Map.of("cloneUrl", vcs.cloneUrl(owner, repo), "fullName", owner + "/" + repo);
             }
         };
     }

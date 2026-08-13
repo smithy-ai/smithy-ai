@@ -173,8 +173,9 @@ vars:
 ```
 
 A child issue is created in its repository's own tracker, not in the tracker the
-story came from — `issue.create` and `issue.assign` take `tracker: repo` for
-this. That is what lets a Jira story fan out into GitLab issues. For a Jira story
+story came from — `issue.create`, `issue.assign`, `issue.comment` and
+`attachments.fetch` all take `tracker: repo` for this, and default to `story`,
+which is where their event came from. That is what lets a Jira story fan out into GitLab issues. For a Jira story
 with no repository field, set `vcs.jira.stories-without-repo` so the story
 reaches the coordinator scoped to its project, and list that project under
 `storyRepos` as `PROJ/PROJ`.
@@ -187,6 +188,33 @@ needs no knowledge that it is a child.
 configuring a shipped workflow cannot quietly change what it does. A workflow that
 extends another shadows it, since the base is a template rather than something to
 run alongside its configured form.
+
+### Sharing steps between transitions
+
+A definition can name a list of steps under `actions:` and a transition can
+`uses:` it. The coordinator fans out this way, so approving a plan by label and
+approving it from the dashboard cannot drift apart:
+
+```yaml
+actions:
+  fanOut:
+    steps:
+      - uses: foreach
+        ...
+
+state:
+  awaiting_approval:
+    on:
+      issue.plan_approved:
+        to: executing
+        steps:
+          - uses: fanOut
+      "signal:gate-approved":
+        to: executing
+        steps:
+          - uses: fanOut
+            if: "{{ event.key == 'plan-approval' }}"
+```
 
 ### Ordering
 
