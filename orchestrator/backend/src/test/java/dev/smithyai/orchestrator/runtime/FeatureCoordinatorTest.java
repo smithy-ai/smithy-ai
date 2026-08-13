@@ -659,7 +659,7 @@ class FeatureCoordinatorTest {
         );
 
         var parentEvents = store.findEvents(story().id()).stream().map(RunEvent::type).toList();
-        assertTrue(parentEvents.contains("signal:child-done"), "parent was told: " + parentEvents);
+        assertTrue(parentEvents.contains("child.finished"), "parent was told: " + parentEvents);
     }
 
     @Test

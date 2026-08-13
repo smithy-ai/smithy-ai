@@ -463,7 +463,10 @@ public class RunEngine implements SignalDelivery {
         );
         run.vars().forEach((name, value) -> payload.putIfAbsent(name, value));
         try {
-            store.appendEvent(run.parentRunId(), "signal:" + CHILD_DONE, payload);
+            // Recorded as what happened, not as the signal: the engine also
+            // records the signal when the parent handles it, and a timeline
+            // showing the same name twice for one child reads like a duplicate.
+            store.appendEvent(run.parentRunId(), "child.finished", payload);
             store.satisfyWait(run.parentRunId(), CHILD_DONE);
             deliver(
                 run.parentRunId(),
