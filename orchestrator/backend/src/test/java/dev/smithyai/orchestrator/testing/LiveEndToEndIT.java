@@ -187,6 +187,75 @@ class LiveEndToEndIT {
         System.out.println("[it] timeline " + timeline);
     }
 
+    /**
+     * The operations the coordinator needs from a repository's tracker.
+     *
+     * <p>The client declared these capabilities without implementing them, so
+     * validation accepted the coordinator and it failed on approval — against
+     * the default provider. A unit test cannot catch that: the question is
+     * whether Forgejo accepts the call, not whether the method exists.
+     */
+    @Test
+    @Timeout(120)
+    void theProviderCanActuallyDoWhatItSaysItCan() {
+        var vcs = new ForgejoClient(url, token);
+        var declared = vcs.capabilities();
+
+        if (declared.contains(dev.smithyai.orchestrator.runtime.actions.Capability.ISSUE_CREATE)) {
+            var created = vcs.createIssue(
+                owner,
+                repo,
+                "capability check",
+                "Created by the integration test.",
+                List.of()
+            );
+            System.out.println("[it] created issue " + created.issueRef());
+            assertFalse(created.issueRef().isBlank());
+
+            if (declared.contains(dev.smithyai.orchestrator.runtime.actions.Capability.ISSUE_LABEL)) {
+                String label = "smithy-it-" + created.issueRef();
+                createLabel(label);
+                vcs.addIssueLabel(owner, repo, created.issueRef(), label);
+                var reread = vcs.getIssue(owner, repo, created.issueRef());
+                System.out.println("[it] labels now " + reread.labels());
+                assertTrue(reread.labels().contains(label), "label was not applied: " + reread.labels());
+            }
+
+            vcs.setIssueAssignees(owner, repo, created.issueRef(), List.of("smithy"));
+            closeIssue(created.issueRef());
+        }
+    }
+
+    private static void createLabel(String name) {
+        try {
+            var body = "{\"name\":\"" + name + "\",\"color\":\"#aabbcc\"}";
+            var request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create(url + "/api/v1/repos/" + owner + "/" + repo + "/labels"))
+                .header("Authorization", "token " + token)
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
+                .build();
+            java.net.http.HttpClient.newHttpClient().send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static void closeIssue(String issueRef) {
+        try {
+            var request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create(url + "/api/v1/repos/" + owner + "/" + repo + "/issues/" + issueRef))
+                .header("Authorization", "token " + token)
+                .header("Content-Type", "application/json")
+                .method("PATCH", java.net.http.HttpRequest.BodyPublishers.ofString("{\"state\":\"closed\"}"))
+                .build();
+            java.net.http.HttpClient.newHttpClient().send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     // ── Wiring: the same beans the application uses ──────────
 
     private RunEngine engine(RunStore store, VcsClient vcs, IssueTrackerClient issues) {

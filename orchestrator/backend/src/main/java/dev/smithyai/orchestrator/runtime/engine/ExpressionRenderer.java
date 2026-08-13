@@ -169,6 +169,9 @@ public class ExpressionRenderer {
             var view = new LinkedHashMap<String, Object>();
             view.put("name", signal.name());
             view.put("signal", signal.signal());
+            // Signals carry the origin of whatever triggered them, so a
+            // definition filters them the same way it filters anything else.
+            view.put("source", signal.source());
             if (signal.payload() != null) view.putAll(signal.payload());
             return view;
         }

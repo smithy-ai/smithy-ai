@@ -7,6 +7,8 @@ import dev.smithyai.forgejoclient.ApiException;
 import dev.smithyai.forgejoclient.api.IssueApi;
 import dev.smithyai.forgejoclient.api.RepositoryApi;
 import dev.smithyai.forgejoclient.model.*;
+import dev.smithyai.forgejoclient.model.CreateIssueOption;
+import dev.smithyai.forgejoclient.model.IssueLabelsOption;
 import dev.smithyai.orchestrator.runtime.actions.Capability;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
@@ -88,6 +90,28 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     }
 
     // ── IssueTrackerClient ───────────────────────────────────
+
+    @Override
+    public IssueData createIssue(String owner, String repo, String title, String body, List<String> labels) {
+        var option = new CreateIssueOption().title(title).body(body == null ? "" : body);
+        Issue created = api(() -> issueApi.issueCreateIssue(owner, repo, option));
+        // Labels go on afterwards: CreateIssueOption types them as numeric ids,
+        // and a workflow names them.
+        if (labels != null && !labels.isEmpty()) {
+            labels.forEach(label -> addIssueLabel(owner, repo, String.valueOf(created.getNumber()), label));
+            return getIssue(owner, repo, String.valueOf(created.getNumber()));
+        }
+        return toIssueData(created);
+    }
+
+    @Override
+    public void addIssueLabel(String owner, String repo, String issueRef, String label) {
+        long number = Long.parseLong(issueRef);
+        // Forgejo takes either a label id or its name here, and a workflow only
+        // knows the name.
+        var option = new IssueLabelsOption().labels(List.of(label));
+        api(() -> issueApi.issueAddLabel(owner, repo, number, option));
+    }
 
     @Override
     public IssueData getIssue(String owner, String repo, String issueRef) {

@@ -525,6 +525,27 @@ class FeatureCoordinatorTest {
     }
 
     @Test
+    void aMisspelledConnectorFailsRatherThanPostingSomewhereElse() {
+        var jira = new StubVcsClient();
+        var gitlab = new StubVcsClient();
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("jira", jira, "gitlab", gitlab),
+            jira
+        );
+        var create = new IssueActions().issueCreateAction(trackers);
+        var context = new ActionContext(null, storyAssigned("jira"), Map.of(), Map.of());
+        var input = Map.<String, Object>of("connector", "gitlba", "owner", "acme", "repo", "api", "title", "x");
+
+        // Silently using the fallback would file this in Jira, which is a real
+        // issue in someone else's tracker.
+        var refused = assertThrows(IllegalArgumentException.class, () -> create.execute(context, input));
+        assertTrue(refused.getMessage().contains("gitlba"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("gitlab"), "and says what is available: " + refused.getMessage());
+        assertTrue(jira.createdIssues.isEmpty());
+        assertTrue(gitlab.createdIssues.isEmpty());
+    }
+
+    @Test
     void aSpawnedChildStartsWithItsOwnWorkflowsVariables() {
         engine.handle(storyAssigned());
         engine.handle(storyApproved());

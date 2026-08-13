@@ -33,9 +33,20 @@ public class IssueTrackers {
      *                  the thing that triggered it
      */
     public IssueTrackerClient forConnector(String connector) {
+        // Blank is "wherever this event came from", which for an internal event
+        // is nowhere in particular — the configured tracker is the right answer.
         if (connector == null || connector.isBlank()) return fallback;
+
         var tracker = byConnector.get(connector);
-        return tracker != null ? tracker : fallback;
+        if (tracker == null) {
+            // A named connector that does not exist is a typo, and quietly
+            // using the fallback would post a child issue's comment to whatever
+            // tracks stories — visibly wrong, in someone else's system.
+            throw new IllegalArgumentException(
+                "No connector named '%s' is configured; available: %s".formatted(connector, byConnector.keySet())
+            );
+        }
+        return tracker;
     }
 
     /** Whether a named connector is actually configured here. */

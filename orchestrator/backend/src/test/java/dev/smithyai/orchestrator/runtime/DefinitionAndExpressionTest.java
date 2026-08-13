@@ -180,4 +180,20 @@ class DefinitionAndExpressionTest {
         assertTrue(renderer.isTruthy("{{ event.source == 'jira' }}", context));
         assertFalse(renderer.isTruthy("{{ event.source == 'gitlab' }}", context));
     }
+
+    @Test
+    void aSignalCarriesTheOriginOfWhatTriggeredIt() {
+        var renderer = new ExpressionRenderer();
+        var signal = new WorkflowEvent.Signal(
+            new dev.smithyai.orchestrator.model.RepoInfo("acme", "api", null, "gitlab"),
+            "child-done",
+            java.util.Map.of("child", "run-1")
+        );
+        var context = new ActionContext(null, signal, java.util.Map.of(), java.util.Map.of());
+
+        // Filtering a signal must work like filtering anything else.
+        assertEquals("gitlab", renderer.render("{{ event.source }}", context));
+        assertTrue(renderer.isTruthy("{{ event.source == 'gitlab' }}", context));
+        assertEquals("run-1", renderer.render("{{ event.child }}", context), "payload still reads as fields");
+    }
 }
