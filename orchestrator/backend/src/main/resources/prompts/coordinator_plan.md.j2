@@ -19,11 +19,22 @@ your child issues receive the same files, so reference them by filename in issue
 design drives the work.
 {% endif %}
 
+## Where things are
+
+The story's own repository is cloned at `/story` — read it first. Whatever contract the pieces have
+to honour usually lives there rather than in the code.
+
+The first catalog repository below is cloned at the workspace root. The rest are not, because with a
+large catalog cloning everything costs more than this planning turn. Clone any you need to read:
+
+    git clone <clone-url> /repos/<name>
+
+Their clone URLs follow the same pattern as this workspace's origin, and your git credentials are
+already configured.
+
 ## Repositories
 
-These are the only repositories that may receive issues. The first is cloned at the workspace root;
-the rest are cloned under `repos/<name>` if present, and absent otherwise — with a large catalog,
-cloning everything up front costs more than this planning turn.
+These are the only repositories that may receive issues.
 
 {% for entry in catalog %}
 ### {{ entry.owner }}/{{ entry.repo }}
@@ -33,8 +44,9 @@ cloning everything up front costs more than this planning turn.
 
 ## Instructions
 
-1. Decide which repositories this story touches. Read the relevant specs and code — plans grounded in
-   real code beat plans written from descriptions. A story touching a single repository is fine: the
+1. Decide which repositories this story touches. Read `/story` for the contract, then read the code
+   of every repository you plan to touch — clone the ones that are not already here. Plans grounded
+   in real code beat plans written from descriptions. A story touching a single repository is fine: the
    plan is then a single issue.
 2. For each repository, draft one issue: target owner, target repo, title, and body.
 

@@ -28,8 +28,11 @@ final class Trackers {
         Map<String, Object> input,
         IssueTrackers trackers
     ) {
+        // A step may name the actor too, though the workflow's own is almost
+        // always what is wanted.
+        String actor = action.optional(input, "as", context.actor());
         String named = action.optional(input, INPUT, "");
-        if (!named.isBlank()) return trackers.forConnector(named);
-        return trackers.forConnector(context.event() == null ? "" : context.event().source());
+        if (!named.isBlank()) return trackers.forConnector(actor, named);
+        return trackers.forConnector(actor, context.event() == null ? "" : context.event().source());
     }
 }

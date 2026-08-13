@@ -21,6 +21,11 @@ metadata:
   name: feature-coordinator
 
 vars:
+  # Which identity this workflow acts as. A coordinator plans a feature and an
+  # agent implements one task of it; a reader of the story should be able to
+  # tell which of them wrote something, and a bot should not appear to be
+  # answering itself.
+  actor: coordinator
   # Where feature stories are raised. An issue assigned anywhere else is
   # ordinary work for the development workflow, not a story to fan out — and
   # that includes the catalog repositories, whose issues this coordinator
@@ -172,6 +177,12 @@ state:
               name: "coordinator.{{ repo.owner }}.{{ repo.name }}.{{ event.issueRef }}"
               cloneUrl: "{{ steps.workspace_repo.cloneUrl }}"
               branch: ""
+              # The story's own repository, because the contract the plan has to
+              # honour usually lives beside the story rather than in the code.
+              # Skipped when the story came from a tracker with no repository.
+              extraRepos:
+                - cloneUrl: "{{ repo.cloneUrl }}"
+                  path: /story
 
           - uses: agent.runStructured
             id: plan

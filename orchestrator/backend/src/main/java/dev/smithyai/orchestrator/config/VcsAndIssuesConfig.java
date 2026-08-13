@@ -22,7 +22,7 @@ public class VcsAndIssuesConfig {
     @Bean
     @Qualifier("smithyVcs")
     public VcsClient smithyVcsClient(VcsProviderConfig vcs) {
-        return createVcsClient(vcs, vcs.resolvedProvider(), false);
+        return createVcsClient(vcs, vcs.resolvedProvider(), VcsProviderConfig.SMITHY);
     }
 
     @Bean
@@ -36,7 +36,7 @@ public class VcsAndIssuesConfig {
         if (issueProvider.equals(vcsProvider) && smithyVcs instanceof IssueTrackerClient itc) {
             return itc;
         }
-        return createIssueTrackerClient(vcs, issueProvider, false);
+        return createIssueTrackerClient(vcs, issueProvider, VcsProviderConfig.SMITHY);
     }
 
     /**
@@ -74,13 +74,36 @@ public class VcsAndIssuesConfig {
         @Qualifier("smithyIssueTracker") IssueTrackerClient smithyIssueTracker,
         @Qualifier("repoIssueTracker") IssueTrackerClient repoIssueTracker
     ) {
-        var byConnector = new java.util.LinkedHashMap<String, IssueTrackerClient>();
-        byConnector.put(vcs.resolvedIssueProvider(), smithyIssueTracker);
-        // The VCS's own issues, which are the same client when one system does
-        // both and a different one when they are split.
-        byConnector.putIfAbsent(vcs.resolvedProvider(), repoIssueTracker);
-        log.info("Issue trackers available by connector: {}", byConnector.keySet());
-        return new IssueTrackers(byConnector, smithyIssueTracker);
+        var byActor = new java.util.LinkedHashMap<String, java.util.Map<String, IssueTrackerClient>>();
+        for (String actor : java.util.List.of(
+            VcsProviderConfig.SMITHY,
+            VcsProviderConfig.ARCHITECT,
+            VcsProviderConfig.COORDINATOR
+        )) {
+            var byConnector = new java.util.LinkedHashMap<String, IssueTrackerClient>();
+            if (VcsProviderConfig.SMITHY.equals(actor) || !vcs.hasOwnToken(actor)) {
+                // No identity of its own: everything it does is attributed to the
+                // default account, which is what one-account deployments have.
+                byConnector.put(vcs.resolvedIssueProvider(), smithyIssueTracker);
+                byConnector.putIfAbsent(vcs.resolvedProvider(), repoIssueTracker);
+            } else {
+                var own = createIssueTrackerClient(vcs, vcs.resolvedProvider(), actor);
+                byConnector.put(vcs.resolvedProvider(), own);
+                // The story tracker may be a different system, which this actor
+                // may have no account on; fall back rather than refuse.
+                byConnector.putIfAbsent(vcs.resolvedIssueProvider(), smithyIssueTracker);
+            }
+            byActor.put(actor, byConnector);
+        }
+        log.info(
+            "Issue trackers by actor: {}",
+            byActor
+                .keySet()
+                .stream()
+                .map(a -> a + (vcs.hasOwnToken(a) ? "*" : ""))
+                .toList()
+        );
+        return new IssueTrackers(byActor, VcsProviderConfig.SMITHY, smithyIssueTracker);
     }
 
     @Bean
@@ -89,7 +112,7 @@ public class VcsAndIssuesConfig {
         if (!vcs.hasArchitect()) {
             return smithyVcs;
         }
-        return createVcsClient(vcs, vcs.resolvedProvider(), true);
+        return createVcsClient(vcs, vcs.resolvedProvider(), VcsProviderConfig.ARCHITECT);
     }
 
     @Bean
@@ -107,7 +130,7 @@ public class VcsAndIssuesConfig {
         if (issueProvider.equals(vcsProvider) && architectVcs instanceof IssueTrackerClient itc) {
             return itc;
         }
-        return createIssueTrackerClient(vcs, issueProvider, true);
+        return createIssueTrackerClient(vcs, issueProvider, VcsProviderConfig.ARCHITECT);
     }
 
     @Bean
@@ -151,42 +174,42 @@ public class VcsAndIssuesConfig {
         return new JiraEventMapper(vcs, smithyVcs, smithyIssueTracker);
     }
 
-    private VcsClient createVcsClient(VcsProviderConfig vcs, String provider, boolean architect) {
+    private VcsClient createVcsClient(VcsProviderConfig vcs, String provider, String actor) {
         return switch (provider) {
             case "gitlab" -> {
                 var gl = vcs.gitlab();
-                String token = architect ? gl.architectToken() : gl.smithyToken();
+                String token = vcs.tokenFor(actor);
                 yield new GitLabClient(gl.url(), gl.externalUrl(), token, gl.isOAuth2());
             }
             case "github" -> {
                 var gh = vcs.github();
-                String token = architect ? gh.architectToken() : gh.smithyToken();
+                String token = vcs.tokenFor(actor);
                 yield new GitHubClient(gh.url(), gh.externalUrl(), token);
             }
             default -> {
                 var fg = vcs.forgejo();
-                String token = architect ? fg.architectToken() : fg.smithyToken();
+                String token = vcs.tokenFor(actor);
                 yield new ForgejoClient(fg.url(), token);
             }
         };
     }
 
-    private IssueTrackerClient createIssueTrackerClient(VcsProviderConfig vcs, String provider, boolean architect) {
+    private IssueTrackerClient createIssueTrackerClient(VcsProviderConfig vcs, String provider, String actor) {
         return switch (provider) {
             case "jira" -> new JiraClient(vcs.jira());
             case "gitlab" -> {
                 var gl = vcs.gitlab();
-                String token = architect ? gl.architectToken() : gl.smithyToken();
+                String token = vcs.tokenFor(actor);
                 yield new GitLabClient(gl.url(), gl.externalUrl(), token, gl.isOAuth2());
             }
             case "github" -> {
                 var gh = vcs.github();
-                String token = architect ? gh.architectToken() : gh.smithyToken();
+                String token = vcs.tokenFor(actor);
                 yield new GitHubClient(gh.url(), gh.externalUrl(), token);
             }
             default -> {
                 var fg = vcs.forgejo();
-                String token = architect ? fg.architectToken() : fg.smithyToken();
+                String token = vcs.tokenFor(actor);
                 yield new ForgejoClient(fg.url(), token);
             }
         };

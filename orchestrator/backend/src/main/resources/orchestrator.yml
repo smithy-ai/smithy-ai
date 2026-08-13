@@ -19,6 +19,9 @@ vcs:
     webhook-secret: ${WEBHOOK_SECRET:}
     smithy-token: ${SMITHY_FORGEJO_TOKEN:}
     architect-token: ${ARCHITECT_FORGEJO_TOKEN:}
+    # The coordinator's own account. Without it a coordinator acts as smithy,
+    # and a story's plan appears to be written by the agent that implements it.
+    coordinator-token: ${COORDINATOR_FORGEJO_TOKEN:}
 
   gitlab:
     url: ${GITLAB_URL:}
@@ -78,3 +81,9 @@ bots:
   architect:
     user: ${ARCHITECT_BOT_USER:architect}
     email: ${ARCHITECT_BOT_EMAIL:}
+  # The actor a feature story is assigned to. Which actor an issue is handed to
+  # is how a person says whether it is a feature to plan across repositories or
+  # a task to do in one.
+  coordinator:
+    user: ${COORDINATOR_BOT_USER:coordinator}
+    email: ${COORDINATOR_BOT_EMAIL:}

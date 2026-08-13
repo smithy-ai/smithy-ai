@@ -89,7 +89,7 @@ public class StepExecutor {
         for (int i = 0; i < steps.size(); i++) {
             var step = steps.get(i);
             String stepId = step.id() != null && !step.id().isBlank() ? step.id() : step.uses() + "#" + i;
-            var context = new ActionContext(run, event, Map.copyOf(outputs), Map.copyOf(vars));
+            var context = new ActionContext(run, event, Map.copyOf(outputs), Map.copyOf(vars), actorOf(vars));
 
             if (!renderer.isTruthy(step.condition(), context)) {
                 log.debug("Run {}: skipping step {} — condition false", run.id(), stepId);
@@ -152,6 +152,11 @@ public class StepExecutor {
      * never saw the new comment. The event's own identity separates a new
      * occurrence from a redelivery of the same one.
      */
+    private static String actorOf(Map<String, Object> vars) {
+        Object actor = vars.get("actor");
+        return actor == null ? "" : String.valueOf(actor);
+    }
+
     public static String transitionId(String state, WorkflowEvent event) {
         String identity = event == null ? "" : event.identity();
         return identity.isEmpty()

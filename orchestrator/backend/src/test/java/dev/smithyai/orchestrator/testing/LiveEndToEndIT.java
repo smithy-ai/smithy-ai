@@ -379,7 +379,7 @@ class LiveEndToEndIT {
         return new VcsProviderConfig(
             "forgejo",
             null,
-            new VcsProviderConfig.ForgejoProviderConfig(url, url, null, token, token),
+            new VcsProviderConfig.ForgejoProviderConfig(url, url, null, token, token, token),
             null,
             null,
             null

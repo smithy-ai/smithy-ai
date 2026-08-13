@@ -324,7 +324,8 @@ class ArchitectDefinitionTest {
                 "http://forgejo.invalid",
                 null,
                 "smithy-token",
-                "architect-token"
+                "architect-token",
+                "coordinator-token"
             ),
             null,
             null,

@@ -115,9 +115,27 @@ public class PullRequestActions {
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 int number = intInput(input, "number", -1);
                 if (number < 0) throw new IllegalArgumentException("pr.requestReview requires 'number'");
-                var reviewers = listInput(input, "reviewers");
-                vcs.requestReview(required(input, "owner"), required(input, "repo"), number, reviewers);
-                return Map.of("number", number, "reviewers", reviewers);
+
+                // Never the author. Providers reject it, and the request was
+                // only ever a courtesy — the approver is often the person who
+                // asked for the work, and sometimes the agent itself.
+                String author = optional(input, "notFrom", "");
+                var reviewers = listInput(input, "reviewers")
+                    .stream()
+                    .filter(reviewer -> !reviewer.isBlank() && !reviewer.equals(author))
+                    .toList();
+                if (reviewers.isEmpty()) return Map.of("number", number, "requested", false, "reason", "no-one to ask");
+
+                try {
+                    vcs.requestReview(required(input, "owner"), required(input, "repo"), number, reviewers);
+                    return Map.of("number", number, "reviewers", reviewers, "requested", true);
+                } catch (RuntimeException e) {
+                    // Reported, never thrown: the branch is pushed and the pull
+                    // request is open, and failing here would abandon both over
+                    // a notification.
+                    log.warn("Could not request review on PR #{} from {}: {}", number, reviewers, e.getMessage());
+                    return Map.of("number", number, "requested", false, "reason", String.valueOf(e.getMessage()));
+                }
             }
         };
     }

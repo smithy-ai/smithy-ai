@@ -22,6 +22,7 @@ metadata:
   version: "1"
 
 vars:
+  actor: smithy
   botUser: smithy
   # Where plans live on the branch. Removed before the pull request is
   # finalized, so a plan never reaches the base branch.
@@ -314,6 +315,8 @@ state:
               repo: "{{ vars.repo }}"
               number: "{{ steps.pr.number }}"
               reviewers: "{{ event.approver }}"
+              # The agent authored it, so it cannot review it.
+              notFrom: "{{ vars.botUser }}"
 
           - uses: metrics.record
             with:

@@ -70,7 +70,14 @@ class GitHubEventMapperTest {
     }
 
     private static VcsProviderConfig vcsConfig() {
-        var github = new VcsProviderConfig.GitHubProviderConfig("", "", "secret", "smithy-token", "architect-token");
+        var github = new VcsProviderConfig.GitHubProviderConfig(
+            "",
+            "",
+            "secret",
+            "smithy-token",
+            "architect-token",
+            "coordinator-token"
+        );
         return new VcsProviderConfig("github", null, null, null, github, null);
     }
 
@@ -80,7 +87,14 @@ class GitHubEventMapperTest {
             new BotConfig.BotEntry("architect-bot", "architect@example.com"),
             new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
         );
-        var github = new VcsProviderConfig.GitHubProviderConfig("", "", "secret", "smithy-token", "architect-token");
+        var github = new VcsProviderConfig.GitHubProviderConfig(
+            "",
+            "",
+            "secret",
+            "smithy-token",
+            "architect-token",
+            "coordinator-token"
+        );
         var vcsConfig = new VcsProviderConfig("github", null, null, null, github, null);
         return new GitHubEventMapper(botConfig, vcsConfig, WorkflowPolicyConfig.defaults(), null);
     }

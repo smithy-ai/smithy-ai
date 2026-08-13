@@ -15,7 +15,8 @@ public record VcsProviderConfig(
         @JsonProperty("external-url") String externalUrl,
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("smithy-token") String smithyToken,
-        @JsonProperty("architect-token") String architectToken
+        @JsonProperty("architect-token") String architectToken,
+        @JsonProperty("coordinator-token") String coordinatorToken
     ) {}
 
     public record GitLabProviderConfig(
@@ -24,6 +25,7 @@ public record VcsProviderConfig(
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("smithy-token") String smithyToken,
         @JsonProperty("architect-token") String architectToken,
+        @JsonProperty("coordinator-token") String coordinatorToken,
         @JsonProperty("token-type") String tokenType
     ) {
         public boolean isOAuth2() {
@@ -36,7 +38,8 @@ public record VcsProviderConfig(
         @JsonProperty("external-url") String externalUrl,
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("smithy-token") String smithyToken,
-        @JsonProperty("architect-token") String architectToken
+        @JsonProperty("architect-token") String architectToken,
+        @JsonProperty("coordinator-token") String coordinatorToken
     ) {}
 
     /**
@@ -108,6 +111,56 @@ public record VcsProviderConfig(
             }
             default -> forgejo != null ? forgejo.externalUrl() : null;
         };
+    }
+
+    /** Actor names, as a workflow refers to them. */
+    public static final String SMITHY = "smithy";
+    public static final String ARCHITECT = "architect";
+    public static final String COORDINATOR = "coordinator";
+
+    /**
+     * The token an actor authenticates with.
+     *
+     * <p>Falls back to smithy's where an actor has none configured, so a
+     * deployment that has not split its identities keeps working — at the cost
+     * of everything being attributed to one account, which is what having
+     * separate actors is meant to avoid.
+     */
+    public String tokenFor(String actor) {
+        String token = switch (resolvedProvider()) {
+            case "gitlab" -> gitlab == null
+                ? null
+                : switch (actor) {
+                      case ARCHITECT -> gitlab.architectToken();
+                      case COORDINATOR -> gitlab.coordinatorToken();
+                      default -> gitlab.smithyToken();
+                  };
+            case "github" -> github == null
+                ? null
+                : switch (actor) {
+                      case ARCHITECT -> github.architectToken();
+                      case COORDINATOR -> github.coordinatorToken();
+                      default -> github.smithyToken();
+                  };
+            default -> forgejo == null
+                ? null
+                : switch (actor) {
+                      case ARCHITECT -> forgejo.architectToken();
+                      case COORDINATOR -> forgejo.coordinatorToken();
+                      default -> forgejo.smithyToken();
+                  };
+        };
+        return token != null && !token.isBlank() ? token : smithyToken();
+    }
+
+    /** Whether this actor has an identity of its own here. */
+    public boolean hasOwnToken(String actor) {
+        String own = switch (resolvedProvider()) {
+            case "gitlab" -> gitlab == null ? null : (COORDINATOR.equals(actor) ? gitlab.coordinatorToken() : null);
+            case "github" -> github == null ? null : (COORDINATOR.equals(actor) ? github.coordinatorToken() : null);
+            default -> forgejo == null ? null : (COORDINATOR.equals(actor) ? forgejo.coordinatorToken() : null);
+        };
+        return own != null && !own.isBlank();
     }
 
     public String smithyToken() {

@@ -1,69 +1,76 @@
 package dev.smithyai.orchestrator.service.vcs;
 
-import dev.smithyai.orchestrator.model.RepoInfo;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * The issue trackers this deployment can reach, by connector name.
+ * The issue trackers this deployment can reach, by actor and connector.
  *
- * <p>An action works against the system its event came from, which is a
- * question of which connector — not of whether something is a "story" or a
- * "repository issue". Those were roles, and a role is an interpretation the
- * platform has no business making: a Jira ticket is a story in one deployment
- * and the only tracker there is in another.
+ * <p>Two questions, and they are separate. <em>Which system</em> — a story in
+ * Jira is answered in Jira, a repository issue in the repository's own tracker.
+ * <em>As whom</em> — a coordinator that plans a feature and an agent that
+ * implements one task of it are different accounts, and a reader of the issue
+ * should be able to tell which of them wrote something.
+ *
+ * <p>An actor with no identity of its own falls back to the default one. That
+ * keeps a single-account deployment working, at the cost of everything being
+ * attributed to that account.
  */
 public class IssueTrackers {
 
-    private final Map<String, IssueTrackerClient> byConnector;
+    private final Map<String, Map<String, IssueTrackerClient>> byActor;
+    private final String defaultActor;
     private final IssueTrackerClient fallback;
 
-    public IssueTrackers(Map<String, IssueTrackerClient> byConnector, IssueTrackerClient fallback) {
-        this.byConnector = new LinkedHashMap<>(byConnector);
+    public IssueTrackers(
+        Map<String, Map<String, IssueTrackerClient>> byActor,
+        String defaultActor,
+        IssueTrackerClient fallback
+    ) {
+        this.byActor = new LinkedHashMap<>(byActor);
+        this.defaultActor = defaultActor;
         this.fallback = fallback;
     }
 
-    /**
-     * The tracker for a connector, or the configured one where the name is
-     * empty or unknown.
-     *
-     * @param connector an explicit connector name, or empty to take the
-     *                  event's own — which is right whenever a workflow acts on
-     *                  the thing that triggered it
-     */
-    public IssueTrackerClient forConnector(String connector) {
-        // Blank is "wherever this event came from", which for an internal event
-        // is nowhere in particular — the configured tracker is the right answer.
-        if (connector == null || connector.isBlank()) return fallback;
+    /** Single-actor deployments, and tests. */
+    public IssueTrackers(Map<String, IssueTrackerClient> byConnector, IssueTrackerClient fallback) {
+        this(Map.of("smithy", byConnector), "smithy", fallback);
+    }
 
-        var tracker = byConnector.get(connector);
+    /**
+     * @param actor     who to act as; unknown or blank means the default
+     * @param connector which system; blank means the event's own, resolved by
+     *                  the caller, and unknown is a mistake worth reporting
+     */
+    public IssueTrackerClient forConnector(String actor, String connector) {
+        var connectors = byActor.get(actor == null || actor.isBlank() ? defaultActor : actor);
+        if (connectors == null) connectors = byActor.getOrDefault(defaultActor, Map.of());
+
+        if (connector == null || connector.isBlank()) {
+            // No connector named and none on the event: the deployment's own.
+            return connectors.values().stream().findFirst().orElse(fallback);
+        }
+        var tracker = connectors.get(connector);
         if (tracker == null) {
-            // A named connector that does not exist is a typo, and quietly
-            // using the fallback would post a child issue's comment to whatever
-            // tracks stories — visibly wrong, in someone else's system.
             throw new IllegalArgumentException(
-                "No connector named '%s' is configured; available: %s".formatted(connector, byConnector.keySet())
+                "No connector named '%s' is configured; available: %s".formatted(connector, connectors.keySet())
             );
         }
         return tracker;
     }
 
-    /** Whether a named connector is actually configured here. */
-    public boolean has(String connector) {
-        return connector != null && byConnector.containsKey(connector);
+    public IssueTrackerClient forConnector(String connector) {
+        return forConnector(defaultActor, connector);
     }
 
-    public Optional<IssueTrackerClient> find(String connector) {
-        return Optional.ofNullable(byConnector.get(connector));
+    public Set<String> actors() {
+        return byActor.keySet();
     }
 
-    public java.util.Set<String> connectors() {
-        return byConnector.keySet();
-    }
-
-    /** Connector names this deployment knows about, for messages. */
-    public static String describe(RepoInfo info) {
-        return info == null || info.source().isBlank() ? "unknown" : info.source();
+    public Optional<IssueTrackerClient> find(String actor, String connector) {
+        var connectors = byActor.get(actor);
+        return connectors == null ? Optional.empty() : Optional.ofNullable(connectors.get(connector));
     }
 }

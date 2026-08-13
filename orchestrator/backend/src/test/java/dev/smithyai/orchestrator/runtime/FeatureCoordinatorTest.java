@@ -304,7 +304,8 @@ class FeatureCoordinatorTest {
                 "http://forgejo.invalid",
                 null,
                 "smithy-token",
-                "architect-token"
+                "architect-token",
+                "coordinator-token"
             ),
             null,
             null,
@@ -550,6 +551,31 @@ class FeatureCoordinatorTest {
 
         assertEquals(1, gitlab.createdIssues.size(), "created where the work lives");
         assertTrue(jira.createdIssues.isEmpty(), "not where the story lives");
+    }
+
+    @Test
+    void eachWorkflowActsAsItsOwnIdentity() {
+        var asSmithy = new StubVcsClient();
+        var asCoordinator = new StubVcsClient();
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            Map.of(
+                "smithy",
+                Map.<String, dev.smithyai.orchestrator.service.vcs.IssueTrackerClient>of("forgejo", asSmithy),
+                "coordinator",
+                Map.<String, dev.smithyai.orchestrator.service.vcs.IssueTrackerClient>of("forgejo", asCoordinator)
+            ),
+            "smithy",
+            asSmithy
+        );
+        var comment = new IssueCommentAction(trackers);
+        var input = Map.<String, Object>of("owner", "acme", "repo", "product", "issue", "1", "body", "planned");
+
+        comment.execute(new ActionContext(null, storyAssigned("forgejo"), Map.of(), Map.of(), "coordinator"), input);
+
+        // A reader of the story has to be able to tell who wrote this, and a
+        // bot answering itself is how comment loops start.
+        assertEquals(1, asCoordinator.issueComments.size(), "the coordinator signed its own plan");
+        assertTrue(asSmithy.issueComments.isEmpty(), "not the agent that will do the work");
     }
 
     @Test
