@@ -58,6 +58,8 @@ Issue-body rules (each agent sees ONLY its own repository):
 - Spell out cross-component touchpoints explicitly: API shapes, endpoint paths, queue and message
   names, config keys. Sibling agents cannot see each other's repositories.
 - NO sequencing notes in bodies ("after X merges") — ordering is expressed only through dependsOn.
+- Do NOT reference the story or the other issues. A link back to the story is appended to every issue
+  body automatically, and an agent reading its issue cannot open anything you point it at anyway.
 3. Express ordering as dependsOn: a list of ZERO-BASED indexes into your issues array. An issue is
    only handed to an agent once every issue it depends on is finished.
 4. Prefer a reasonable assumption stated in the summary over blocking on an open question.

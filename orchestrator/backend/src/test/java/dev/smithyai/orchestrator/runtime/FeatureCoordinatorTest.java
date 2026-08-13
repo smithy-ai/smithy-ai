@@ -493,12 +493,31 @@ class FeatureCoordinatorTest {
     }
 
     @Test
+    void everyChildIssueLinksBackToTheStory() {
+        engine.handle(storyAssigned());
+        engine.handle(storyApproved());
+
+        // The tracker turns this into a link on both issues, which is how a
+        // person finds their way from one task to the feature it belongs to.
+        for (var created : vcs.createdIssues) {
+            assertTrue(
+                created.body().contains("Part of acme/product#PROD-1"),
+                "no reference back to the story in " + created.repo() + ": " + created.body()
+            );
+        }
+        // And the agent's own text survives above it.
+        assertTrue(vcs.createdIssues.getFirst().body().startsWith("GET /search"), vcs.createdIssues.getFirst().body());
+    }
+
+    @Test
     void aChildIssueRoutesToItsRunWithNothingWrittenIntoTheIssueBody() {
         engine.handle(storyAssigned());
         engine.handle(storyApproved());
 
         var created = vcs.createdIssues.getFirst();
-        assertFalse(created.body().contains("Parent story"), "the body is what the agent wrote, nothing else");
+        // A human-readable link is fine and wanted; what must not be there is
+        // anything the platform reads back to work out parentage.
+        assertFalse(created.body().contains("Parent story"), "no marker to be parsed back out");
 
         var child = store.findByCorrelation(CorrelationKind.ISSUE, "acme/api#" + created.issueRef()).orElseThrow();
         assertEquals("smithy-development", child.workflowName());

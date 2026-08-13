@@ -106,7 +106,23 @@ actions:
               owner: "{{ item.owner }}"
               repo: "{{ item.repo }}"
               title: "{{ item.title }}"
-              body: "{{ item.body }}"
+              # A reference back to the story, which the tracker turns into a
+              # link on both issues. Written here rather than asked of the
+              # planning agent, because a backlink that depends on a model
+              # remembering a format is a backlink that sometimes is not there.
+              #
+              # Only where it resolves: a cross-repository reference means
+              # nothing if the story lives in another system entirely. And
+              # deliberately not the foreman's "Parent story:" marker — that was
+              # parsed back out to route events, which is what the run store is
+              # for. Nothing reads this.
+              body: |-
+                {{ item.body }}
+                {%- if not vars.childConnector or vars.childConnector == vars.storySource %}
+
+                ---
+                Part of {{ vars.storyOwner }}/{{ vars.storyRepo }}#{{ vars.storyRef }}
+                {%- endif %}
 
           - uses: run.spawn
             id: child
@@ -211,6 +227,7 @@ state:
               storyOwner: "{{ repo.owner }}"
               storyRepo: "{{ repo.name }}"
               storyRef: "{{ event.issueRef }}"
+              storySource: "{{ event.source }}"
 
           - uses: issue.comment
             with:

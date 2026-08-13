@@ -148,6 +148,11 @@ The fields come back as the step's outputs.
 `feature-coordinator` splits one story into per-repository issues, waits for a
 human to approve the plan, then hands each issue out as its dependencies clear.
 
+Each child issue carries a reference back to the story, which the tracker turns
+into a link on both. It is written by the definition rather than asked of the
+planning agent, and nothing reads it back — parentage lives in the run store, and
+a reference that resolves to a link is not a marker to be parsed.
+
 Children are **ordinary issues** in their target repositories. There is no
 tracker-native subtask, epic or tasklist anywhere — not every tracker has them,
 and the parent story may live in Jira while the work lives in GitLab. The
