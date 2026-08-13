@@ -1,8 +1,10 @@
-# Usage & Workflow
+# Day to day
 
-This page explains how to use Smithy-AI day-to-day once your instance is [set up](setup/demo.md).
+What you actually do once an instance is [set up](setup/demo.md). This describes
+the workflows that ship with Smithy-AI; all of them are
+[definitions you can change](workflows/index.md).
 
-## Smithy development workflow
+## Working one issue: `smithy-development`
 
 ### 1. Create an issue
 
@@ -50,6 +52,19 @@ Smithy responds to review comments and iterates on the code.
 
 When you're satisfied with the implementation, remove the draft status from the PR. Smithy cleans up planning artifacts and the work is done. Merge when ready.
 
+## Working a feature across repositories: `feature-coordinator`
+
+When a change spans several repositories, assign the story to the **coordinator**
+actor instead of to smithy. It plans the split, creates an ordinary issue in each
+repository, and hands them out in dependency order — each one worked by an
+ordinary `smithy-development` run.
+
+It ships inert and needs a catalog before it will claim anything. See
+[coordinating across repositories](workflows/coordinator.md).
+
+Which actor you assign to is the whole signal: **coordinator** means "plan this
+across repositories", **smithy** means "do this here".
+
 ## The Architect
 
 The Architect is a separate agent focused on code review and maintaining project knowledge.
@@ -89,9 +104,29 @@ One limitation for now: follow-up comments on the pull request The Architect ope
 
 The context repository is created automatically by `setup_repo.py` during [demo setup](setup/demo.md), or you can create it manually.
 
+## Watching and steering a run
+
+The dashboard lists **runs** — every piece of work, including finished and failed
+ones, because a run outlives the container that did it. Open one to see its
+timeline: every event it received and every milestone it recorded, in order.
+
+From there you can:
+
+- **Approve a gate** a run is holding at, which is the same as applying the
+  approval label.
+- **Cancel a run.** The container goes; the history stays. Anything waiting on it
+  keeps waiting rather than treating it as delivered.
+- **Take over the session** and talk to the agent yourself. While you hold it,
+  inbound events are held rather than acted on, so the agent is not working on
+  top of what you are typing. Control lapses on its own if you close the tab.
+
 ## Labels
 
 | Label | Purpose |
 |---|---|
-| **Plan Approved** | Added to an issue to trigger Smithy's implementation phase |
+| **Plan Approved** | Added to an issue to trigger the implementation phase |
+
+The label is configurable (`workflow.plan-approved-label`), and a workflow can
+treat anything else as approval instead — it is a routing predicate, not a
+platform concept.
 

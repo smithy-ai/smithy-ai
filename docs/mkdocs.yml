@@ -17,16 +17,20 @@ theme:
 
 nav:
   - Home: index.md
+  - Concepts: concepts.md
   - Setup:
     - Local Demo: setup/demo.md
     - GitHub: setup/github.md
     - GitLab: setup/gitlab.md
     - Forgejo: setup/forgejo.md
+  - Workflows:
+    - Writing a workflow: workflows/index.md
+    - Reference: workflows/reference.md
+    - Across repositories: workflows/coordinator.md
   - Usage:
-    - Workflow: usage.md
+    - Day to day: usage.md
     - Configuration: configuration.md
   - Advanced:
-    - Workflows: advanced/workflows.md
     - Custom Task Images: advanced/custom-task-images.md
 
 extra_css:
