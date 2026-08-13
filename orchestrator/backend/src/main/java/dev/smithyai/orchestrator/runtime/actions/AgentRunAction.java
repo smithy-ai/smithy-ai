@@ -28,14 +28,18 @@ public class AgentRunAction extends AbstractAgentAction {
 
     @Override
     public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-        var agent = agentFor(context, input);
+        boolean planning = "plan".equals(optional(input, "mode", "default"));
+        // Planning starts a conversation; everything else continues one.
+        var agent = planning
+            ? environments.newAgent(context.run(), listInput(input, "tools"))
+            : agentFor(context, input);
         String prompt = promptFrom(input);
 
         // Before the turn, not only after: a turn can run for half an hour and
         // the dashboard tails the transcript by session id while it does.
         remember(context, agent);
 
-        if ("plan".equals(optional(input, "mode", "default"))) {
+        if (planning) {
             agent.startPlan(prompt);
             var planFile = agent.latestPlanFile();
             remember(context, agent);

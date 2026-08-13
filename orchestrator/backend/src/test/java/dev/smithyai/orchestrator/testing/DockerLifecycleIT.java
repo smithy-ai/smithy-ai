@@ -220,6 +220,44 @@ class DockerLifecycleIT {
         assertEquals("smithy/it-1", status.get("branch"), "the step ran, so the container was started for it");
     }
 
+    @Test
+    void aRunAdoptsAContainerNobodyHolds() {
+        var first = store.create("smithy-development", "1", "refine", null);
+        new ContainerInitAction(environments, dockerConfig()).execute(context(first), initInputs());
+        // The record is gone but the container is not — a rebuilt store, or a
+        // run that was removed while its container stayed.
+        store.detachEnvironment(RunEnvironment.CONTAINER, CONTAINER);
+
+        var second = store.create("smithy-development", "1", "refine", null);
+        var result = new ContainerInitAction(environments, dockerConfig()).execute(context(second), initInputs());
+
+        assertEquals(CONTAINER, result.get("name"));
+        assertEquals(
+            second.id(),
+            store.findByEnvironment(RunEnvironment.CONTAINER, CONTAINER).orElseThrow().id(),
+            "the later run holds it"
+        );
+        // Adopted, not rebuilt: the working tree is still the first run's.
+        var branch = environments
+            .container(store.find(second.id()).orElseThrow())
+            .exec("sh", "-c", "cd /workspace && git rev-parse --abbrev-ref HEAD");
+        assertEquals("smithy/it-1", branch.stdout().strip());
+    }
+
+    @Test
+    void aContainerAnotherRunHoldsIsNotTakenFromIt() {
+        var holder = store.create("smithy-development", "1", "refine", null);
+        new ContainerInitAction(environments, dockerConfig()).execute(context(holder), initInputs());
+
+        var other = store.create("smithy-development", "1", "refine", null);
+        var action = new ContainerInitAction(environments, dockerConfig());
+        var context = context(other);
+
+        // Two runs in one container is two agents in one working tree.
+        var refused = assertThrows(IllegalStateException.class, () -> action.execute(context, initInputs()));
+        assertTrue(refused.getMessage().contains(holder.id()), refused.getMessage());
+    }
+
     // ── Plumbing ─────────────────────────────────────────────
 
     private ActionContext context(dev.smithyai.orchestrator.runtime.store.Run run) {

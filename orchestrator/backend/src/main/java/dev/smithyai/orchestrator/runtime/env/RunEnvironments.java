@@ -78,6 +78,23 @@ public class RunEnvironments {
      * its run, and what makes a restart re-attach rather than fork a new run.
      */
     public ContainerSession createContainer(Run run, String name, ContainerConfig config, String initialStage) {
+        // A container with this name may already exist without this run knowing:
+        // the store was rebuilt, or a previous run left it behind. Adopting it
+        // beats failing on a name conflict, and beats cloning a second copy of a
+        // repository that is already sitting there.
+        if (containers.containerExists(name)) {
+            var holder = store.findByEnvironment(RunEnvironment.CONTAINER, name);
+            if (holder.isPresent() && !holder.get().id().equals(run.id())) {
+                throw new IllegalStateException(
+                    "Container %s is held by run %s; run %s cannot take it".formatted(name, holder.get().id(), run.id())
+                );
+            }
+            containers.ensureRunning(name);
+            store.attachEnvironment(run.id(), RunEnvironment.CONTAINER, name, Map.of());
+            log.info("Run {} adopted the existing container {}", run.id(), name);
+            return containers.createSession(name);
+        }
+
         var session = containers.createSession(name);
         session.initContainer(config, initialStage);
         store.attachEnvironment(run.id(), RunEnvironment.CONTAINER, name, Map.of());
@@ -98,6 +115,17 @@ public class RunEnvironments {
         return existing != null
             ? new ClaudeSession(session, tools, existing, knowledgebaseConfig)
             : new ClaudeSession(session, tools, knowledgebaseConfig);
+    }
+
+    /**
+     * A conversation that starts here, whatever the container remembers.
+     *
+     * <p>Planning opens a session rather than continuing one, and Claude refuses
+     * to open a session id that already exists — which an adopted container will
+     * have from whoever used it last.
+     */
+    public ClaudeSession newAgent(Run run, List<String> tools) {
+        return new ClaudeSession(container(run), tools, knowledgebaseConfig);
     }
 
     /** Record the agent's session id so the next transition resumes it. */
