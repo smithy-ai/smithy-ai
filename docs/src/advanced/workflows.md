@@ -145,8 +145,13 @@ and the parent story may live in Jira while the work lives in GitLab. The
 parent/child graph is in Smithy's own run store, which is also what routes an
 event about a child issue back to the run that owns it.
 
-It ships with an empty repository catalog, because the built-in cannot know your
-repositories. Supply yours by extending it:
+It ships inert — an empty catalog and no story repositories — because the
+built-in cannot know either. It claims an issue only where stories are raised,
+which must not be a catalog repository: the issues it creates there are ordinary
+work for the development workflow, and a coordinator that claimed them too would
+plan a feature for each task of the feature it just planned.
+
+Supply both by extending it:
 
 ```yaml
 # /config/workflows/acme-coordinator.yml
@@ -156,6 +161,7 @@ metadata:
   name: acme-coordinator
   extends: feature-coordinator
 vars:
+  storyRepos: [acme/product]
   catalog:
     - owner: acme
       repo: api
@@ -165,6 +171,17 @@ vars:
       description: The web client
   botUser: smithy
 ```
+
+A child issue is created in its repository's own tracker, not in the tracker the
+story came from — `issue.create` and `issue.assign` take `tracker: repo` for
+this. That is what lets a Jira story fan out into GitLab issues. For a Jira story
+with no repository field, set `vcs.jira.stories-without-repo` so the story
+reaches the coordinator scoped to its project, and list that project under
+`storyRepos` as `PROJ/PROJ`.
+
+Children report completion on their own: the engine emits `child-done` to a
+parent whenever a run with one reaches a terminal state, so a child workflow
+needs no knowledge that it is a child.
 
 `extends` contributes variables only — routing and states come from the base — so
 configuring a shipped workflow cannot quietly change what it does. A workflow that

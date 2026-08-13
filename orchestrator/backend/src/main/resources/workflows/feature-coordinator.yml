@@ -150,6 +150,9 @@ state:
               - uses: issue.create
                 id: child_issue
                 with:
+                  # In the repository, not in the story tracker: the story may
+                  # be a Jira ticket and the work is not.
+                  tracker: repo
                   owner: "{{ item.owner }}"
                   repo: "{{ item.repo }}"
                   title: "{{ item.title }}"
@@ -186,6 +189,7 @@ state:
             steps:
               - uses: issue.assign
                 with:
+                  tracker: repo
                   owner: "{{ item.owner }}"
                   repo: "{{ item.repo }}"
                   issue: "{{ item.issueRef }}"
@@ -211,6 +215,7 @@ state:
             steps:
               - uses: issue.assign
                 with:
+                  tracker: repo
                   owner: "{{ item.owner }}"
                   repo: "{{ item.repo }}"
                   issue: "{{ item.issueRef }}"

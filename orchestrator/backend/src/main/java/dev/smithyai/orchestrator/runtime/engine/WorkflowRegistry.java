@@ -48,16 +48,24 @@ public class WorkflowRegistry {
         CapabilityValidator validator,
         WorkflowPolicyConfig policy,
         @Qualifier("smithyVcsClient") VcsClient vcs,
-        @Qualifier("smithyIssueTracker") IssueTrackerClient issues
+        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
     ) {
         this.loader = loader;
         this.validator = validator;
         this.policy = policy;
         // The platform always supplies an environment and an agent; everything
-        // else depends on which provider is configured.
+        // else depends on which providers are configured.
+        //
+        // A union across them, which is exact when one system does everything
+        // and optimistic when they are split: a definition that creates issues
+        // in the story tracker passes validation on the strength of the VCS
+        // being able to create them. A step names the tracker it means, so the
+        // gap is narrow, but it is real — capabilities are not yet per-provider.
         var capabilities = EnumSet.of(Capability.ENVIRONMENT, Capability.AGENT);
         capabilities.addAll(vcs.capabilities());
         capabilities.addAll(issues.capabilities());
+        capabilities.addAll(repoIssues.capabilities());
         this.supported = Set.copyOf(capabilities);
     }
 
@@ -180,11 +188,32 @@ public class WorkflowRegistry {
      */
     public boolean runnable(WorkflowDefinition definition) {
         try {
-            validator.validate(definition.metadata().name(), definition, supported);
+            // Resolve extends first: a repository-owned definition that only
+            // supplies vars has no state of its own, and validating it unresolved
+            // fails on a null rather than on anything a maintainer can act on.
+            var resolved = resolveExtends(
+                new LoadedWorkflowDefinition(definition.metadata().name(), definition),
+                byName
+            );
+            validator.validate(resolved.definition().metadata().name(), resolved.definition(), supported);
             return true;
-        } catch (WorkflowDefinitionException e) {
+        } catch (RuntimeException e) {
+            // Broad on purpose: this runs on the event path, and one repository's
+            // broken workflow must not stop that repository being worked on.
             log.warn("Repository workflow '{}' cannot run here: {}", definition.metadata().name(), e.getMessage());
             return false;
+        }
+    }
+
+    /** A repository-owned definition, with any {@code extends} already applied. */
+    public WorkflowDefinition resolved(WorkflowDefinition definition) {
+        try {
+            return resolveExtends(
+                new LoadedWorkflowDefinition(definition.metadata().name(), definition),
+                byName
+            ).definition();
+        } catch (RuntimeException e) {
+            return definition;
         }
     }
 }

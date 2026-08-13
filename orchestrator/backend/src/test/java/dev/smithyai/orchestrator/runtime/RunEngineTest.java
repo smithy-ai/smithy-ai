@@ -130,6 +130,7 @@ class RunEngineTest {
             new CapabilityValidator(actions),
             policy,
             stubs,
+            stubs,
             stubs
         );
         workflows.loadAll();

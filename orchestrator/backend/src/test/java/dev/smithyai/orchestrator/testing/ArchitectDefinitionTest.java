@@ -105,10 +105,10 @@ class ArchitectDefinitionTest {
                 new IssueCommentAction(vcs),
                 new PrConversationAction(vcs),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                new IssueActions().issueCreateAction(vcs),
-                new IssueActions().issueAssignAction(vcs),
-                new IssueActions().issueLabelAction(vcs),
-                new IssueActions().issueReadAction(vcs),
+                new IssueActions().issueCreateAction(vcs, vcs),
+                new IssueActions().issueAssignAction(vcs, vcs),
+                new IssueActions().issueLabelAction(vcs, vcs),
+                new IssueActions().issueReadAction(vcs, vcs),
                 new PullRequestActions().prCreateAction(vcs),
                 new PullRequestActions().prCommentAction(vcs),
                 new PullRequestActions().prRequestReviewAction(vcs),
@@ -142,6 +142,7 @@ class ArchitectDefinitionTest {
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),
             new WorkflowPolicyConfig(null, null, tempDir.resolve("no-such-dir").toString()),
+            vcs,
             vcs,
             vcs
         );

@@ -125,10 +125,10 @@ class SmithyDefinitionTest {
                 new IssueCommentAction(vcs),
                 new PrConversationAction(vcs),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                issues.issueCreateAction(vcs),
-                issues.issueAssignAction(vcs),
-                issues.issueLabelAction(vcs),
-                issues.issueReadAction(vcs),
+                issues.issueCreateAction(vcs, vcs),
+                issues.issueAssignAction(vcs, vcs),
+                issues.issueLabelAction(vcs, vcs),
+                issues.issueReadAction(vcs, vcs),
                 prs.prCreateAction(vcs),
                 prs.prCommentAction(vcs),
                 prs.prRequestReviewAction(vcs),
@@ -166,6 +166,7 @@ class SmithyDefinitionTest {
             new CapabilityValidator(actions),
             // No override directory: the built-in definition is what is on trial.
             new WorkflowPolicyConfig(null, null, tempDir.resolve("no-such-dir").toString()),
+            vcs,
             vcs,
             vcs
         );

@@ -51,8 +51,19 @@ public record VcsProviderConfig(
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("repo-field") String repoField,
         @JsonProperty("plan-approved-label") String planApprovedLabel,
-        @JsonProperty("plan-approved-status") String planApprovedStatus
+        @JsonProperty("plan-approved-status") String planApprovedStatus,
+        @JsonProperty("stories-without-repo") Boolean storiesWithoutRepo
     ) {
+        /**
+         * Whether a story with no repository field is still handed to the
+         * workflows. Off by default, because a development workflow needs a
+         * repository; a coordinator does not, since it picks them from its
+         * catalog.
+         */
+        public boolean allowsStoriesWithoutRepo() {
+            return storiesWithoutRepo != null && storiesWithoutRepo;
+        }
+
         public boolean isCloud() {
             return email != null && !email.isBlank();
         }

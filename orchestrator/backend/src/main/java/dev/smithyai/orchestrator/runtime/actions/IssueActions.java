@@ -22,6 +22,23 @@ import org.springframework.context.annotation.Configuration;
 public class IssueActions {
 
     /**
+     * Which tracker a step means.
+     *
+     * <p>{@code story} is where the triggering issue lives — Jira, if that is
+     * how stories are tracked. {@code repo} is the repository's own issues,
+     * which is what a coordinator creates and assigns. They are the same system
+     * in most deployments and different in exactly the one this exists for.
+     */
+    private static IssueTrackerClient trackerFor(
+        WorkflowAction action,
+        Map<String, Object> input,
+        IssueTrackerClient story,
+        IssueTrackerClient repository
+    ) {
+        return "repo".equals(action.optional(input, "tracker", "story")) ? repository : story;
+    }
+
+    /**
      * Create an issue in a repository.
      *
      * <p>This is how a coordinator fans work out. Deliberately an ordinary issue
@@ -30,7 +47,10 @@ public class IssueActions {
      * The parent link is recorded in the run store by {@code correlate}.
      */
     @Bean
-    public WorkflowAction issueCreateAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public WorkflowAction issueCreateAction(
+        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
+    ) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -44,7 +64,7 @@ public class IssueActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                var created = issues.createIssue(
+                var created = trackerFor(this, input, issues, repoIssues).createIssue(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "title"),
@@ -62,7 +82,10 @@ public class IssueActions {
 
     /** Assign an issue — how a coordinator hands a child issue to the bot. */
     @Bean
-    public WorkflowAction issueAssignAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public WorkflowAction issueAssignAction(
+        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
+    ) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -84,7 +107,7 @@ public class IssueActions {
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 List<String> assignees = listInput(input, "assignees");
                 if (assignees.isEmpty()) assignees = listInput(input, "to");
-                issues.setIssueAssignees(
+                trackerFor(this, input, issues, repoIssues).setIssueAssignees(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "issue"),
@@ -96,7 +119,10 @@ public class IssueActions {
     }
 
     @Bean
-    public WorkflowAction issueLabelAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public WorkflowAction issueLabelAction(
+        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
+    ) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -120,7 +146,8 @@ public class IssueActions {
                 String issue = required(input, "issue");
                 var labels = listInput(input, "labels");
                 if (labels.isEmpty()) labels = List.of(required(input, "label"));
-                labels.forEach(label -> issues.addIssueLabel(owner, repo, issue, label));
+                var tracker = trackerFor(this, input, issues, repoIssues);
+                labels.forEach(label -> tracker.addIssueLabel(owner, repo, issue, label));
                 return Map.of("labels", labels);
             }
         };
@@ -128,7 +155,10 @@ public class IssueActions {
 
     /** Read an issue back from the tracker, which is ground truth for its state. */
     @Bean
-    public WorkflowAction issueReadAction(@Qualifier("smithyIssueTracker") IssueTrackerClient issues) {
+    public WorkflowAction issueReadAction(
+        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
+    ) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -142,7 +172,7 @@ public class IssueActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                var issue = issues.getIssue(
+                var issue = trackerFor(this, input, issues, repoIssues).getIssue(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "issue")

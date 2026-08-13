@@ -28,7 +28,8 @@ class JiraEventMapperTest {
             "secret",
             "customfield_10010",
             null,
-            "In Development"
+            "In Development",
+            null
         );
         var vcsConfig = new VcsProviderConfig("gitlab", "jira", null, null, null, jira);
         VcsClient vcs = mock(VcsClient.class);

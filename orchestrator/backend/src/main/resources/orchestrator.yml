@@ -44,6 +44,10 @@ vcs:
     repo-field: ${JIRA_REPO_FIELD:}
     plan-approved-label: ${JIRA_PLAN_APPROVED_LABEL:plan-approved}
     plan-approved-status: ${JIRA_PLAN_APPROVED_STATUS:}
+    # Hand stories with no repository field to the workflows anyway, scoped to
+    # their Jira project. A coordinator picks repositories from its catalog, so
+    # it does not need the field; a development workflow does.
+    stories-without-repo: ${JIRA_STORIES_WITHOUT_REPO:false}
 
 workflow:
   # The label that unlocks implementation, and the prefix of the branches the

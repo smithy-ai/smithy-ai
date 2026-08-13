@@ -231,10 +231,10 @@ class LiveEndToEndIT {
                 new IssueCommentAction(issues),
                 new PrConversationAction(vcs),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                issueActions.issueCreateAction(issues),
-                issueActions.issueAssignAction(issues),
-                issueActions.issueLabelAction(issues),
-                issueActions.issueReadAction(issues),
+                issueActions.issueCreateAction(issues, issues),
+                issueActions.issueAssignAction(issues, issues),
+                issueActions.issueLabelAction(issues, issues),
+                issueActions.issueReadAction(issues, issues),
                 prActions.prCreateAction(vcs),
                 prActions.prCommentAction(vcs),
                 prActions.prRequestReviewAction(vcs),
@@ -272,6 +272,7 @@ class LiveEndToEndIT {
             new CapabilityValidator(actions),
             new WorkflowPolicyConfig(null, null, tempDir.resolve("no-overrides").toString()),
             vcs,
+            issues,
             issues
         );
         registry.loadAll();

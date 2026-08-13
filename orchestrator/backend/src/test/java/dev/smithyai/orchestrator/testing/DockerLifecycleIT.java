@@ -205,6 +205,21 @@ class DockerLifecycleIT {
         assertFalse(store.findEvents(run.id()).isEmpty(), "but the run's history is not");
     }
 
+    @Test
+    void aStoppedContainerIsStartedBeforeAStepRunsInIt() {
+        var run = store.create("smithy-development", "1", "refine", null);
+        new ContainerInitAction(environments, dockerConfig()).execute(context(run), initInputs());
+
+        // A machine reboot, a docker stop, a restart policy that lost.
+        assertEquals(0, shell("docker stop " + CONTAINER), "the container stops");
+
+        var status = new GitActions()
+            .gitStatusAction(environments)
+            .execute(context(store.find(run.id()).orElseThrow()), Map.of());
+
+        assertEquals("smithy/it-1", status.get("branch"), "the step ran, so the container was started for it");
+    }
+
     // ── Plumbing ─────────────────────────────────────────────
 
     private ActionContext context(dev.smithyai.orchestrator.runtime.store.Run run) {

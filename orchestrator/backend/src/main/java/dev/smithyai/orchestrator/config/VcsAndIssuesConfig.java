@@ -37,6 +37,28 @@ public class VcsAndIssuesConfig {
         return createIssueTrackerClient(vcs, issueProvider, false);
     }
 
+    /**
+     * The tracker that holds issues belonging to repositories.
+     *
+     * <p>Distinct from {@code smithyIssueTracker}, which may be Jira: a parent
+     * story can live in Jira while the work lives in repositories, and a
+     * coordinator creating a child issue means an issue in the repository, not
+     * a Jira subtask. When one system does both, this is that system.
+     */
+    @Bean
+    @Qualifier("repoIssueTracker")
+    public IssueTrackerClient repoIssueTrackerClient(
+        VcsProviderConfig vcs,
+        @Qualifier("smithyVcs") VcsClient smithyVcs,
+        @Qualifier("smithyIssueTracker") IssueTrackerClient smithyIssueTracker
+    ) {
+        if (smithyVcs instanceof IssueTrackerClient itc) return itc;
+        // A VCS with no issue API of its own; the configured tracker is all
+        // there is, and a definition asking for repository issues will fail
+        // capability validation rather than silently write them elsewhere.
+        return smithyIssueTracker;
+    }
+
     @Bean
     @Qualifier("architectVcs")
     public VcsClient architectVcsClient(VcsProviderConfig vcs, @Qualifier("smithyVcs") VcsClient smithyVcs) {

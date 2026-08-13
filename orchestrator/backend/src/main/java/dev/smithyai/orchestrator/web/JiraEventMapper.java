@@ -147,6 +147,20 @@ public class JiraEventMapper {
 
         String repoField = jira.repoField();
         String repoValue = repoField != null && !repoField.isBlank() ? fields.path(repoField).asText("") : "";
+        if (repoValue.isBlank() && jira.allowsStoriesWithoutRepo()) {
+            // A coordinator picks repositories from its own catalog, so a story
+            // does not need to name one. The project stands in as the scope the
+            // event happened in, which is what routing keys on.
+            String project = key.contains("-") ? key.substring(0, key.indexOf('-')) : key;
+            log.debug("Jira issue {} has no repository field; scoping it to project {}", key, project);
+            return new IssueContext(
+                new RepoInfo(project, project, null),
+                key,
+                fields.path("summary").asText(""),
+                fields.path("description").asText(""),
+                null
+            );
+        }
         if (repoValue.isBlank()) {
             log.warn("Jira issue {} has no repository field value ({}), ignoring", key, repoField);
             if (commentOnMissingRepo) {

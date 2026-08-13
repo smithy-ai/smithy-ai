@@ -39,10 +39,11 @@ public class WorkflowService {
     /**
      * On startup, reconcile what the store believes with what Docker has.
      *
-     * <p>There is nothing to recover any more — a run's state is in the store,
-     * not in its container — so this only reports. A run holding a container
-     * that no longer exists is a real state that used to be invisible, and a
-     * container nobody claims is worth knowing about before it is reaped.
+     * <p>There is no state to recover — a run's state is in the store, not in
+     * its container — but a container can be stopped while its run is still
+     * active, so anything an active run holds is started. A run whose container
+     * has gone is a real state that used to be invisible, and a container
+     * nobody claims is worth knowing about before it is reaped.
      */
     @EventListener(ApplicationReadyEvent.class)
     public void reconcile() {
@@ -56,7 +57,14 @@ public class WorkflowService {
                 held.forEach(containers::remove);
                 if (held.isEmpty()) continue;
                 for (String name : held) {
-                    if (containerService.containerExists(name)) continue;
+                    if (containerService.containerExists(name)) {
+                        // Stopped is not gone: start it so the run's next event
+                        // does not have to.
+                        if (!containerService.ensureRunning(name)) {
+                            log.warn("Run {} holds container {}, which will not start", run.id(), name);
+                        }
+                        continue;
+                    }
                     orphanedRuns++;
                     log.warn(
                         "Run {} ({}) is active in state '{}' but its container {} is gone",

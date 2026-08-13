@@ -103,6 +103,7 @@ class RepositoryWorkflowTest {
             new CapabilityValidator(actions),
             policy,
             vcs,
+            vcs,
             vcs
         );
         registry.loadAll();
@@ -159,5 +160,25 @@ class RepositoryWorkflowTest {
 
         assertEquals(1, outcomes.size(), "the readable one still runs");
         assertTrue(outcomes.getFirst().handled());
+    }
+
+    @Test
+    void aRepositorysOwnDefinitionOverridesTheOneItSharesANameWith() {
+        // The docs promise repository definitions have the highest precedence.
+        // Appending them to the global list meant the global one won instead.
+        vcs.repositoryFiles.put(
+            "acme/app:.smithy/workflows/greeter.yml",
+            OWN_WORKFLOW.replace("acme-greeter", "smithy-development")
+        );
+
+        var outcomes = engine.handle(assigned()).stream().filter(RunEngine.Outcome::handled).toList();
+
+        assertEquals(1, outcomes.size(), outcomes.toString());
+        assertEquals("smithy-development", outcomes.getFirst().workflowName());
+        assertEquals(
+            true,
+            store.find(outcomes.getFirst().runId()).orElseThrow().vars().get("greeted"),
+            "the repository's version ran, not the built-in"
+        );
     }
 }

@@ -145,8 +145,8 @@ class FeatureCoordinatorTest {
                 new GateAwaitAction(store),
                 new SignalEmitAction(store, this::deliverSignal),
                 new IssueCommentAction(vcs),
-                issueActions.issueCreateAction(vcs),
-                recordingAssign(issueActions.issueAssignAction(vcs)),
+                issueActions.issueCreateAction(vcs, vcs),
+                recordingAssign(issueActions.issueAssignAction(vcs, vcs)),
                 stateActions.stateSetAction(store),
                 stateActions.stateVarAction(store),
                 stateActions.metricsRecordAction(store),
@@ -182,8 +182,8 @@ class FeatureCoordinatorTest {
                 review.prLinkAction(vcs, vcsProviderConfig()),
                 ci.ciRetryGuardAction(store, new CiConfig(false)),
                 ci.ciResetAction(store),
-                issueActions.issueLabelAction(vcs),
-                issueActions.issueReadAction(vcs)
+                issueActions.issueLabelAction(vcs, vcs),
+                issueActions.issueReadAction(vcs, vcs)
             )
         );
 
@@ -195,6 +195,7 @@ class FeatureCoordinatorTest {
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),
             policy,
+            vcs,
             vcs,
             vcs
         );
@@ -388,6 +389,7 @@ class FeatureCoordinatorTest {
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(new ActionRegistry(List.of())),
             new WorkflowPolicyConfig(null, null, bare.toString()),
+            vcs,
             vcs,
             vcs
         );

@@ -41,9 +41,22 @@ public class RunEnvironments {
     }
 
     public Optional<ContainerSession> findContainer(Run run) {
-        return store
-            .findEnvironment(run.id(), RunEnvironment.CONTAINER)
-            .map(env -> containers.createSession(env.name()));
+        return store.findEnvironment(run.id(), RunEnvironment.CONTAINER).map(env -> session(env.name()));
+    }
+
+    /**
+     * A session on a container that is actually running.
+     *
+     * <p>A container can be stopped without the run ending — a machine reboot, a
+     * `docker stop`, a restart policy that lost. Every step then talks to
+     * something that is not there, so it is started first. The flows this
+     * replaced did the same thing on every dispatch.
+     */
+    private ContainerSession session(String name) {
+        if (!containers.ensureRunning(name)) {
+            log.warn("Container {} could not be started; steps that need it will fail", name);
+        }
+        return containers.createSession(name);
     }
 
     /** The run's container, or a failure naming the run — never a silent no-op. */

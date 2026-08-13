@@ -102,10 +102,22 @@ public class RunEngine implements SignalDelivery {
                       .stream()
                       .map(dev.smithyai.orchestrator.runtime.definition.LoadedWorkflowDefinition::definition)
                       .filter(definition -> registry.runnable(definition))
+                      .map(registry::resolved)
                       .toList();
         if (repositoryOwned.isEmpty()) return registry.all();
-        var all = new java.util.ArrayList<>(registry.all());
-        all.addAll(repositoryOwned);
+        // A repository's own definition wins over the one it shares a name with,
+        // which is what "highest precedence" in the docs means and the opposite
+        // of what appending them did.
+        var owned = repositoryOwned
+            .stream()
+            .map(d -> d.metadata().name())
+            .collect(java.util.stream.Collectors.toSet());
+        var all = new java.util.ArrayList<>(repositoryOwned);
+        registry
+            .all()
+            .stream()
+            .filter(d -> !owned.contains(d.metadata().name()))
+            .forEach(all::add);
         return all;
     }
 
@@ -241,16 +253,15 @@ public class RunEngine implements SignalDelivery {
 
     /** A decision names a workflow; it may be one this repository brought with it. */
     private WorkflowDefinition definitionFor(WorkflowRouter.Decision decision, WorkflowEvent event) {
-        return registry
-            .find(decision.workflowName())
-            .orElseGet(() ->
-                candidates(event)
-                    .stream()
-                    .filter(candidate -> candidate.metadata().name().equals(decision.workflowName()))
-                    .findFirst()
-                    .orElseThrow(() ->
-                        new IllegalStateException("No workflow definition named '" + decision.workflowName() + "'")
-                    )
+        // Same list, same order the routing decision came from — reaching for
+        // the global registry first would run a different definition than the
+        // one that claimed the event.
+        return candidates(event)
+            .stream()
+            .filter(candidate -> candidate.metadata().name().equals(decision.workflowName()))
+            .findFirst()
+            .orElseThrow(() ->
+                new IllegalStateException("No workflow definition named '" + decision.workflowName() + "'")
             );
     }
 
