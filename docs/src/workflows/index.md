@@ -1,7 +1,7 @@
 # Writing a workflow
 
-This builds one from nothing, in the order you would actually write it. For the
-complete field-by-field surface, see the [reference](reference.md).
+Building a workflow from scratch. For the complete field-by-field surface, see
+the [reference](reference.md).
 
 Assumes you have read [Concepts](../concepts.md).
 
@@ -35,7 +35,7 @@ state:
 ```
 
 Restart the orchestrator. Assign an issue to the bot and it comments. That is a
-complete workflow — routing, a state, a step.
+complete workflow: routing, a state, a step.
 
 The log tells you whether it loaded:
 
@@ -58,12 +58,12 @@ routing:
     key: "{{ repo.fullName }}#{{ event.issueRef }}"
 ```
 
-- **`event`** — one name or a list.
-- **`when`** — optional predicate. Anything that does not render to `true` is
+- **`event`**: one name or a list.
+- **`when`**: an optional predicate. Anything that does not render to `true` is
   false. This is how two workflows listening for the same event stay out of each
   other's way.
-- **`action`** — `create`, `dispatch`, `destroy` or `ignore`.
-- **`key`** — a template that must produce the same string for the same piece of
+- **`action`**: `create`, `dispatch`, `destroy` or `ignore`.
+- **`key`**: a template that must produce the same string for the same piece of
   work. This is the run's identity.
 
 The first matching rule per workflow wins, so ordering in the file is arbitration
@@ -71,9 +71,8 @@ you can see.
 
 ### Finding a run without a key
 
-A pull request event carries no issue reference. Deriving one by parsing the
-branch name is how naming conventions leak into places they do not belong, so
-instead a run **records** what it owns and routing reads that back:
+A pull request event carries no issue reference. Instead a run records what it
+owns, and routing reads that back:
 
 ```yaml
   # when the run opened the pull request
@@ -106,7 +105,7 @@ state:
   working:
     on:
       issue.commented:
-        steps: [...]        # no `to:` — stay put
+        steps: [...]        # no `to:`, so the run stays put
       pr.ready_for_review:
         to: done
         steps: [...]
@@ -115,7 +114,7 @@ state:
     on: {}
 ```
 
-An event a state does not name is ignored — normal, not an error. Reaching
+An event a state does not name is ignored. That is normal, not an error. Reaching
 `terminal` completes the run, releases its container, and tells its parent if it
 has one.
 
@@ -134,16 +133,15 @@ steps:
 Give a step an `id` when something later needs its output. `steps.plan.reply`
 reads the agent's answer.
 
-### Resumability, and why it matters when you write
+### Resumability
 
-A transition can be interrupted — a half-hour agent turn makes that ordinary. On
-resume, completed steps are skipped and their recorded output reused. Actions
-declare whether repeating them is harmless; the ones that are not (opening a pull
-request, creating an issue) are never repeated.
+A transition can be interrupted, and a half-hour agent turn makes that ordinary.
+On resume, completed steps are skipped and their recorded output reused. Actions
+declare whether repeating them is harmless; the ones that are not, such as
+opening a pull request or creating an issue, are never repeated.
 
-What this means for you: **do not write a step that is only correct the first
-time**. If you need something to happen exactly once, let the action's own
-guarantees do it rather than ordering steps defensively.
+Write steps plainly and rely on that: a step does not need to check whether it
+already ran.
 
 ## Expressions
 
@@ -151,21 +149,22 @@ guarantees do it rather than ordering steps defensively.
 `repo`, plus `item` and `index` inside a `foreach`. The full context is in the
 [reference](reference.md#expression-context).
 
-Two behaviours worth knowing:
+Two behaviours to be aware of.
 
-**A value that is exactly one expression yields the object, not its text.** So
-`items: "{{ vars.plan }}"` iterates a list. Without this a `foreach` would walk
-the characters of a rendered list.
+A value that is exactly one expression yields the object rather than its text, so
+`items: "{{ vars.plan }}"` iterates a list. Add surrounding text and it becomes a
+string.
 
-**Conditions must render to the literal `true`.** This looks right and is always
+Conditions must render to the literal `true`. This looks right and is always
 false:
 
 ```yaml
-if: "{{ event.approver }}"          # renders "alice" — not "true"
+if: "{{ event.approver }}"          # renders "alice", not "true"
 if: "{{ event.approver != '' }}"    # correct
 ```
 
-Two filters exist because branch names need them: `slug` and `displayRef`.
+Two extra filters are available for branch and reference names: `slug` and
+`displayRef`.
 
 ## Doing something per item
 
@@ -207,8 +206,8 @@ state:
           - uses: fanOut
 ```
 
-The built-in coordinator does exactly this so that approving by label and
-approving from the dashboard cannot drift apart.
+The built-in coordinator uses this so that approving by label and approving from
+the dashboard run the same steps.
 
 ## Waiting for a person
 
@@ -219,8 +218,8 @@ approving from the dashboard cannot drift apart.
     key: plan-approval
 ```
 
-The gate records itself and the transition ends — nothing blocks. It is released
-by whatever the workflow decides to treat as approval: a label producing
+The gate records itself and the transition ends; nothing blocks. It is released
+by whatever the workflow treats as approval: a label producing
 `issue.plan_approved`, or the dashboard, which emits `signal:gate-approved`.
 
 ## Waiting for other runs
@@ -233,7 +232,7 @@ by whatever the workflow decides to treat as approval: a label producing
     dependsOn: "{{ item.dependsOn }}"
 
 - uses: run.wave
-  id: wave                     # steps.wave.released — free to start now
+  id: wave                     # steps.wave.released lists what may start now
 ```
 
 The engine signals a parent `child-done` whenever a child reaches a terminal
@@ -253,31 +252,30 @@ vars:
   catalog: [...]
 ```
 
-`extends` contributes variables only — routing and states come from the base — so
-configuring a workflow cannot quietly change what it does. A workflow that
-extends another **shadows** it, since a base is a template rather than something
-to run alongside its configured form.
+`extends` contributes variables only; routing and states come from the base. A
+workflow that extends another shadows it, so the base does not also run.
 
 ## Testing one
 
 There is no dry-run mode yet. In practice:
 
 1. Watch the startup line to confirm it loaded.
-2. Trigger it and watch the log — every claim, every step failure, and the reason
-   a workflow stood aside are all logged.
+2. Trigger it and watch the log. It records every run a workflow claimed, every
+   step that failed, and every reason a workflow decided an event was not
+   its own.
 3. Read the run's timeline in the dashboard: every event it received and every
    `metrics.record` it wrote, in order.
 
-A step that fails leaves the run where it was, so fixing the definition and
-re-sending the event resumes rather than restarts.
+A step that fails leaves the run where it was. Fix the definition, re-send the
+event, and it carries on from that step.
 
 ## Common mistakes
 
 | Symptom | Cause |
 |---|---|
 | Workflow never claims anything | `when:` does not render to `true`, or another workflow already owns the event's issue |
-| Every issue claimed, including ones you meant for another workflow | No `when:` guard — filter on `event.assignee` or `event.source` |
+| Every issue claimed, including ones you meant for another workflow | No `when:` guard; filter on `event.assignee` or `event.source` |
 | `foreach` iterates characters | `items:` has text around the expression, so it rendered to a string |
 | A step is skipped on a second identical event | Expected: same event identity means replay. A genuinely new occurrence has a different identity |
-| Workflow missing at startup | Failed validation — the log line names the action or capability |
+| Workflow missing at startup | Failed validation; the log line names the action or capability |
 | Comment posted to the wrong system | Split connectors: name one with `connector:`, or let it default to `event.source` |

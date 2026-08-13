@@ -6,14 +6,14 @@ This guide covers connecting Smithy-AI to a Forgejo instance you already run, ra
 
 - Forgejo 7 or later
 - A Docker host to run the orchestrator
-- A Claude Code OAuth token — run `claude setup-token` to obtain one
+- A Claude Code OAuth token; run `claude setup-token` to obtain one
 
 ## 1. Create bot users
 
 Create two users in your Forgejo instance:
 
-- **smithy** — the agent that plans and implements code
-- **architect** — the agent that reviews PRs and maintains the knowledge base
+- **smithy**: the agent that plans and implements code
+- **architect**: the agent that reviews PRs and maintains the knowledge base
 
 You can use custom usernames by setting `SMITHY_BOT_USER` and `ARCHITECT_BOT_USER` in your environment.
 
@@ -24,7 +24,7 @@ For each bot user, generate an API token with full scope:
 1. Log in as the bot user
 2. Go to **Settings → Applications → Generate New Token**
 3. Grant all permissions
-4. Save the tokens — you'll need them for the orchestrator configuration
+4. Save the tokens; you will need them for the orchestrator configuration
 
 ## 3. Configure environment
 
@@ -82,7 +82,7 @@ For each repository you want Smithy to work on:
 
 1. **Add bot collaborators**: Add both `smithy` and `architect` users as collaborators with write access
 2. **Create webhook**: Add a webhook pointing to `http://<orchestrator-host>:8080/webhooks/forgejo` with the secret you configured
-3. **Create label**: Add a "Plan Approved" label — this triggers Smithy's implementation phase
+3. **Create label**: Add a "Plan Approved" label. This triggers Smithy's implementation phase
 
 !!! tip
     If your Forgejo instance is API-accessible from your machine, you can use `setup_repo.py` to automate per-repo setup:

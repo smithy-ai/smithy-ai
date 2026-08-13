@@ -18,20 +18,19 @@ story assigned to the coordinator
         └─ releases the next wave, until every child is done
 ```
 
-## What it does not do
+## Child issues
 
-**No tracker-native sub-issues.** Not every tracker has subtasks, epics or
-tasklists, and a parent story may live in Jira while the work lives in
-repositories. Children are ordinary issues; the parent/child graph is in Smithy's
-run store.
+Children are ordinary issues, not tracker-native subtasks or epics. The
+parent/child graph is held in Smithy's run store, so a story in one system can
+produce issues in another.
 
-Each child issue does carry a human-readable reference back to the story, which
-the tracker turns into a link on both. Nothing reads it back — it is for people.
+Each child carries a reference back to the story, which the tracker turns into a
+link on both. It is there for people to follow; nothing in Smithy reads it.
 
 ## Configuring it
 
-The built-in ships inert: an empty catalog and no story repositories. Extend it
-and supply configuration:
+The built-in coordinator has an empty catalog and no story repositories, so on
+its own it claims nothing. Extend it and supply both:
 
 ```yaml
 # /config/workflows/acme-coordinator.yml
@@ -42,8 +41,8 @@ metadata:
   extends: feature-coordinator
 
 vars:
-  # Where feature stories are raised. Never a catalog repository — those hold
-  # the work, and their issues are this coordinator's own children.
+  # Where feature stories are raised. Never a catalog repository: the issues
+  # there are this coordinator's own children.
   storyRepos: [acme/product]
 
   catalog:
@@ -62,37 +61,33 @@ vars:
   botUser: smithy                  # who child issues are assigned to
 ```
 
-### Two guards, and why both
+### Two guards
 
-A coordinator listens for assigned issues, and every child it creates **is** an
-assigned issue. Without guards it would plan a feature for each task of the
-feature it just planned.
+A coordinator listens for assigned issues, and every child it creates is itself
+an assigned issue, so it needs both guards to avoid claiming its own children:
 
-- **`storyRepos`** — it only claims issues raised where stories are raised.
-- **`coordinatorUser`** — it only claims issues handed to that actor.
+- **`storyRepos`**: it only claims issues raised where stories are raised.
+- **`coordinatorUser`**: it only claims issues handed to that actor.
 
-Which actor an issue is assigned to is how a person says what kind of work it is.
-That needs a separate account: see [actors](../concepts.md#actors).
+The coordinator therefore needs an account of its own; see
+[actors](../concepts.md#actors).
 
 ## What the agent sees when planning
 
-- The story's own repository at `/story` — read first, because the contract the
-  plan has to honour usually lives beside the story rather than in the code.
+- The story's own repository at `/story`, which usually holds the contract the
+  plan has to honour.
 - The first catalog repository at the workspace root.
-- The rest are not cloned; the prompt tells the agent to clone what it needs. With
-  a large catalog, cloning everything costs more than the planning turn.
+- The rest are not cloned; the prompt tells the agent to clone the ones it needs.
 
-The plan comes back structured — one entry per issue, with `dependsOn` as
-zero-based indexes into the plan — so the fan-out iterates data rather than
-parsing prose.
+The plan comes back structured: one entry per issue, with `dependsOn` as
+zero-based indexes into the plan.
 
 ## Ordering
 
-An issue is only assigned once everything it depends on has **completed**. A
-dependency that was never created cannot block forever, and a child that was
-cancelled — someone took the agent off it — never satisfies one. The feature is
-complete only when every child completed; if some were abandoned the coordinator
-says so on the story rather than going quiet.
+An issue is only assigned once everything it depends on has completed. A
+dependency that was never created does not block, and a cancelled child does not
+satisfy one. The feature is complete only when every child completed; if any were
+cancelled or failed, the coordinator says so on the story.
 
 ## Approving
 
@@ -108,22 +103,22 @@ owns `greeting.txt`, `sample-app-frontend` renders it into `display.txt` with a
 `> ` prefix. The spec says the frontend must render exactly what the backend
 provides.
 
-A story — *"the greeting should address the user by name"* — assigned to the
-coordinator produced:
+A story assigned to the coordinator, *"the greeting should address the user by
+name"*, produced:
 
 1. A plan noting the contract's shape was unchanged, so no spec update was needed.
 2. Two issues: backend first, frontend `dependsOn: [0]`.
 3. The backend issue assigned; the frontend created but held.
 4. Backend implemented `Hello, Ada`, opened a pull request, finished.
 5. The frontend released, implemented `> Hello, Ada`, finished.
-6. *"Every child issue is done — this feature is complete."*
+6. *"Every child issue is done. This feature is complete."*
 
-The frontend agent never saw the backend repository. It got the exact expected
-bytes because the coordinator put them in the issue body — which is why the
-prompt insists on spelling out cross-component contracts.
+The frontend agent never saw the backend repository; it worked from the expected
+bytes written into its issue body. Cross-component contracts have to be spelled
+out in the issue for this reason.
 
 ## When not to use it
 
-If a feature touches one repository, do not. Assign it to the agent directly:
-`smithy-development` plans, implements and opens a pull request with less
-ceremony and no approval gate for the split.
+If a change touches one repository, assign it to the agent directly.
+`smithy-development` plans, implements and opens a pull request without the
+extra approval gate for the split.

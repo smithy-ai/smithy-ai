@@ -6,14 +6,14 @@ This guide covers connecting Smithy-AI to a GitLab instance (self-hosted or gitl
 
 - A GitLab instance (self-hosted or gitlab.com)
 - A Docker host to run the orchestrator
-- A Claude Code OAuth token — run `claude setup-token` to obtain one
+- A Claude Code OAuth token; run `claude setup-token` to obtain one
 
 ## 1. Create bot users
 
 Create two users in GitLab:
 
-- **smithy** — the agent that plans and implements code
-- **architect** — the agent that reviews PRs and maintains the knowledge base
+- **smithy**: the agent that plans and implements code
+- **architect**: the agent that reviews PRs and maintains the knowledge base
 
 You can use custom usernames by setting `SMITHY_BOT_USER` and `ARCHITECT_BOT_USER`.
 

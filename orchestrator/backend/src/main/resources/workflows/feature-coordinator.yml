@@ -57,13 +57,13 @@ vars:
   # the cross-repository contract mismatches this exists to catch.
   reviewLenses:
     - >-
-      contract consistency — endpoint paths, payload shapes, queue and message
+      contract consistency: endpoint paths, payload shapes, queue and message
       names and config keys must match the feature plan and every sibling plan
     - >-
-      scope and acceptance criteria — the plan covers the issue's intent
+      scope and acceptance criteria: the plan covers the issue's intent
       completely, and nothing outside it
     - >-
-      testing approach — the tests the issue's acceptance criteria demand are
+      testing approach: the tests the issue's acceptance criteria demand are
       actually planned
 
 routing:
@@ -290,7 +290,7 @@ state:
               owner: "{{ vars.storyOwner }}"
               repo: "{{ vars.storyRepo }}"
               issue: "{{ vars.storyRef }}"
-              body: "A child finished — next wave assigned."
+              body: "A child finished. Next wave assigned."
 
           - uses: issue.comment
             if: "{{ steps.wave.complete }}"
@@ -298,7 +298,7 @@ state:
               owner: "{{ vars.storyOwner }}"
               repo: "{{ vars.storyRepo }}"
               issue: "{{ vars.storyRef }}"
-              body: "Every child issue is done — this feature is complete."
+              body: "Every child issue is done. This feature is complete."
 
           # Nothing left running, but not everything delivered — someone took the
           # agent off a task, or one of them failed. Saying so beats going quiet.

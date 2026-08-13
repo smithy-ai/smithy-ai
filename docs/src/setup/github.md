@@ -6,14 +6,14 @@ This guide covers connecting Smithy-AI to GitHub (github.com or GitHub Enterpris
 
 - A GitHub organization or personal account
 - A Docker host to run the orchestrator (reachable from the internet so GitHub can deliver webhooks)
-- A Claude Code OAuth token — run `claude setup-token` to obtain one
+- A Claude Code OAuth token; run `claude setup-token` to obtain one
 
 ## 1. Create bot accounts
 
 Create two GitHub accounts (or use machine/service accounts within your organization):
 
-- **smithy** — the agent that plans and implements code
-- **architect** — the agent that reviews PRs and maintains the knowledge base
+- **smithy**: the agent that plans and implements code
+- **architect**: the agent that reviews PRs and maintains the knowledge base
 
 You can use custom usernames by setting `SMITHY_BOT_USER` and `ARCHITECT_BOT_USER`.
 
@@ -21,8 +21,8 @@ You can use custom usernames by setting `SMITHY_BOT_USER` and `ARCHITECT_BOT_USE
 
 For each bot account, generate a **classic personal access token** with the following scopes:
 
-- `repo` — full repository access (read/write code, issues, pull requests)
-- `read:org` — read organization membership (required if your repos are inside an organization)
+- `repo`: full repository access (read/write code, issues, pull requests)
+- `read:org`: read organization membership (required if your repos are inside an organization)
 
 Steps:
 
@@ -30,7 +30,7 @@ Steps:
 2. Go to **Settings → Developer settings → Personal access tokens → Tokens (classic)**
 3. Click **Generate new token (classic)**
 4. Select the scopes above
-5. Save the token — you will need it below
+5. Save the token; you will need it below
 
 !!! tip "Fine-grained tokens"
     Fine-grained PATs work too. Grant **Read and Write** access for **Issues**, **Pull requests**, **Contents**, and **Metadata** on the target repositories.
@@ -120,7 +120,7 @@ Add both `smithy` and `architect` as repository collaborators with **Write** acc
 
 ### Create the label
 
-Create a **"Plan Approved"** label in the repository — this triggers Smithy's implementation phase after you approve a plan:
+Create a **"Plan Approved"** label in the repository. This triggers Smithy's implementation phase after you approve a plan:
 
 1. Go to **Issues → Labels → New label**
 2. Name it exactly `Plan Approved`

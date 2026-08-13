@@ -8,7 +8,7 @@ the workflows that ship with Smithy-AI; all of them are
 
 ### 1. Create an issue
 
-Create an issue in your repository describing the feature or bug you want to address. Write it as you would for a human developer — include context, acceptance criteria, and any relevant details.
+Create an issue in your repository describing the feature or bug you want to address. Write it as you would for a human developer, with context, acceptance criteria, and any relevant details.
 
 ### 2. Assign to Agent Smithy
 
@@ -25,7 +25,7 @@ Read through Smithy's plan on the issue. You can:
 - Add comments to request changes or clarify requirements
 - Smithy will update the plan based on your feedback
 
-Take your time here — a good plan leads to a good implementation.
+Take your time here. A good plan leads to a good implementation.
 
 ### 4. Approve the plan
 
@@ -56,14 +56,15 @@ When you're satisfied with the implementation, remove the draft status from the 
 
 When a change spans several repositories, assign the story to the **coordinator**
 actor instead of to smithy. It plans the split, creates an ordinary issue in each
-repository, and hands them out in dependency order — each one worked by an
+repository, and hands them out in dependency order, each one worked by an
 ordinary `smithy-development` run.
 
-It ships inert and needs a catalog before it will claim anything. See
+The coordinator has to be told which repositories it may work with before it
+will claim anything. See
 [coordinating across repositories](workflows/coordinator.md).
 
-Which actor you assign to is the whole signal: **coordinator** means "plan this
-across repositories", **smithy** means "do this here".
+Who you assign an issue to is how you choose between the two: **coordinator**
+means "plan this across repositories", **smithy** means "do this here".
 
 ## The Architect
 
@@ -84,7 +85,7 @@ This creates a feedback loop where project standards evolve based on real review
 
 ### Context repository
 
-Each repository can have a companion context repository. By default Smithy looks for `<repo>-context`. This repository stores project knowledge as markdown files — coding standards, architectural decisions, common patterns, and lessons learned from past reviews. The Architect uses this knowledge base when reviewing PRs, and the knowledgebase MCP is scoped to the same repository.
+Each repository can have a companion context repository. By default Smithy looks for `<repo>-context`. This repository stores project knowledge as markdown files: coding standards, architectural decisions, common patterns, and lessons learned from past reviews. The Architect uses this knowledge base when reviewing PRs, and the knowledgebase MCP is scoped to the same repository.
 
 To use a different context repository, add `.smithy/config.yml` to the source repository:
 
@@ -106,7 +107,7 @@ The context repository is created automatically by `setup_repo.py` during [demo 
 
 ## Watching and steering a run
 
-The dashboard lists **runs** — every piece of work, including finished and failed
+The dashboard lists **runs**: every piece of work, including finished and failed
 ones, because a run outlives the container that did it. Open one to see its
 timeline: every event it received and every milestone it recorded, in order.
 
@@ -127,6 +128,6 @@ From there you can:
 | **Plan Approved** | Added to an issue to trigger the implementation phase |
 
 The label is configurable (`workflow.plan-approved-label`), and a workflow can
-treat anything else as approval instead — it is a routing predicate, not a
-platform concept.
+treat something else as approval instead. Nothing outside the workflow definition
+depends on this particular label.
 

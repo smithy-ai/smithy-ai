@@ -23,13 +23,13 @@ nav:
     - GitHub: setup/github.md
     - GitLab: setup/gitlab.md
     - Forgejo: setup/forgejo.md
+  - Usage:
+    - Day to day: usage.md
+    - Configuration: configuration.md
   - Workflows:
     - Writing a workflow: workflows/index.md
     - Reference: workflows/reference.md
     - Across repositories: workflows/coordinator.md
-  - Usage:
-    - Day to day: usage.md
-    - Configuration: configuration.md
   - Advanced:
     - Custom Task Images: advanced/custom-task-images.md
 

@@ -130,7 +130,7 @@ state:
               repo: "{{ repo.name }}"
               issue: "{{ event.issueRef }}"
               body: >-
-                Failed to generate a development plan — please add a comment with
+                Failed to generate a development plan. Please add a comment with
                 more context and I will retry.
 
           - uses: exec
@@ -277,7 +277,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               issue: "{{ vars.issueRef }}"
-              body: "Plan approved — implementation started. Follow progress on the draft pull request."
+              body: "Plan approved. Implementation started, follow progress on the draft pull request."
 
           - uses: attachments.fetch
             id: attachments
@@ -448,7 +448,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               number: "{{ vars.prNumber }}"
-              body: "CI failed. Automatic CI fixing is disabled — approve this run's gate and I will debug it."
+              body: "CI failed. Automatic CI fixing is disabled; approve this run's gate and I will debug it."
 
           - uses: pr.comment
             if: "{{ steps.guard.reason == 'attempts-exhausted' }}"
