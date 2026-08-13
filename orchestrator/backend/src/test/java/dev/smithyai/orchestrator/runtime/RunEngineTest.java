@@ -147,16 +147,22 @@ class RunEngineTest {
     }
 
     private static WorkflowEvent assigned() {
-        return new WorkflowEvent.IssueAssigned(new IssueContext(REPO, "ECD-9", "Add search", "body", "main"), null);
+        return new WorkflowEvent.IssueAssigned(
+            new IssueContext(REPO, "ECD-9", "Add search", "body", "main", "smithy"),
+            null
+        );
     }
 
     private static WorkflowEvent approved() {
-        return new WorkflowEvent.PlanApproved(new IssueContext(REPO, "ECD-9", "Add search", "body", "main"), "alice");
+        return new WorkflowEvent.PlanApproved(
+            new IssueContext(REPO, "ECD-9", "Add search", "body", "main", "smithy"),
+            "alice"
+        );
     }
 
     private static WorkflowEvent commented() {
         return new WorkflowEvent.IssueComment(
-            new IssueContext(REPO, "ECD-9", "Add search", "body", "main"),
+            new IssueContext(REPO, "ECD-9", "Add search", "body", "main", "smithy"),
             "looks good"
         );
     }

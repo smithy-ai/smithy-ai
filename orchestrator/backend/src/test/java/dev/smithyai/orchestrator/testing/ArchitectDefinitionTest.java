@@ -310,7 +310,8 @@ class ArchitectDefinitionTest {
     private static BotConfig botConfig() {
         return new BotConfig(
             new BotConfig.BotEntry("smithy", "smithy@localhost"),
-            new BotConfig.BotEntry("architect", "architect@localhost")
+            new BotConfig.BotEntry("architect", "architect@localhost"),
+            new BotConfig.BotEntry("coordinator", "coordinator@localhost")
         );
     }
 

@@ -35,6 +35,10 @@ vars:
   childWorkflow: smithy-development
   # Who child issues are assigned to once their dependencies are done.
   botUser: smithy
+  # The actor a feature story is handed to. Distinct from botUser: assigning a
+  # story to this one is how a person says "plan this across repositories"
+  # rather than "do this here".
+  coordinatorUser: coordinator
   # Which connector the catalog's repositories are hosted on — gitlab, forgejo,
   # github. Empty means the same one the story arrived through, which is right
   # whenever a single system tracks both. Set it when stories live in Jira and
@@ -64,7 +68,10 @@ routing:
   # coordinator ends up planning a feature for each task of the feature it just
   # planned.
   - event: issue.assigned
-    when: "{{ vars.catalog | length > 0 and repo.fullName in vars.storyRepos }}"
+    when: >-
+      {{ vars.catalog | length > 0
+         and repo.fullName in vars.storyRepos
+         and event.assignee == vars.coordinatorUser }}
     action: create
     key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
   - event: [issue.plan_approved, issue.commented]

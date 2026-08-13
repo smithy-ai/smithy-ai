@@ -70,6 +70,7 @@ class FeatureCoordinatorTest {
     Path tempDir;
 
     private RunStore store;
+    private WorkflowRegistry workflows;
     private RunEngine engine;
     private StubVcsClient vcs;
     private final List<Map<String, Object>> assignments = new ArrayList<>();
@@ -197,7 +198,7 @@ class FeatureCoordinatorTest {
         setExecutor(foreach, executor);
 
         var policy = new WorkflowPolicyConfig(null, null, definitions.toString());
-        var workflows = new WorkflowRegistry(
+        workflows = new WorkflowRegistry(
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),
             policy,
@@ -334,7 +335,8 @@ class FeatureCoordinatorTest {
                 "PROD-1",
                 "Search everywhere",
                 "Users want search",
-                "main"
+                "main",
+                "coordinator"
             ),
             null
         );
@@ -342,14 +344,14 @@ class FeatureCoordinatorTest {
 
     private static WorkflowEvent storyAssigned() {
         return new WorkflowEvent.IssueAssigned(
-            new IssueContext(STORY_REPO, "PROD-1", "Search everywhere", "Users want search", "main"),
+            new IssueContext(STORY_REPO, "PROD-1", "Search everywhere", "Users want search", "main", "coordinator"),
             "https://git.invalid/acme/product"
         );
     }
 
     private static WorkflowEvent storyApproved() {
         return new WorkflowEvent.PlanApproved(
-            new IssueContext(STORY_REPO, "PROD-1", "Search everywhere", "Users want search", "main"),
+            new IssueContext(STORY_REPO, "PROD-1", "Search everywhere", "Users want search", "main", "coordinator"),
             "alice"
         );
     }
@@ -370,6 +372,31 @@ class FeatureCoordinatorTest {
     // ── Tests ────────────────────────────────────────────────
 
     @Test
+    void aStoryAndATaskAreToldApartByWhoTheyWereHandedTo() {
+        // The same issue, in the same repository, differing only in who it was
+        // handed to. Without this both workflows claim it and two agents start.
+        var router = new WorkflowRouter(new ExpressionRenderer());
+        var definitions = workflows.all();
+
+        var story = router.route(storyAssigned(), definitions);
+        assertEquals(
+            List.of("acme-coordinator"),
+            story.stream().map(WorkflowRouter.Decision::workflowName).toList(),
+            "a feature handed to the coordinator"
+        );
+
+        var task = new WorkflowEvent.IssueAssigned(
+            new IssueContext(STORY_REPO, "PROD-2", "A one-repo change", "", "main", "smithy"),
+            null
+        );
+        assertEquals(
+            List.of("smithy-development"),
+            router.route(task, definitions).stream().map(WorkflowRouter.Decision::workflowName).toList(),
+            "and a task handed to smithy"
+        );
+    }
+
+    @Test
     void anIssueRaisedOutsideTheStoryRepositoriesIsNotAStory() {
         // A human assigning an issue directly in a catalog repository is
         // ordinary work. The coordinator claiming it too would plan a feature
@@ -380,7 +407,8 @@ class FeatureCoordinatorTest {
                 "99",
                 "Fix a typo",
                 "",
-                "main"
+                "main",
+                "smithy"
             ),
             null
         );
@@ -574,7 +602,8 @@ class FeatureCoordinatorTest {
                 String.valueOf(child.vars().get("issueRef")),
                 "Search endpoint",
                 "GET /search",
-                "main"
+                "main",
+                "smithy"
             ),
             null
         );

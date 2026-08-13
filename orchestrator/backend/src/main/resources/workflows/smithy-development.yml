@@ -33,7 +33,11 @@ vars:
   maxCiAttempts: 5
 
 routing:
+  # Only what was handed to this actor. A feature assigned to the coordinator is
+  # an issue.assigned too, and without this both workflows claim it and two
+  # agents start on the same issue.
   - event: issue.assigned
+    when: "{{ event.assignee == vars.botUser }}"
     action: create
     key: "{{ repo.fullName }}#{{ event.issueRef }}"
 

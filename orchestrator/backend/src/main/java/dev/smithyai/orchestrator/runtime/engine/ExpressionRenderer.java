@@ -191,6 +191,7 @@ public class ExpressionRenderer {
                 view.put("issueTitle", e.ctx().title());
                 view.put("issueBody", nullToEmpty(e.ctx().body()));
                 view.put("baseBranch", nullToEmpty(e.ctx().baseBranch()));
+                view.put("assignee", nullToEmpty(e.ctx().assignee()));
                 switch (e) {
                     case WorkflowEvent.IssueComment c -> view.put("commentBody", c.commentBody());
                     case WorkflowEvent.PlanApproved a -> view.put("approver", nullToEmpty(a.approver()));

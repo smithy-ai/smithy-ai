@@ -64,7 +64,8 @@ class GitHubEventMapperTest {
     private static BotConfig botConfig() {
         return new BotConfig(
             new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),
-            new BotConfig.BotEntry("architect-bot", "architect@example.com")
+            new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+            new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
         );
     }
 
@@ -76,7 +77,8 @@ class GitHubEventMapperTest {
     private GitHubEventMapper mapper() {
         var botConfig = new BotConfig(
             new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),
-            new BotConfig.BotEntry("architect-bot", "architect@example.com")
+            new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+            new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
         );
         var github = new VcsProviderConfig.GitHubProviderConfig("", "", "secret", "smithy-token", "architect-token");
         var vcsConfig = new VcsProviderConfig("github", null, null, null, github, null);

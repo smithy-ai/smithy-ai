@@ -23,6 +23,7 @@ public class EventMapper {
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
+    private final java.util.List<String> actors;
     private final String smithyEmail;
     private final String planApprovedLabel;
     private final String branchPrefix;
@@ -37,6 +38,7 @@ public class EventMapper {
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
+        this.actors = botConfig.actors();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
         this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
         this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
@@ -54,16 +56,19 @@ public class EventMapper {
     }
 
     private WorkflowEvent mapIssueAssigned(JsonNode payload) {
-        if (!isUserAssigned(payload, botUser)) return null;
+        // Any actor this orchestrator answers as, and the event says which — a
+        // feature handed to the coordinator is not a task handed to smithy.
+        String assignee = assignedActor(payload);
+        if (assignee == null) return null;
         if (!"open".equals(payload.path("issue").path("state").asText(""))) return null;
 
-        var ctx = extractIssue(payload);
+        var ctx = withAssignee(extractIssue(payload), assignee);
         String repoHtmlUrl = payload.get("repository").get("html_url").asText("");
         return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
     }
 
     private WorkflowEvent mapIssueUnassigned(JsonNode payload) {
-        if (isUserAssigned(payload, botUser)) return null;
+        if (assignedActor(payload) != null) return null;
 
         var ctx = extractIssue(payload);
         return new WorkflowEvent.IssueUnassigned(ctx);
@@ -379,6 +384,18 @@ public class EventMapper {
 
         var info = new RepoInfo(owner, repoName, "", RepoInfo.FORGEJO);
         return new ResolvedCiRun(info, new CiRunInfo(headBranch, prNumber));
+    }
+
+    /** The first of this orchestrator's actors assigned to the issue, or null. */
+    private String assignedActor(JsonNode payload) {
+        for (String actor : actors) {
+            if (isUserAssigned(payload, actor)) return actor;
+        }
+        return null;
+    }
+
+    private static IssueContext withAssignee(IssueContext ctx, String assignee) {
+        return new IssueContext(ctx.info(), ctx.issueRef(), ctx.title(), ctx.body(), ctx.baseBranch(), assignee);
     }
 
     private static boolean isUserAssigned(JsonNode payload, String login) {

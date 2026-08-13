@@ -104,7 +104,7 @@ class LiveEndToEndIT {
 
         var issue = vcs.getIssue(owner, repo, issueRef);
         var info = new RepoInfo(owner, repo, vcs.cloneUrl(owner, repo));
-        var context = new IssueContext(info, issueRef, issue.title(), issue.body(), issue.baseBranch());
+        var context = new IssueContext(info, issueRef, issue.title(), issue.body(), issue.baseBranch(), "smithy");
 
         int commentsBefore = vcs.getIssueComments(owner, repo, issueRef).size();
 
@@ -159,7 +159,7 @@ class LiveEndToEndIT {
 
         var issue = vcs.getIssue(owner, repo, issueRef);
         var info = new RepoInfo(owner, repo, vcs.cloneUrl(owner, repo));
-        var context = new IssueContext(info, issueRef, issue.title(), issue.body(), issue.baseBranch());
+        var context = new IssueContext(info, issueRef, issue.title(), issue.body(), issue.baseBranch(), "smithy");
 
         engine.handle(new WorkflowEvent.IssueAssigned(context, url + "/" + owner + "/" + repo));
         var outcomes = engine.handle(new WorkflowEvent.PlanApproved(context, "tomas"));
@@ -389,7 +389,8 @@ class LiveEndToEndIT {
     private static BotConfig botConfig() {
         return new BotConfig(
             new BotConfig.BotEntry("smithy", "smithy@localhost"),
-            new BotConfig.BotEntry("architect", "architect@localhost")
+            new BotConfig.BotEntry("architect", "architect@localhost"),
+            new BotConfig.BotEntry("coordinator", "coordinator@localhost")
         );
     }
 

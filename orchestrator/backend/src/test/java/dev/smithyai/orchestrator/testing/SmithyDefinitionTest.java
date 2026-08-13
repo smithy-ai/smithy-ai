@@ -65,12 +65,12 @@ class SmithyDefinitionTest {
     ) {}
 
     private static WorkflowEvent.PlanApproved planApproved() {
-        var ctx = new IssueContext(REPO, "7", "Add a thing", "Please add the thing.", "main");
+        var ctx = new IssueContext(REPO, "7", "Add a thing", "Please add the thing.", "main", "smithy");
         return new WorkflowEvent.PlanApproved(ctx, "alice");
     }
 
     private static WorkflowEvent.IssueAssigned issueAssigned() {
-        var ctx = new IssueContext(REPO, "7", "Add a thing", "Please add the thing.", "main");
+        var ctx = new IssueContext(REPO, "7", "Add a thing", "Please add the thing.", "main", "smithy");
         return new WorkflowEvent.IssueAssigned(ctx, "https://git.invalid/acme/app");
     }
 
@@ -353,7 +353,8 @@ class SmithyDefinitionTest {
     private static BotConfig botConfig() {
         return new BotConfig(
             new BotConfig.BotEntry("smithy", "smithy@localhost"),
-            new BotConfig.BotEntry("architect", "architect@localhost")
+            new BotConfig.BotEntry("architect", "architect@localhost"),
+            new BotConfig.BotEntry("coordinator", "coordinator@localhost")
         );
     }
 
