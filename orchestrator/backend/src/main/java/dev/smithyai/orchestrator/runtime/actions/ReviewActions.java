@@ -3,7 +3,7 @@ package dev.smithyai.orchestrator.runtime.actions;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.service.vcs.AttachmentHelper;
-import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -261,11 +261,7 @@ public class ReviewActions {
      * the prompt names them by path.
      */
     @Bean
-    public WorkflowAction attachmentsFetchAction(
-        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
-        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues,
-        RunEnvironments environments
-    ) {
+    public WorkflowAction attachmentsFetchAction(IssueTrackers trackers, RunEnvironments environments) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -286,7 +282,7 @@ public class ReviewActions {
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var session = environments.container(context.run());
                 var paths = AttachmentHelper.fetchAndInject(
-                    Trackers.pick(this, input, issues, repoIssues),
+                    Trackers.pick(this, context, input, trackers),
                     session,
                     required(input, "owner"),
                     required(input, "repo"),

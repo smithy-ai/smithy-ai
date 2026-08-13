@@ -5,6 +5,7 @@ import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.*;
+import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.PrData;
@@ -334,7 +335,7 @@ public class GitHubEventMapper {
     // ── Helpers ──────────────────────────────────────────────
 
     private RepoInfo repoInfo(JsonNode payload) {
-        return Naming.repoInfo(payload, vcsConfig.resolvedUrl());
+        return Naming.repoInfo(payload, vcsConfig.resolvedUrl(), RepoInfo.GITHUB);
     }
 
     private IssueContext extractIssue(JsonNode payload) {

@@ -35,6 +35,11 @@ vars:
   childWorkflow: smithy-development
   # Who child issues are assigned to once their dependencies are done.
   botUser: smithy
+  # Which connector the catalog's repositories are hosted on — gitlab, forgejo,
+  # github. Empty means the same one the story arrived through, which is right
+  # whenever a single system tracks both. Set it when stories live in Jira and
+  # the work does not.
+  childConnector: ""
   # A child plan that still misses after this many rounds is escalated to a
   # human rather than argued with indefinitely.
   maxReviewRounds: 3
@@ -85,7 +90,7 @@ actions:
             with:
               # In the repository, not in the story tracker: the story may
               # be a Jira ticket and the work is not.
-              tracker: repo
+              connector: "{{ vars.childConnector }}"
               owner: "{{ item.owner }}"
               repo: "{{ item.repo }}"
               title: "{{ item.title }}"
@@ -122,7 +127,7 @@ actions:
         steps:
           - uses: issue.assign
             with:
-              tracker: repo
+              connector: "{{ vars.childConnector }}"
               owner: "{{ item.owner }}"
               repo: "{{ item.repo }}"
               issue: "{{ item.issueRef }}"
@@ -238,7 +243,7 @@ state:
             steps:
               - uses: issue.assign
                 with:
-                  tracker: repo
+                  connector: "{{ vars.childConnector }}"
                   owner: "{{ item.owner }}"
                   repo: "{{ item.repo }}"
                   issue: "{{ item.issueRef }}"

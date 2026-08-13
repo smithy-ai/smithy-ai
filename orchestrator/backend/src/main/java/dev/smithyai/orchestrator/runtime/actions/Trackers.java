@@ -1,31 +1,35 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
 import java.util.Map;
 
 /**
- * Which tracker a step means.
+ * Which system a step acts against.
  *
- * <p>{@code story} is the configured issue provider — Jira, where stories are
- * tracked that way. {@code repo} is the repository's own issues, which is what a
- * coordinator creates and what an agent working a repository comments on.
+ * <p>The event's own connector by default, which is right whenever a workflow
+ * answers the thing that triggered it: a Jira story is answered in Jira and a
+ * GitLab issue in GitLab, with nothing said in the definition.
  *
- * <p>They are the same system in most deployments and different in exactly the
- * one this exists for, so a step that does not say defaults to the story
- * tracker: that is where its event came from.
+ * <p>A step overrides it by naming a connector — {@code connector: gitlab} —
+ * which is what a coordinator needs when it creates a child issue somewhere
+ * other than where its story lives. Naming the connector rather than a role
+ * keeps the definition describing systems instead of topology.
  */
 final class Trackers {
 
-    static final String INPUT = "tracker";
+    static final String INPUT = "connector";
 
     private Trackers() {}
 
     static IssueTrackerClient pick(
         WorkflowAction action,
+        ActionContext context,
         Map<String, Object> input,
-        IssueTrackerClient story,
-        IssueTrackerClient repository
+        IssueTrackers trackers
     ) {
-        return "repo".equals(action.optional(input, INPUT, "story")) ? repository : story;
+        String named = action.optional(input, INPUT, "");
+        if (!named.isBlank()) return trackers.forConnector(named);
+        return trackers.forConnector(context.event() == null ? "" : context.event().source());
     }
 }

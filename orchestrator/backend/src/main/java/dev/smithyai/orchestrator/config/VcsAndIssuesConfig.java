@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.config;
 
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.forgejo.ForgejoClient;
 import dev.smithyai.orchestrator.service.vcs.github.GitHubClient;
@@ -14,6 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.lang.Nullable;
 
+@lombok.extern.slf4j.Slf4j
 @Configuration
 public class VcsAndIssuesConfig {
 
@@ -57,6 +59,28 @@ public class VcsAndIssuesConfig {
         // there is, and a definition asking for repository issues will fail
         // capability validation rather than silently write them elsewhere.
         return smithyIssueTracker;
+    }
+
+    /**
+     * Every tracker this deployment can reach, keyed by the connector it speaks.
+     *
+     * <p>An action targets the connector its event arrived through, so a story
+     * in Jira and a child issue in GitLab are each answered in their own system
+     * without a workflow having to say which is which.
+     */
+    @Bean
+    public IssueTrackers issueTrackers(
+        VcsProviderConfig vcs,
+        @Qualifier("smithyIssueTracker") IssueTrackerClient smithyIssueTracker,
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssueTracker
+    ) {
+        var byConnector = new java.util.LinkedHashMap<String, IssueTrackerClient>();
+        byConnector.put(vcs.resolvedIssueProvider(), smithyIssueTracker);
+        // The VCS's own issues, which are the same client when one system does
+        // both and a different one when they are split.
+        byConnector.putIfAbsent(vcs.resolvedProvider(), repoIssueTracker);
+        log.info("Issue trackers available by connector: {}", byConnector.keySet());
+        return new IssueTrackers(byConnector, smithyIssueTracker);
     }
 
     @Bean

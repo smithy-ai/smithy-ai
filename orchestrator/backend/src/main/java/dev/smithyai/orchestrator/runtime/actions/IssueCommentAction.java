@@ -1,9 +1,8 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
-import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,15 +15,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class IssueCommentAction implements WorkflowAction {
 
-    private final IssueTrackerClient issues;
-    private final IssueTrackerClient repoIssues;
+    private final IssueTrackers trackers;
 
-    public IssueCommentAction(
-        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
-        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
-    ) {
-        this.issues = issues;
-        this.repoIssues = repoIssues;
+    public IssueCommentAction(IssueTrackers trackers) {
+        this.trackers = trackers;
     }
 
     @Override
@@ -44,7 +38,7 @@ public class IssueCommentAction implements WorkflowAction {
         String issueRef = required(input, "issue");
         String body = required(input, "body");
 
-        var comment = Trackers.pick(this, input, issues, repoIssues).createIssueComment(owner, repo, issueRef, body);
+        var comment = Trackers.pick(this, context, input, trackers).createIssueComment(owner, repo, issueRef, body);
         return Map.of("commentId", comment.id());
     }
 }

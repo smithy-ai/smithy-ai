@@ -180,6 +180,8 @@ public class ExpressionRenderer {
         }
         var view = new LinkedHashMap<String, Object>();
         view.put("name", event.name());
+        // The connector it arrived through, so a definition can filter on it.
+        view.put("source", event.source());
         switch (event) {
             case WorkflowEvent.IssueScoped e -> {
                 view.put("issueRef", e.ctx().issueRef());
@@ -244,6 +246,8 @@ public class ExpressionRenderer {
         if (event == null || event.info() == null) return Map.of();
         var info = event.info();
         return Map.of(
+            "source",
+            info.source(),
             "owner",
             info.owner(),
             "name",

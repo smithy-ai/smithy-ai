@@ -154,7 +154,7 @@ public class JiraEventMapper {
             String project = key.contains("-") ? key.substring(0, key.indexOf('-')) : key;
             log.debug("Jira issue {} has no repository field; scoping it to project {}", key, project);
             return new IssueContext(
-                new RepoInfo(project, project, null),
+                new RepoInfo(project, project, null, RepoInfo.JIRA),
                 key,
                 fields.path("summary").asText(""),
                 fields.path("description").asText(""),
@@ -192,7 +192,7 @@ public class JiraEventMapper {
             return null;
         }
 
-        var info = new RepoInfo(parts[0], parts[1], smithyVcs.cloneUrl(parts[0], parts[1]));
+        var info = new RepoInfo(parts[0], parts[1], smithyVcs.cloneUrl(parts[0], parts[1]), RepoInfo.JIRA);
         return new IssueContext(
             info,
             key,

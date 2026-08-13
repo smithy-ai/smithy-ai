@@ -5,6 +5,7 @@ import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.*;
+import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.PrData;
@@ -411,7 +412,7 @@ public class GitLabEventMapper {
                 log.warn("Failed to rewrite GitLab URL: {}", gitUrl);
             }
         }
-        return new RepoInfo(parts[0], parts[1], gitUrl);
+        return new RepoInfo(parts[0], parts[1], gitUrl, RepoInfo.GITLAB);
     }
 
     private IssueContext extractIssueFromAttrs(RepoInfo info, JsonNode attrs) {

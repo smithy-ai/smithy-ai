@@ -57,6 +57,15 @@ state:
     on: {}
 ```
 
+Every event carries the connector it arrived through, readable as
+`event.source` or `repo.source` — `forgejo`, `gitlab`, `github`, `jira`. Two
+systems can produce the same event name, so this is what tells a Jira story from
+a repository issue in `when:` and `if:`:
+
+```yaml
+when: "{{ event.source == 'jira' }}"
+```
+
 **Routing** decides which run an event belongs to. `key` is a template that must
 resolve to the same string for the same piece of work; the first matching rule in
 the file wins, so ordering is arbitration you can see. `when` is a predicate for
@@ -172,10 +181,19 @@ vars:
   botUser: smithy
 ```
 
-A child issue is created in its repository's own tracker, not in the tracker the
-story came from — `issue.create`, `issue.assign`, `issue.comment` and
-`attachments.fetch` all take `tracker: repo` for this, and default to `story`,
-which is where their event came from. That is what lets a Jira story fan out into GitLab issues. For a Jira story
+A child issue is created where the work lives, which is not always where the
+story was raised. Issue actions target the connector their event arrived
+through — a Jira story is answered in Jira, a GitLab issue in GitLab, with
+nothing said in the definition — and a step overrides that by naming one:
+
+```yaml
+- uses: issue.create
+  with:
+    connector: gitlab      # empty or absent: the event's own
+```
+
+The coordinator drives this from `childConnector`, empty by default because a
+single system tracking both needs no override. That is what lets a Jira story fan out into GitLab issues. For a Jira story
 with no repository field, set `vcs.jira.stories-without-repo` so the story
 reaches the coordinator scoped to its project, and list that project under
 `storyRepos` as `PROJ/PROJ`.

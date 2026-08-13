@@ -99,6 +99,11 @@ class SmithyDefinitionTest {
         var containers = new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker);
         var environments = new RunEnvironments(store, containers, new KnowledgebaseConfig(false, null, null));
         var prompts = new PromptRenderer(new DefaultResourceLoader());
+        // One stub answers for every connector in these tests.
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("forgejo", vcs, "gitlab", vcs, "jira", vcs),
+            vcs
+        );
         var renderer = new ExpressionRenderer();
         var foreach = new ForeachAction(null);
 
@@ -122,13 +127,13 @@ class SmithyDefinitionTest {
                 new RunWaveAction(store),
                 new GateAwaitAction(store),
                 new SignalEmitAction(store, null),
-                new IssueCommentAction(vcs, vcs),
+                new IssueCommentAction(trackers),
                 new PrConversationAction(vcs),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                issues.issueCreateAction(vcs, vcs),
-                issues.issueAssignAction(vcs, vcs),
-                issues.issueLabelAction(vcs, vcs),
-                issues.issueReadAction(vcs, vcs),
+                issues.issueCreateAction(trackers),
+                issues.issueAssignAction(trackers),
+                issues.issueLabelAction(trackers),
+                issues.issueReadAction(trackers),
                 prs.prCreateAction(vcs),
                 prs.prCommentAction(vcs),
                 prs.prRequestReviewAction(vcs),
@@ -149,7 +154,7 @@ class SmithyDefinitionTest {
                 review.prFindByHeadAction(vcs),
                 review.prReviewCommentsAction(vcs),
                 review.prReviewAction(vcs),
-                review.attachmentsFetchAction(vcs, vcs, environments),
+                review.attachmentsFetchAction(trackers, environments),
                 review.fileDeleteAction(vcs),
                 review.fileUrlAction(vcs, vcsProviderConfig()),
                 review.repoCloneUrlAction(vcs),

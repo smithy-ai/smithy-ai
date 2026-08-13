@@ -96,7 +96,7 @@ public final class Naming {
         return "architect/" + sourcePr + "-" + role;
     }
 
-    public static RepoInfo repoInfo(JsonNode payload, String internalVcsUrl) {
+    public static RepoInfo repoInfo(JsonNode payload, String internalVcsUrl, String source) {
         var repoNode = payload.get("repository");
         String fullName = repoNode.get("full_name").asText();
         String[] parts = fullName.split("/", 2);
@@ -107,6 +107,6 @@ public final class Naming {
             Pattern.quote(publicUri.getScheme() + "://" + publicUri.getAuthority()),
             internalUri.getScheme() + "://" + internalUri.getAuthority()
         );
-        return new RepoInfo(parts[0], parts[1], cloneUrl);
+        return new RepoInfo(parts[0], parts[1], cloneUrl, source);
     }
 }

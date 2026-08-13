@@ -1,12 +1,11 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
-import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -30,10 +29,7 @@ public class IssueActions {
      * The parent link is recorded in the run store by {@code correlate}.
      */
     @Bean
-    public WorkflowAction issueCreateAction(
-        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
-        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
-    ) {
+    public WorkflowAction issueCreateAction(IssueTrackers trackers) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -47,7 +43,7 @@ public class IssueActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                var created = Trackers.pick(this, input, issues, repoIssues).createIssue(
+                var created = Trackers.pick(this, context, input, trackers).createIssue(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "title"),
@@ -65,10 +61,7 @@ public class IssueActions {
 
     /** Assign an issue — how a coordinator hands a child issue to the bot. */
     @Bean
-    public WorkflowAction issueAssignAction(
-        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
-        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
-    ) {
+    public WorkflowAction issueAssignAction(IssueTrackers trackers) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -90,7 +83,7 @@ public class IssueActions {
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 List<String> assignees = listInput(input, "assignees");
                 if (assignees.isEmpty()) assignees = listInput(input, "to");
-                Trackers.pick(this, input, issues, repoIssues).setIssueAssignees(
+                Trackers.pick(this, context, input, trackers).setIssueAssignees(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "issue"),
@@ -102,10 +95,7 @@ public class IssueActions {
     }
 
     @Bean
-    public WorkflowAction issueLabelAction(
-        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
-        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
-    ) {
+    public WorkflowAction issueLabelAction(IssueTrackers trackers) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -129,7 +119,7 @@ public class IssueActions {
                 String issue = required(input, "issue");
                 var labels = listInput(input, "labels");
                 if (labels.isEmpty()) labels = List.of(required(input, "label"));
-                var tracker = Trackers.pick(this, input, issues, repoIssues);
+                var tracker = Trackers.pick(this, context, input, trackers);
                 labels.forEach(label -> tracker.addIssueLabel(owner, repo, issue, label));
                 return Map.of("labels", labels);
             }
@@ -138,10 +128,7 @@ public class IssueActions {
 
     /** Read an issue back from the tracker, which is ground truth for its state. */
     @Bean
-    public WorkflowAction issueReadAction(
-        @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
-        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
-    ) {
+    public WorkflowAction issueReadAction(IssueTrackers trackers) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -155,7 +142,7 @@ public class IssueActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                var issue = Trackers.pick(this, input, issues, repoIssues).getIssue(
+                var issue = Trackers.pick(this, context, input, trackers).getIssue(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "issue")

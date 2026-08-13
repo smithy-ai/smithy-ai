@@ -84,6 +84,11 @@ class ArchitectDefinitionTest {
         var store = freshStore(storeName);
         var containers = new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker);
         var environments = new RunEnvironments(store, containers, new KnowledgebaseConfig(false, null, null));
+        // One stub answers for every connector in these tests.
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("forgejo", vcs, "gitlab", vcs, "jira", vcs),
+            vcs
+        );
         var renderer = new ExpressionRenderer();
         var prompts = new PromptRenderer(new DefaultResourceLoader());
         var review = new ReviewActions();
@@ -102,13 +107,13 @@ class ArchitectDefinitionTest {
                 new RunWaveAction(store),
                 new GateAwaitAction(store),
                 new SignalEmitAction(store, null),
-                new IssueCommentAction(vcs, vcs),
+                new IssueCommentAction(trackers),
                 new PrConversationAction(vcs),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                new IssueActions().issueCreateAction(vcs, vcs),
-                new IssueActions().issueAssignAction(vcs, vcs),
-                new IssueActions().issueLabelAction(vcs, vcs),
-                new IssueActions().issueReadAction(vcs, vcs),
+                new IssueActions().issueCreateAction(trackers),
+                new IssueActions().issueAssignAction(trackers),
+                new IssueActions().issueLabelAction(trackers),
+                new IssueActions().issueReadAction(trackers),
                 new PullRequestActions().prCreateAction(vcs),
                 new PullRequestActions().prCommentAction(vcs),
                 new PullRequestActions().prRequestReviewAction(vcs),
@@ -129,7 +134,7 @@ class ArchitectDefinitionTest {
                 review.prFindByHeadAction(vcs),
                 review.prReviewCommentsAction(vcs),
                 review.prReviewAction(vcs),
-                review.attachmentsFetchAction(vcs, vcs, environments),
+                review.attachmentsFetchAction(trackers, environments),
                 review.fileDeleteAction(vcs),
                 review.fileUrlAction(vcs, vcsProviderConfig()),
                 review.repoCloneUrlAction(vcs),

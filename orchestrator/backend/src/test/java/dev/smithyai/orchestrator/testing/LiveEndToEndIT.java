@@ -205,6 +205,11 @@ class LiveEndToEndIT {
         );
         var environments = new RunEnvironments(store, containers, new KnowledgebaseConfig(false, null, null));
         var prompts = new PromptRenderer(new DefaultResourceLoader());
+        // One stub answers for every connector in these tests.
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("forgejo", issues, "gitlab", issues, "jira", issues),
+            issues
+        );
         var renderer = new ExpressionRenderer();
         var foreach = new ForeachAction(null);
 
@@ -228,13 +233,13 @@ class LiveEndToEndIT {
                 new RunWaveAction(store),
                 new GateAwaitAction(store),
                 new SignalEmitAction(store, null),
-                new IssueCommentAction(issues, issues),
+                new IssueCommentAction(trackers),
                 new PrConversationAction(vcs),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                issueActions.issueCreateAction(issues, issues),
-                issueActions.issueAssignAction(issues, issues),
-                issueActions.issueLabelAction(issues, issues),
-                issueActions.issueReadAction(issues, issues),
+                issueActions.issueCreateAction(trackers),
+                issueActions.issueAssignAction(trackers),
+                issueActions.issueLabelAction(trackers),
+                issueActions.issueReadAction(trackers),
                 prActions.prCreateAction(vcs),
                 prActions.prCommentAction(vcs),
                 prActions.prRequestReviewAction(vcs),
@@ -255,7 +260,7 @@ class LiveEndToEndIT {
                 review.prFindByHeadAction(vcs),
                 review.prReviewCommentsAction(vcs),
                 review.prReviewAction(vcs),
-                review.attachmentsFetchAction(issues, issues, environments),
+                review.attachmentsFetchAction(trackers, environments),
                 review.fileDeleteAction(vcs),
                 review.fileUrlAction(vcs, vcsConfig()),
                 review.repoCloneUrlAction(vcs),

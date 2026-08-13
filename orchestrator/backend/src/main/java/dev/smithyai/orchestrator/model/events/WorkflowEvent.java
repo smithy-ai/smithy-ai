@@ -36,6 +36,18 @@ public interface WorkflowEvent {
         return "";
     }
 
+    /**
+     * The connector this event arrived through.
+     *
+     * <p>What lets an action work against the system the event came from rather
+     * than whichever one happens to be configured as the issue provider. Two
+     * mappers can produce the same event type — a Jira story and a GitLab issue
+     * are both {@code issue.assigned} — and nothing else distinguishes them.
+     */
+    default String source() {
+        return info() == null ? "" : info().source();
+    }
+
     interface IssueScoped extends WorkflowEvent {
         IssueContext ctx();
 

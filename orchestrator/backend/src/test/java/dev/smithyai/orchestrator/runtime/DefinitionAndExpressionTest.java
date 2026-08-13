@@ -157,4 +157,27 @@ class DefinitionAndExpressionTest {
         assertEquals(Map.of("issue", "7"), rendered.get("context"));
         assertEquals(List.of("app", "static"), rendered.get("labels"));
     }
+
+    @Test
+    void aDefinitionCanReadAndFilterOnTheConnectorAnEventCameThrough() {
+        var renderer = new ExpressionRenderer();
+        var jira = new WorkflowEvent.IssueAssigned(
+            new IssueContext(
+                new dev.smithyai.orchestrator.model.RepoInfo("PROJ", "PROJ", null, "jira"),
+                "PROJ-42",
+                "A feature",
+                "",
+                null
+            ),
+            null
+        );
+        var context = new ActionContext(null, jira, java.util.Map.of(), java.util.Map.of());
+
+        assertEquals("jira", renderer.render("{{ event.source }}", context));
+        assertEquals("jira", renderer.render("{{ repo.source }}", context));
+        // Which is what a routing rule filters on when two systems produce the
+        // same event name.
+        assertTrue(renderer.isTruthy("{{ event.source == 'jira' }}", context));
+        assertFalse(renderer.isTruthy("{{ event.source == 'gitlab' }}", context));
+    }
 }

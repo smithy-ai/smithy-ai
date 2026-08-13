@@ -121,6 +121,11 @@ class FeatureCoordinatorTest {
             )
         );
 
+        // One stub answers for every connector in these tests.
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("forgejo", vcs, "gitlab", vcs, "jira", vcs),
+            vcs
+        );
         var renderer = new ExpressionRenderer();
         var stateActions = new StateActions();
         var issueActions = new IssueActions();
@@ -144,9 +149,9 @@ class FeatureCoordinatorTest {
                 new RunWaveAction(store),
                 new GateAwaitAction(store),
                 new SignalEmitAction(store, this::deliverSignal),
-                new IssueCommentAction(vcs, vcs),
-                issueActions.issueCreateAction(vcs, vcs),
-                recordingAssign(issueActions.issueAssignAction(vcs, vcs)),
+                new IssueCommentAction(trackers),
+                issueActions.issueCreateAction(trackers),
+                recordingAssign(issueActions.issueAssignAction(trackers)),
                 stateActions.stateSetAction(store),
                 stateActions.stateVarAction(store),
                 stateActions.metricsRecordAction(store),
@@ -176,15 +181,15 @@ class FeatureCoordinatorTest {
                 review.prFindByHeadAction(vcs),
                 review.prReviewCommentsAction(vcs),
                 review.prReviewAction(vcs),
-                review.attachmentsFetchAction(vcs, vcs, environments),
+                review.attachmentsFetchAction(trackers, environments),
                 review.fileDeleteAction(vcs),
                 review.fileUrlAction(vcs, vcsProviderConfig()),
                 review.repoCloneUrlAction(vcs),
                 review.prLinkAction(vcs, vcsProviderConfig()),
                 ci.ciRetryGuardAction(store, new CiConfig(false)),
                 ci.ciResetAction(store),
-                issueActions.issueLabelAction(vcs, vcs),
-                issueActions.issueReadAction(vcs, vcs)
+                issueActions.issueLabelAction(trackers),
+                issueActions.issueReadAction(trackers)
             )
         );
 
@@ -322,6 +327,19 @@ class FeatureCoordinatorTest {
 
     // ── Driving the story ────────────────────────────────────
 
+    private static WorkflowEvent storyAssigned(String source) {
+        return new WorkflowEvent.IssueAssigned(
+            new IssueContext(
+                new RepoInfo("acme", "product", "https://git.invalid/acme/product", source),
+                "PROD-1",
+                "Search everywhere",
+                "Users want search",
+                "main"
+            ),
+            null
+        );
+    }
+
     private static WorkflowEvent storyAssigned() {
         return new WorkflowEvent.IssueAssigned(
             new IssueContext(STORY_REPO, "PROD-1", "Search everywhere", "Users want search", "main"),
@@ -456,6 +474,54 @@ class FeatureCoordinatorTest {
         var child = store.findByCorrelation(CorrelationKind.ISSUE, "acme/api#" + created.issueRef()).orElseThrow();
         assertEquals("smithy-development", child.workflowName());
         assertEquals(story().id(), child.parentRunId());
+    }
+
+    @Test
+    void anActionAnswersTheSystemItsEventCameFrom() {
+        var jira = new StubVcsClient();
+        var gitlab = new StubVcsClient();
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("jira", jira, "gitlab", gitlab),
+            jira
+        );
+        var comment = new IssueCommentAction(trackers);
+
+        // A story raised in Jira.
+        comment.execute(
+            new ActionContext(null, storyAssigned("jira"), Map.of(), Map.of()),
+            Map.of("owner", "PROJ", "repo", "PROJ", "issue", "PROJ-1", "body", "on it")
+        );
+        // A child issue raised in GitLab, same event type, nothing in the
+        // definition saying which.
+        comment.execute(
+            new ActionContext(null, storyAssigned("gitlab"), Map.of(), Map.of()),
+            Map.of("owner", "acme", "repo", "api", "issue", "7", "body", "on it")
+        );
+
+        assertEquals(1, jira.issueComments.size(), "the Jira story was answered in Jira");
+        assertEquals(1, gitlab.issueComments.size(), "and the GitLab issue in GitLab");
+    }
+
+    @Test
+    void anExplicitConnectorOverridesTheEventsOwn() {
+        var jira = new StubVcsClient();
+        var gitlab = new StubVcsClient();
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("jira", jira, "gitlab", gitlab),
+            jira
+        );
+
+        // What a coordinator does: the story arrived from Jira, the child issue
+        // belongs somewhere else.
+        new IssueActions()
+            .issueCreateAction(trackers)
+            .execute(
+                new ActionContext(null, storyAssigned("jira"), Map.of(), Map.of()),
+                Map.of("connector", "gitlab", "owner", "acme", "repo", "api", "title", "Search endpoint")
+            );
+
+        assertEquals(1, gitlab.createdIssues.size(), "created where the work lives");
+        assertTrue(jira.createdIssues.isEmpty(), "not where the story lives");
     }
 
     @Test
