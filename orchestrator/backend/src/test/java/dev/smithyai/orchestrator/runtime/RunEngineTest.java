@@ -113,7 +113,7 @@ class RunEngineTest {
         var actions = new ActionRegistry(
             List.of(
                 new CorrelateAction(store),
-                new RunSpawnAction(store),
+                new RunSpawnAction(store, null),
                 new RunAwaitAction(store),
                 new GateAwaitAction(store),
                 new SignalEmitAction(store, null),

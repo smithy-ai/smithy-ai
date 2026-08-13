@@ -3,6 +3,9 @@ package dev.smithyai.orchestrator.runtime;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.smithyai.orchestrator.config.CiConfig;
+import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
+import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.IssueContext;
 import dev.smithyai.orchestrator.model.RepoInfo;
@@ -52,6 +55,7 @@ class FeatureCoordinatorTest {
           name: acme-coordinator
           extends: feature-coordinator
         vars:
+          storyRepos: [acme/product]
           catalog:
             - owner: acme
               repo: api
@@ -120,13 +124,22 @@ class FeatureCoordinatorTest {
         var renderer = new ExpressionRenderer();
         var stateActions = new StateActions();
         var issueActions = new IssueActions();
+        var prActions = new PullRequestActions();
+        var git = new GitActions();
+        var review = new ReviewActions();
+        var ci = new CiActions();
+        var prompts = new dev.smithyai.orchestrator.service.claude.PromptRenderer(
+            new org.springframework.core.io.DefaultResourceLoader()
+        );
+        var environments = new RunEnvironments(store, null, null);
         var foreach = new ForeachAction(null);
+        var spawn = new RunSpawnAction(store, null);
 
         var actions = new ActionRegistry(
             List.of(
                 foreach,
                 new CorrelateAction(store),
-                new RunSpawnAction(store),
+                spawn,
                 new RunAwaitAction(store),
                 new RunWaveAction(store),
                 new GateAwaitAction(store),
@@ -138,7 +151,39 @@ class FeatureCoordinatorTest {
                 stateActions.stateVarAction(store),
                 stateActions.metricsRecordAction(store),
                 stubContainerInit(),
-                stubPlanningAgent()
+                stubPlanningAgent(),
+                // The child workflow has to be loadable for the coordinator to
+                // spawn it, and a workflow only loads when every action it names
+                // exists — so the real ones are registered alongside the stubs.
+                new AgentRunAction(environments, prompts),
+                new AgentNewSessionAction(environments),
+                new PrConversationAction(vcs),
+                new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
+                prActions.prCreateAction(vcs),
+                prActions.prCommentAction(vcs),
+                prActions.prRequestReviewAction(vcs),
+                prActions.prReadAction(vcs),
+                git.gitPullAction(environments),
+                git.gitPushAction(environments),
+                git.gitStatusAction(environments),
+                git.execAction(environments),
+                git.agentEnsureCommittedAction(environments),
+                git.instanceDestroyAction(environments),
+                review.commentReactAction(vcs),
+                review.prReplyAction(vcs),
+                review.prIsAssignedAction(vcs),
+                review.prSetAssigneesAction(vcs),
+                review.prFindByHeadAction(vcs),
+                review.prReviewCommentsAction(vcs),
+                review.prReviewAction(vcs),
+                review.attachmentsFetchAction(vcs, environments),
+                review.fileDeleteAction(vcs),
+                review.fileUrlAction(vcs, vcsProviderConfig()),
+                review.prLinkAction(vcs, vcsProviderConfig()),
+                ci.ciRetryGuardAction(store, new CiConfig(false)),
+                ci.ciResetAction(store),
+                issueActions.issueLabelAction(vcs),
+                issueActions.issueReadAction(vcs)
             )
         );
 
@@ -154,13 +199,16 @@ class FeatureCoordinatorTest {
             vcs
         );
         workflows.loadAll();
+        // Same construction cycle as the executor above: the registry needs the
+        // actions to validate, and spawning needs the registry to seed a child.
+        setField(spawn, "workflows", workflows);
 
         engine = new RunEngine(
             workflows,
             new WorkflowRouter(renderer),
             executor,
             store,
-            new RunEnvironments(store, null, null),
+            environments,
             null,
             new EventDebouncer()
         );
@@ -239,11 +287,32 @@ class FeatureCoordinatorTest {
         };
     }
 
+    private static VcsProviderConfig vcsProviderConfig() {
+        return new VcsProviderConfig(
+            "forgejo",
+            null,
+            new VcsProviderConfig.ForgejoProviderConfig(
+                "http://forgejo.invalid",
+                "http://forgejo.invalid",
+                null,
+                "smithy-token",
+                "architect-token"
+            ),
+            null,
+            null,
+            null
+        );
+    }
+
     private static void setExecutor(ForeachAction foreach, StepExecutor executor) {
+        setField(foreach, "executor", executor);
+    }
+
+    private static void setField(Object target, String name, Object value) {
         try {
-            var field = ForeachAction.class.getDeclaredField("executor");
+            var field = target.getClass().getDeclaredField(name);
             field.setAccessible(true);
-            field.set(foreach, executor);
+            field.set(target, value);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(e);
         }
@@ -279,6 +348,34 @@ class FeatureCoordinatorTest {
     }
 
     // ── Tests ────────────────────────────────────────────────
+
+    @Test
+    void anIssueRaisedOutsideTheStoryRepositoriesIsNotAStory() {
+        // A human assigning an issue directly in a catalog repository is
+        // ordinary work. The coordinator claiming it too would plan a feature
+        // for a single task and fan out from it.
+        var inACatalogRepo = new WorkflowEvent.IssueAssigned(
+            new IssueContext(
+                new RepoInfo("acme", "api", "https://git.invalid/acme/api"),
+                "99",
+                "Fix a typo",
+                "",
+                "main"
+            ),
+            null
+        );
+
+        var claimed = engine
+            .handle(inACatalogRepo)
+            .stream()
+            .filter(o -> o.handled())
+            .toList();
+
+        assertTrue(
+            claimed.stream().noneMatch(o -> o.workflowName().equals("acme-coordinator")),
+            "the coordinator stayed out of it: " + claimed
+        );
+    }
 
     @Test
     void theBuiltInWithNoCatalogClaimsNothing() throws Exception {
@@ -356,6 +453,68 @@ class FeatureCoordinatorTest {
         var child = store.findByCorrelation(CorrelationKind.ISSUE, "acme/api#" + created.issueRef()).orElseThrow();
         assertEquals("smithy-development", child.workflowName());
         assertEquals(story().id(), child.parentRunId());
+    }
+
+    @Test
+    void aSpawnedChildStartsWithItsOwnWorkflowsVariables() {
+        engine.handle(storyAssigned());
+        engine.handle(storyApproved());
+
+        var child = store.findChildren(story().id()).getFirst();
+        // Seeded from smithy-development's own vars, which a run started by an
+        // event gets from the engine. Without them the child's first step asks
+        // for a branch prefix nobody gave it.
+        assertEquals("smithy/", child.vars().get("branchPrefix"));
+        assertEquals(".smithy/plans", child.vars().get("planDir"));
+        // And what the coordinator handed it still wins.
+        assertEquals("api", child.vars().get("repo"));
+    }
+
+    @Test
+    void aChildIssueAssignmentAdoptsTheSpawnedRunRatherThanStartingAnother() {
+        engine.handle(storyAssigned());
+        engine.handle(storyApproved());
+        var child = store.findChildren(story().id()).getFirst();
+        int runsBefore = store.findRecent(50).size();
+
+        // The webhook for the issue the coordinator just created.
+        var assigned = new WorkflowEvent.IssueAssigned(
+            new IssueContext(
+                new RepoInfo("acme", "api", "https://git.invalid/acme/api"),
+                String.valueOf(child.vars().get("issueRef")),
+                "Search endpoint",
+                "GET /search",
+                "main"
+            ),
+            null
+        );
+        engine.handle(assigned);
+
+        assertEquals(runsBefore, store.findRecent(50).size(), "no second run was opened for the child issue");
+    }
+
+    @Test
+    void aChildFinishingIsAnnouncedByTheEngineNotTheChildWorkflow() {
+        engine.handle(storyAssigned());
+        engine.handle(storyApproved());
+        var child = store.findChildren(story().id()).getFirst();
+
+        // Terminal by the ordinary route — smithy-development's destroy rule —
+        // with no signal.emit anywhere in the child's definition.
+        engine.handle(
+            new WorkflowEvent.IssueUnassigned(
+                new IssueContext(
+                    new RepoInfo("acme", "api", "https://git.invalid/acme/api"),
+                    String.valueOf(child.vars().get("issueRef")),
+                    "Search endpoint",
+                    "GET /search",
+                    "main"
+                )
+            )
+        );
+
+        var parentEvents = store.findEvents(story().id()).stream().map(RunEvent::type).toList();
+        assertTrue(parentEvents.contains("signal:child-done"), "parent was told: " + parentEvents);
     }
 
     @Test

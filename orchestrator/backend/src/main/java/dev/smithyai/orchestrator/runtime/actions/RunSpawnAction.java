@@ -1,5 +1,7 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
+import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinition;
+import dev.smithyai.orchestrator.runtime.engine.WorkflowRegistry;
 import dev.smithyai.orchestrator.runtime.store.RunStatus;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import java.util.LinkedHashMap;
@@ -20,9 +22,11 @@ import org.springframework.stereotype.Component;
 public class RunSpawnAction implements WorkflowAction {
 
     private final RunStore store;
+    private final WorkflowRegistry workflows;
 
-    public RunSpawnAction(RunStore store) {
+    public RunSpawnAction(RunStore store, @org.springframework.context.annotation.Lazy WorkflowRegistry workflows) {
         this.store = store;
+        this.workflows = workflows;
     }
 
     @Override
@@ -36,12 +40,30 @@ public class RunSpawnAction implements WorkflowAction {
         String initialState = input.get("state") != null ? String.valueOf(input.get("state")) : "new";
         String parentRunId = context.run().id();
 
-        var child = store.create(workflow, null, initialState, parentRunId);
+        var definition = workflows == null ? java.util.Optional.<WorkflowDefinition>empty() : workflows.find(workflow);
+        if (workflows != null && definition.isEmpty()) {
+            // Spawning a workflow this orchestrator cannot run would leave a run
+            // nothing will ever advance, and a parent waiting on a child that
+            // never starts.
+            throw new IllegalArgumentException(
+                "run.spawn names workflow '%s', which is not loaded here".formatted(workflow)
+            );
+        }
+        var child = store.create(
+            workflow,
+            definition.map(d -> d.metadata().version()).orElse(null),
+            initialState,
+            parentRunId
+        );
         store.updateStatus(child.id(), RunStatus.PENDING);
 
-        // Anything else under `with:` becomes the child's starting variables, so
-        // a coordinator can hand each child its own task without a side channel.
-        var vars = new LinkedHashMap<String, Object>(input);
+        // The child's own workflow variables first — its branch prefix, its plan
+        // directory, its tool lists. A run started by an event gets these from
+        // the engine, and a spawned one that did not would fail on its first
+        // step for want of a constant it never asked about.
+        var vars = new LinkedHashMap<String, Object>(definition.map(WorkflowDefinition::vars).orElseGet(Map::of));
+        // Then what the parent handed it, which wins.
+        vars.putAll(input);
         vars.remove("workflow");
         vars.remove("state");
         if (!vars.isEmpty()) {

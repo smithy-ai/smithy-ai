@@ -117,7 +117,7 @@ class SmithyDefinitionTest {
                 new AgentRunStructuredAction(environments, prompts),
                 new AgentNewSessionAction(environments),
                 new CorrelateAction(store),
-                new RunSpawnAction(store),
+                new RunSpawnAction(store, null),
                 new RunAwaitAction(store),
                 new RunWaveAction(store),
                 new GateAwaitAction(store),

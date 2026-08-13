@@ -10,6 +10,7 @@ import dev.smithyai.orchestrator.runtime.store.RunRecorder;
 import dev.smithyai.orchestrator.runtime.store.RunStatus;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class RunEngine implements SignalDelivery {
+
+    /** What the engine signals a parent when one of its children reaches a terminal state. */
+    public static final String CHILD_DONE = "child-done";
 
     private final WorkflowRegistry registry;
     private final WorkflowRouter router;
@@ -108,13 +112,19 @@ public class RunEngine implements SignalDelivery {
     private Outcome apply(WorkflowRouter.Decision decision, WorkflowEvent event) {
         var definition = definitionFor(decision, event);
         String key = scopedKey(decision);
-        var existing =
+        String name = definition.metadata().name();
+
+        // Whoever already owns the thing this event is about — a run this
+        // workflow started, or one another workflow spawned and correlated.
+        var owner = ownerOf(event);
+        var existing = (
             decision.by() != null
                 ? byCorrelation(decision.by(), event)
-                : store.findByCorrelation(CorrelationKind.KEY, key);
+                : store.findByCorrelation(CorrelationKind.KEY, key)
+        ).or(() -> owner.filter(run -> run.workflowName().equals(name)));
 
         return switch (decision.action()) {
-            case create -> dispatch(definition, existing.orElseGet(() -> create(definition, key)), event);
+            case create -> create(definition, key, existing, owner, event);
             case dispatch -> existing
                 .map(run -> dispatch(definition, run, event))
                 .orElseGet(() -> {
@@ -128,6 +138,48 @@ public class RunEngine implements SignalDelivery {
                 .orElseGet(() -> Outcome.ignored(decision.workflowName()));
             case ignore -> Outcome.ignored(decision.workflowName());
         };
+    }
+
+    /**
+     * Start a run for this event, adopt the one that already owns it, or stand
+     * aside.
+     *
+     * <p>The middle case is what makes a coordinator work. It creates a child
+     * issue, spawns the run that will do the work, and correlates the two; the
+     * assignment webhook then arrives and must find that run rather than open a
+     * second, unrelated one beside it.
+     *
+     * <p>The last case is what stops a coordinator fanning out from its own
+     * children. It listens for assigned issues, and every child it creates is an
+     * assigned issue — so without this a configured coordinator would plan a
+     * feature for each task of the feature it just planned.
+     */
+    private Outcome create(
+        WorkflowDefinition definition,
+        String key,
+        Optional<Run> existing,
+        Optional<Run> owner,
+        WorkflowEvent event
+    ) {
+        if (existing.isEmpty() && owner.isPresent()) {
+            log.debug(
+                "{} stands aside: this work already belongs to run {} ({})",
+                definition.metadata().name(),
+                owner.get().id(),
+                owner.get().workflowName()
+            );
+            return Outcome.ignored(definition.metadata().name());
+        }
+        return dispatch(definition, existing.orElseGet(() -> start(definition, key)), event);
+    }
+
+    /** The run that already owns the thing this event is about, whatever workflow it belongs to. */
+    private Optional<Run> ownerOf(WorkflowEvent event) {
+        for (String by : List.of("issue", "pr", "branch")) {
+            var run = byCorrelation(by, event);
+            if (run.isPresent()) return run;
+        }
+        return Optional.empty();
     }
 
     /**
@@ -202,7 +254,7 @@ public class RunEngine implements SignalDelivery {
             );
     }
 
-    private Run create(WorkflowDefinition definition, String key) {
+    private Run start(WorkflowDefinition definition, String key) {
         var run = store.create(
             definition.metadata().name(),
             definition.metadata().version(),
@@ -345,7 +397,51 @@ public class RunEngine implements SignalDelivery {
         environments.destroyContainer(run);
         store.updateStatus(run.id(), status);
         log.info("Run {} ({}) finished: {}", run.id(), run.workflowName(), status.value());
+        notifyParent(run);
         return new Outcome(run.workflowName(), run.id(), run.state(), run.state(), true);
+    }
+
+    /**
+     * Tell the parent its child is done.
+     *
+     * <p>Emitted by the engine rather than by each workflow, because a child
+     * has no reason to know it is one — any workflow can be spawned by a
+     * coordinator, and requiring every one of them to remember a signal.emit on
+     * every terminal path is how a coordinator ends up waiting forever.
+     */
+    private void notifyParent(Run run) {
+        if (run.parentRunId() == null) return;
+        var payload = new LinkedHashMap<String, Object>();
+        payload.put("child", run.id());
+        payload.put("workflow", run.workflowName());
+        payload.put(
+            "status",
+            store
+                .find(run.id())
+                .map(r -> r.status().value())
+                .orElse("completed")
+        );
+        run.vars().forEach((name, value) -> payload.putIfAbsent(name, value));
+        try {
+            store.appendEvent(run.parentRunId(), "signal:" + CHILD_DONE, payload);
+            store.satisfyWait(run.parentRunId(), CHILD_DONE);
+            deliver(
+                run.parentRunId(),
+                new WorkflowEvent.Signal(run.vars().isEmpty() ? null : repoOf(run), CHILD_DONE, payload)
+            );
+        } catch (RuntimeException e) {
+            // The child's work is done and pushed; a coordinator that cannot
+            // react must not undo that.
+            log.error("Run {} could not be told its child {} finished", run.parentRunId(), run.id(), e);
+        }
+    }
+
+    /** The repository a child was working in, so a signal reads like any other event. */
+    private static dev.smithyai.orchestrator.model.RepoInfo repoOf(Run run) {
+        Object owner = run.vars().get("owner");
+        Object repo = run.vars().get("repo");
+        if (owner == null || repo == null) return null;
+        return new dev.smithyai.orchestrator.model.RepoInfo(String.valueOf(owner), String.valueOf(repo), null);
     }
 
     private static Map<String, Object> failure(String transitionId, RuntimeException e) {

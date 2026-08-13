@@ -109,7 +109,7 @@ class FanOutTest {
         var registry = new ActionRegistry(
             List.of(
                 createIssue,
-                new RunSpawnAction(store),
+                new RunSpawnAction(store, null),
                 new CorrelateAction(store),
                 new RunAwaitAction(store),
                 foreach

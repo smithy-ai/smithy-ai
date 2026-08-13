@@ -223,7 +223,7 @@ class LiveEndToEndIT {
                 new AgentRunStructuredAction(environments, prompts),
                 new AgentNewSessionAction(environments),
                 new CorrelateAction(store),
-                new RunSpawnAction(store),
+                new RunSpawnAction(store, null),
                 new RunAwaitAction(store),
                 new RunWaveAction(store),
                 new GateAwaitAction(store),
@@ -287,8 +287,13 @@ class LiveEndToEndIT {
         );
     }
 
+    /**
+     * A temporary database unless SMITHY_IT_DB names one, which is how a run
+     * this produces can be looked at in the dashboard afterwards.
+     */
     private RunStore freshStore() {
-        var dataSource = new DriverManagerDataSource("jdbc:sqlite:" + tempDir.resolve("live.db") + "?foreign_keys=on");
+        String path = System.getenv().getOrDefault("SMITHY_IT_DB", tempDir.resolve("live.db").toString());
+        var dataSource = new DriverManagerDataSource("jdbc:sqlite:" + path + "?foreign_keys=on");
         dataSource.setDriverClassName("org.sqlite.JDBC");
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         return new RunStore(JdbcClient.create((DataSource) dataSource), new ObjectMapper());

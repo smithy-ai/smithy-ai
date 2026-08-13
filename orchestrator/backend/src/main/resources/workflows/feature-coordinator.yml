@@ -21,6 +21,13 @@ metadata:
   name: feature-coordinator
 
 vars:
+  # Where feature stories are raised. An issue assigned anywhere else is
+  # ordinary work for the development workflow, not a story to fan out — and
+  # that includes the catalog repositories, whose issues this coordinator
+  # creates itself.
+  #
+  # Empty by default, so the built-in claims nothing until it is configured.
+  storyRepos: []
   # Repositories this coordinator may fan work out to. The agent plans against
   # this list and nothing else.
   catalog: []
@@ -46,15 +53,17 @@ vars:
       actually planned
 
 routing:
-  # Only claims a story when it has somewhere to fan work out to. Without this
-  # guard the built-in — which ships with an empty catalog — claims every issue
-  # assigned anywhere and races the workflow that should have handled it.
+  # Claims an issue only where stories are raised, and only with somewhere to
+  # fan work out to. Without this the built-in claims every issue assigned
+  # anywhere — including the child issues it creates itself, which is how a
+  # coordinator ends up planning a feature for each task of the feature it just
+  # planned.
   - event: issue.assigned
-    when: "{{ vars.catalog | length > 0 }}"
+    when: "{{ vars.catalog | length > 0 and repo.fullName in vars.storyRepos }}"
     action: create
     key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
   - event: [issue.plan_approved, issue.commented]
-    when: "{{ vars.catalog | length > 0 }}"
+    when: "{{ vars.catalog | length > 0 and repo.fullName in vars.storyRepos }}"
     action: dispatch
     key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
 
