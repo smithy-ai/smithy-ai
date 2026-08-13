@@ -1,14 +1,10 @@
 # Turns what a merged pull request argued about into a guideline change.
 #
-# The port of workflow/flows/architect/ArchitectLearnInstance. The value is in
-# the conversation, not the diff: the diff shows what was decided, the review
-# thread shows why — and that is what a guideline should capture.
+# The value is in the conversation, not the diff: the diff shows what was
+# decided, the review thread shows why, and that is what a guideline captures.
 #
 # It proposes rather than commits: the change lands as a pull request on the
 # guidelines repository, for the people who own it to accept or reject.
-#
-# `workflow.engine` is off by default, so the Java is still what runs until
-# parity has been demonstrated.
 
 apiVersion: smithy.ai/v1alpha1
 kind: Workflow
@@ -17,6 +13,9 @@ metadata:
   version: "1"
 
 vars:
+  # Its own account: the guideline change is proposed by the architect, and the
+  # commits on it are authored by the architect.
+  actor: architect
   tools: [Read, Glob, Grep, Bash, Edit, Write]
   gitUsername: "The Architect"
 

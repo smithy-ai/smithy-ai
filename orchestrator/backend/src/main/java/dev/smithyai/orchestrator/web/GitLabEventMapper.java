@@ -20,6 +20,7 @@ public class GitLabEventMapper {
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
+    private final java.util.List<String> actors;
     private final String smithyEmail;
     private final String planApprovedLabel;
     private final String branchPrefix;
@@ -34,6 +35,7 @@ public class GitLabEventMapper {
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
+        this.actors = botConfig.actors();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
         this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
         this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
@@ -73,13 +75,16 @@ public class GitLabEventMapper {
 
     private WorkflowEvent mapIssueOpen(JsonNode payload, JsonNode attrs) {
         var assignees = payload.path("assignees");
-        if (!isUserInArray(assignees, botUser)) {
-            log.debug("Issue 'open' skipped: bot '{}' not in assignees {}", botUser, usernamesIn(assignees));
+        // Any actor this orchestrator answers as, and the event says which: a
+        // feature handed to the coordinator is not a task handed to smithy.
+        String assignee = assignedActor(assignees);
+        if (assignee == null) {
+            log.debug("Issue 'open' skipped: no actor of {} in assignees {}", actors, usernamesIn(assignees));
             return null;
         }
 
         var info = repoInfo(payload);
-        var ctx = extractIssueFromAttrs(info, attrs);
+        var ctx = withAssignee(extractIssueFromAttrs(info, attrs), assignee);
         String repoHtmlUrl = payload.path("project").path("web_url").asText("");
         return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
     }
@@ -105,33 +110,45 @@ public class GitLabEventMapper {
         var ctx = extractIssueFromAttrs(info, attrs);
 
         var currentAssignees = payload.path("assignees");
-        boolean currentlyAssigned = isUserInArray(currentAssignees, botUser);
+        String currentActor = assignedActor(currentAssignees);
 
         var previousAssignees = changes.path("assignees").path("previous");
-        boolean previouslyAssigned = isUserInArray(previousAssignees, botUser);
+        String previousActor = assignedActor(previousAssignees);
 
         String state = attrs.path("state").asText("");
         log.debug(
-            "Issue assignee change: bot='{}', current={}, previous={}, state='{}'",
-            botUser,
+            "Issue assignee change: actors={}, current={}, previous={}, state='{}'",
+            actors,
             usernamesIn(currentAssignees),
             usernamesIn(previousAssignees),
             state
         );
 
-        if (currentlyAssigned && !previouslyAssigned) {
+        if (currentActor != null && previousActor == null) {
             if (!"opened".equals(state)) {
                 log.debug("Issue assignee change skipped: state is '{}', expected 'opened'", state);
                 return null;
             }
             String repoHtmlUrl = payload.path("project").path("web_url").asText("");
-            return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
-        } else if (!currentlyAssigned && previouslyAssigned) {
+            return new WorkflowEvent.IssueAssigned(withAssignee(ctx, currentActor), repoHtmlUrl);
+        } else if (currentActor == null && previousActor != null) {
             return new WorkflowEvent.IssueUnassigned(ctx);
         }
 
-        log.debug("Issue assignee change skipped: no assignment transition for bot '{}'", botUser);
+        log.debug("Issue assignee change skipped: no assignment transition for any of {}", actors);
         return null;
+    }
+
+    /** Which of this deployment's actors the issue is handed to, if any. */
+    private String assignedActor(JsonNode assignees) {
+        for (String actor : actors) {
+            if (isUserInArray(assignees, actor)) return actor;
+        }
+        return null;
+    }
+
+    private static IssueContext withAssignee(IssueContext ctx, String assignee) {
+        return new IssueContext(ctx.info(), ctx.issueRef(), ctx.title(), ctx.body(), ctx.baseBranch(), assignee);
     }
 
     private WorkflowEvent mapIssueLabelChange(JsonNode payload, JsonNode attrs) {

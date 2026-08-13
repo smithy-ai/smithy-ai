@@ -19,6 +19,7 @@ public class GitHubEventMapper {
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
+    private final java.util.List<String> actors;
     private final String smithyEmail;
     private final String planApprovedLabel;
     private final String branchPrefix;
@@ -33,6 +34,7 @@ public class GitHubEventMapper {
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
+        this.actors = botConfig.actors();
         this.smithyEmail = botConfig.resolvedSmithyEmail();
         this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
         this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
@@ -72,16 +74,19 @@ public class GitHubEventMapper {
     }
 
     private WorkflowEvent mapIssueAssigned(JsonNode payload) {
-        if (!isUserAssigned(payload, botUser)) return null;
+        // Any actor this orchestrator answers as, and the event says which: a
+        // feature handed to the coordinator is not a task handed to smithy.
+        String assignee = assignedActor(payload);
+        if (assignee == null) return null;
         if (!"open".equals(payload.path("issue").path("state").asText(""))) return null;
 
-        var ctx = extractIssue(payload);
+        var ctx = withAssignee(extractIssue(payload), assignee);
         String repoHtmlUrl = payload.path("repository").path("html_url").asText("");
         return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
     }
 
     private WorkflowEvent mapIssueUnassigned(JsonNode payload) {
-        if (isUserAssigned(payload, botUser)) return null;
+        if (assignedActor(payload) != null) return null;
         var ctx = extractIssue(payload);
         return new WorkflowEvent.IssueUnassigned(ctx);
     }
@@ -372,6 +377,18 @@ public class GitHubEventMapper {
         );
     }
 
+    /** Which of this deployment's actors the issue was handed to, if any. */
+    private String assignedActor(JsonNode payload) {
+        for (String actor : actors) {
+            if (isUserAssigned(payload, actor)) return actor;
+        }
+        return null;
+    }
+
+    private static IssueContext withAssignee(IssueContext ctx, String assignee) {
+        return new IssueContext(ctx.info(), ctx.issueRef(), ctx.title(), ctx.body(), ctx.baseBranch(), assignee);
+    }
+
     private static boolean isUserAssigned(JsonNode payload, String login) {
         var assignees = payload.path("issue").path("assignees");
         if (assignees.isArray()) {
@@ -382,11 +399,7 @@ public class GitHubEventMapper {
         return false;
     }
 
-    /**
-     * Whether a branch belongs to the agent, per the configured prefix. The
-     * adapters used to hardcode "smithy/", which made a provider adapter carry
-     * a particular flow.
-     */
+    /** Whether a branch belongs to the agent, per the configured prefix. */
     private boolean isWorkBranch(String branch) {
         return branch != null && branch.startsWith(branchPrefix);
     }

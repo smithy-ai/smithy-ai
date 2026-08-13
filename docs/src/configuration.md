@@ -77,7 +77,19 @@ coordinator, a task for smithy. They need separate accounts for that. See
 
 An actor with no token of its own falls back to smithy's, so a single-account
 deployment keeps working, at the cost of everything being attributed to that
-account.
+account. The startup log lists the actors and marks the ones that have their own
+identity:
+
+```
+Issue trackers by actor: [smithy*, architect*, coordinator]
+VCS clients by actor: [smithy*, architect*, coordinator]
+```
+
+Here the coordinator has no token, so its comments, issues and plans are posted
+by smithy.
+
+Jira identifies accounts by id rather than username, so the actors are set
+separately under [Jira settings](#jira-settings).
 
 ## Storage
 
@@ -120,7 +132,9 @@ work happens in repositories.
 | `JIRA_URL` | none | Jira instance URL |
 | `JIRA_EMAIL` | none | Account email for API authentication |
 | `JIRA_API_TOKEN` | none | API token |
-| `JIRA_BOT_ACCOUNT_ID` | none | Account id assignment is detected against |
+| `JIRA_BOT_ACCOUNT_ID` | none | Jira account of the smithy actor |
+| `JIRA_ARCHITECT_ACCOUNT_ID` | none | Jira account of the architect actor |
+| `JIRA_COORDINATOR_ACCOUNT_ID` | none | Jira account of the coordinator actor. A story can only be handed to the coordinator if it has one |
 | `JIRA_WEBHOOK_SECRET` | none | Shared secret, sent as `X-Jira-Token` or `?token=` |
 | `JIRA_REPO_FIELD` | none | Custom field holding `owner/repo[@base-branch]` |
 | `JIRA_PLAN_APPROVED_LABEL` | `plan-approved` | Label that means approval |

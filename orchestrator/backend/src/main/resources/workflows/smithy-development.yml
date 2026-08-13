@@ -1,19 +1,9 @@
 # One issue, one repository, from assignment to a mergeable pull request.
 #
-# This is the port of the hardcoded flow in workflow/flows/smithy/. Behaviour
-# parity with that Java is the bar, and until it has been demonstrated on real
-# work the Java is still what runs: `workflow.engine` is off by default and the
-# two are exclusive.
-#
-# Where the Java differs and why, so a reviewer can check the port rather than
-# read it twice:
-#   - The plan file's path and the branch name were computed by Naming.java.
-#     They are templates in `vars` here, so a repository can want a different
-#     convention without a code change.
-#   - CI attempt counters were fields in the container's state file. They are run
-#     variables now, so they survive the container being rebuilt.
-#   - The comment burst that produced one agent turn was a queue inside the flow's
-#     event thread. It is `debounce:` on the transition now.
+# The plan file's path and the branch name are templates in `vars`, so a
+# repository can follow a different convention without a code change. CI attempt
+# counters are run variables, so they survive the container being rebuilt, and a
+# burst of comments becomes one agent turn through `debounce:` on the transition.
 
 apiVersion: smithy.ai/v1alpha1
 kind: Workflow

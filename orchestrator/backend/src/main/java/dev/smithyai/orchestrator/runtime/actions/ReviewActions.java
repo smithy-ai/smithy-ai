@@ -4,14 +4,13 @@ import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.service.vcs.AttachmentHelper;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
-import dev.smithyai.orchestrator.service.vcs.VcsClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClients;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -35,7 +34,7 @@ public class ReviewActions {
      * to acknowledge must never stop the work.
      */
     @Bean
-    public WorkflowAction commentReactAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction commentReactAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -49,6 +48,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 long commentId = intInput(input, "commentId", 0);
                 if (commentId <= 0) return Map.of("reacted", false);
                 try {
@@ -76,7 +76,7 @@ public class ReviewActions {
      * answer into an arbitrary member of a burst reads as a non-sequitur.
      */
     @Bean
-    public WorkflowAction prReplyAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prReplyAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -90,6 +90,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 String body = optional(input, "body", "");
                 if (body.isBlank()) return Map.of("posted", false);
 
@@ -109,7 +110,7 @@ public class ReviewActions {
 
     /** Whether the bot is still assigned — a human unassigning it is how they take over. */
     @Bean
-    public WorkflowAction prIsAssignedAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prIsAssignedAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -123,6 +124,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 boolean assigned = vcs.isAssigned(
                     required(input, "owner"),
                     required(input, "repo"),
@@ -135,7 +137,7 @@ public class ReviewActions {
     }
 
     @Bean
-    public WorkflowAction prSetAssigneesAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prSetAssigneesAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -149,6 +151,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 var assignees = listInput(input, "assignees");
                 vcs.setPrAssignees(
                     required(input, "owner"),
@@ -163,7 +166,7 @@ public class ReviewActions {
 
     /** Find the pull request for a branch, if there is one. */
     @Bean
-    public WorkflowAction prFindByHeadAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prFindByHeadAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -177,6 +180,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 var pr = vcs.findPrByHead(required(input, "owner"), required(input, "repo"), required(input, "head"));
                 if (pr == null) return Map.of("found", false);
                 return Map.of(
@@ -204,7 +208,7 @@ public class ReviewActions {
      * have to know which happened.
      */
     @Bean
-    public WorkflowAction prReviewCommentsAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prReviewCommentsAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -218,6 +222,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 String owner = required(input, "owner");
                 String repo = required(input, "repo");
                 int number = intInput(input, "number", 0);
@@ -300,7 +305,7 @@ public class ReviewActions {
      * file left on a branch would otherwise block the merge it was written for.
      */
     @Bean
-    public WorkflowAction fileDeleteAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction fileDeleteAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -319,6 +324,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 String owner = required(input, "owner");
                 String repo = required(input, "repo");
                 String branch = required(input, "branch");
@@ -339,7 +345,7 @@ public class ReviewActions {
      * review with nothing in it is not posted at all.
      */
     @Bean
-    public WorkflowAction prReviewAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prReviewAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -354,6 +360,7 @@ public class ReviewActions {
             @Override
             @SuppressWarnings("unchecked")
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 String summary = optional(input, "summary", "");
                 var inline = new ArrayList<dev.smithyai.orchestrator.service.vcs.dto.InlineComment>();
                 if (input.get("comments") instanceof List<?> comments) {
@@ -394,7 +401,7 @@ public class ReviewActions {
      * URL from the event meant trying to clone the string "null".
      */
     @Bean
-    public WorkflowAction repoCloneUrlAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction repoCloneUrlAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -408,6 +415,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 String owner = required(input, "owner");
                 String repo = required(input, "repo");
                 return Map.of("cloneUrl", vcs.cloneUrl(owner, repo), "fullName", owner + "/" + repo);
@@ -418,7 +426,7 @@ public class ReviewActions {
     /** A link to a pull request that works outside the network the orchestrator is on. */
     @Bean
     public WorkflowAction prLinkAction(
-        @Qualifier("smithyVcsClient") VcsClient vcs,
+        VcsClients clients,
         dev.smithyai.orchestrator.config.VcsProviderConfig vcsConfig
     ) {
         return new WorkflowAction() {
@@ -434,6 +442,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 return Map.of(
                     "url",
                     vcs.prUrl(
@@ -456,7 +465,7 @@ public class ReviewActions {
      */
     @Bean
     public WorkflowAction fileUrlAction(
-        @Qualifier("smithyVcsClient") VcsClient vcs,
+        VcsClients clients,
         dev.smithyai.orchestrator.config.VcsProviderConfig vcsConfig
     ) {
         return new WorkflowAction() {
@@ -472,6 +481,7 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 String root = "%s/%s/%s".formatted(
                     vcsConfig.resolvedExternalUrl(),
                     required(input, "owner"),

@@ -54,8 +54,9 @@ public class JiraEventMapper {
 
     private WorkflowEvent mapIssueCreated(JsonNode payload) {
         var issue = payload.path("issue");
-        if (!isBot(issue.path("fields").path("assignee"))) return null;
-        return issueAssigned(payload, issue);
+        String actor = assignedActor(issue.path("fields").path("assignee"));
+        if (actor == null) return null;
+        return issueAssigned(payload, issue, actor);
     }
 
     private WorkflowEvent mapIssueUpdated(JsonNode payload) {
@@ -67,13 +68,14 @@ public class JiraEventMapper {
             String field = item.path("field").asText("");
             switch (field) {
                 case "assignee" -> {
-                    String bot = jira.botAccountId();
-                    boolean wasBot = bot.equals(item.path("from").asText(""));
-                    boolean isBotNow = bot.equals(item.path("to").asText(""));
-                    if (isBotNow && !wasBot) {
-                        return issueAssigned(payload, issue);
+                    // Which actor it moved between, so a story handed to the
+                    // coordinator is told from a task handed to the agent.
+                    String before = jira.actorFor(item.path("from").asText(""));
+                    String now = jira.actorFor(item.path("to").asText(""));
+                    if (now != null && !now.equals(before)) {
+                        return issueAssigned(payload, issue, now);
                     }
-                    if (wasBot && !isBotNow) {
+                    if (before != null && now == null) {
                         var ctx = extractIssue(issue, false);
                         return ctx != null ? new WorkflowEvent.IssueUnassigned(ctx) : null;
                     }
@@ -118,9 +120,10 @@ public class JiraEventMapper {
 
     // ── Builders ─────────────────────────────────────────────
 
-    private WorkflowEvent issueAssigned(JsonNode payload, JsonNode issue) {
+    private WorkflowEvent issueAssigned(JsonNode payload, JsonNode issue, String actor) {
         var ctx = extractIssue(issue, true);
         if (ctx == null) return null;
+        ctx = new IssueContext(ctx.info(), ctx.issueRef(), ctx.title(), ctx.body(), ctx.baseBranch(), actor);
         // Jira has no repo html url; the plan-link comment uses the VCS external URL
         return new WorkflowEvent.IssueAssigned(
             ctx,
@@ -203,9 +206,13 @@ public class JiraEventMapper {
     }
 
     private boolean isBot(JsonNode assignee) {
-        if (assignee.isMissingNode() || assignee.isNull()) return false;
-        String id = assignee.path("accountId").asText(assignee.path("name").asText(""));
-        return jira.botAccountId().equals(id);
+        return assignedActor(assignee) != null;
+    }
+
+    /** Which of this deployment's actors the story is assigned to, if any. */
+    private String assignedActor(JsonNode assignee) {
+        if (assignee.isMissingNode() || assignee.isNull()) return null;
+        return jira.actorFor(assignee.path("accountId").asText(assignee.path("name").asText("")));
     }
 
     private static boolean containsLabel(String spaceSeparated, String label) {

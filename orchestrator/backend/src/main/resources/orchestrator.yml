@@ -29,6 +29,7 @@ vcs:
     webhook-secret: ${GITLAB_WEBHOOK_SECRET:}
     smithy-token: ${SMITHY_GITLAB_TOKEN:}
     architect-token: ${ARCHITECT_GITLAB_TOKEN:}
+    coordinator-token: ${COORDINATOR_GITLAB_TOKEN:}
     token-type: ${GITLAB_TOKEN_TYPE:}
 
   github:
@@ -37,12 +38,17 @@ vcs:
     webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
     smithy-token: ${SMITHY_GITHUB_TOKEN:}
     architect-token: ${ARCHITECT_GITHUB_TOKEN:}
+    coordinator-token: ${COORDINATOR_GITHUB_TOKEN:}
 
   jira:
     url: ${JIRA_URL:}
     email: ${JIRA_EMAIL:}
     api-token: ${JIRA_API_TOKEN:}
+    # One account per actor, as on any other connector: which one a story is
+    # assigned to is how a person says what kind of work it is.
     bot-account-id: ${JIRA_BOT_ACCOUNT_ID:}
+    architect-account-id: ${JIRA_ARCHITECT_ACCOUNT_ID:}
+    coordinator-account-id: ${JIRA_COORDINATOR_ACCOUNT_ID:}
     webhook-secret: ${JIRA_WEBHOOK_SECRET:}
     repo-field: ${JIRA_REPO_FIELD:}
     plan-approved-label: ${JIRA_PLAN_APPROVED_LABEL:plan-approved}

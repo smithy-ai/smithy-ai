@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 class JiraEventMapperTest {
 
     private static final String BOT = "bot-account-123";
+    private static final String ARCHITECT = "architect-account-456";
+    private static final String COORDINATOR = "coordinator-account-789";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final IssueTrackerClient issueTracker = mock(IssueTrackerClient.class);
@@ -25,6 +27,8 @@ class JiraEventMapperTest {
             "bot@example.com",
             "token",
             BOT,
+            ARCHITECT,
+            COORDINATOR,
             "secret",
             "customfield_10010",
             null,
@@ -72,6 +76,33 @@ class JiraEventMapperTest {
         assertEquals("gerimedica", assigned.ctx().info().owner());
         assertEquals("ecd-care", assigned.ctx().info().repo());
         assertEquals("develop", assigned.ctx().baseBranch());
+    }
+
+    @Test
+    void aStoryHandedToTheCoordinatorSaysSo() throws Exception {
+        // Jira accounts are the actors here: without one of its own, a
+        // coordinator could not be handed a story at all.
+        String payload = """
+            { "webhookEvent": "jira:issue_updated",
+              "issue": %s,
+              "changelog": { "items": [ { "field": "assignee", "from": null, "to": "%s" } ] } }
+            """.formatted(issueJson(COORDINATOR, "gerimedica/ecd-care"), COORDINATOR);
+
+        var assigned = assertInstanceOf(WorkflowEvent.IssueAssigned.class, mapper().map(JSON.readTree(payload)));
+        assertEquals("coordinator", assigned.ctx().assignee());
+        assertEquals("jira", assigned.ctx().info().source());
+    }
+
+    @Test
+    void assignmentToTheAgentSaysTheAgent() throws Exception {
+        String payload = """
+            { "webhookEvent": "jira:issue_updated",
+              "issue": %s,
+              "changelog": { "items": [ { "field": "assignee", "from": null, "to": "%s" } ] } }
+            """.formatted(issueJson(BOT, "gerimedica/ecd-care"), BOT);
+
+        var assigned = assertInstanceOf(WorkflowEvent.IssueAssigned.class, mapper().map(JSON.readTree(payload)));
+        assertEquals("smithy", assigned.ctx().assignee());
     }
 
     @Test

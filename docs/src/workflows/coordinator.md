@@ -89,6 +89,10 @@ dependency that was never created does not block, and a cancelled child does not
 satisfy one. The feature is complete only when every child completed; if any were
 cancelled or failed, the coordinator says so on the story.
 
+Taking the agent off a child issue cancels its run, and assigning it again puts
+that same run back to work, so the coordinator keeps counting it and releases
+whatever was waiting behind it once it finishes.
+
 ## Approving
 
 Either works, and both run the same steps:

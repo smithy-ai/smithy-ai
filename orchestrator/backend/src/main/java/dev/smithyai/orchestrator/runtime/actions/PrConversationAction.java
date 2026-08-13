@@ -1,13 +1,13 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClients;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,10 +24,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class PrConversationAction implements WorkflowAction {
 
-    private final VcsClient vcs;
+    private final VcsClients clients;
 
-    public PrConversationAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
-        this.vcs = vcs;
+    public PrConversationAction(VcsClients clients) {
+        this.clients = clients;
     }
 
     @Override
@@ -42,18 +42,19 @@ public class PrConversationAction implements WorkflowAction {
 
     @Override
     public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+        var vcs = Vcs.pick(this, context, input, clients);
         String owner = required(input, "owner");
         String repo = required(input, "repo");
         int number = intInput(input, "number", 0);
 
         var entries = new ArrayList<Map<String, Object>>();
-        addComments(entries, owner, repo, number);
-        addReviews(entries, owner, repo, number);
+        addComments(vcs, entries, owner, repo, number);
+        addReviews(vcs, entries, owner, repo, number);
         entries.sort(Comparator.comparing(entry -> String.valueOf(entry.getOrDefault("created_at", ""))));
         return Map.of("entries", entries, "count", entries.size());
     }
 
-    private void addComments(List<Map<String, Object>> entries, String owner, String repo, int number) {
+    private void addComments(VcsClient vcs, List<Map<String, Object>> entries, String owner, String repo, int number) {
         try {
             for (var comment : vcs.getPrComments(owner, repo, number)) {
                 entries.add(entry(comment.userLogin(), comment.body(), "comment", String.valueOf(comment.createdAt())));
@@ -63,7 +64,7 @@ public class PrConversationAction implements WorkflowAction {
         }
     }
 
-    private void addReviews(List<Map<String, Object>> entries, String owner, String repo, int number) {
+    private void addReviews(VcsClient vcs, List<Map<String, Object>> entries, String owner, String repo, int number) {
         try {
             for (var review : vcs.getPrReviews(owner, repo, number)) {
                 String commitId = review.commitId() == null ? "" : review.commitId();

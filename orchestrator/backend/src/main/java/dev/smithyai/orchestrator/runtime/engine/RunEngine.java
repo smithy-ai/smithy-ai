@@ -185,7 +185,10 @@ public class RunEngine implements SignalDelivery {
             );
             return Outcome.ignored(definition.metadata().name());
         }
-        return dispatch(definition, existing.orElseGet(() -> start(definition, key)), event);
+        var run = existing
+            .map(found -> found.isTerminal() ? reopen(definition, found) : found)
+            .orElseGet(() -> start(definition, key, event));
+        return dispatch(definition, run, event);
     }
 
     /** The run that already owns the thing this event is about, whatever workflow it belongs to. */
@@ -268,7 +271,7 @@ public class RunEngine implements SignalDelivery {
             );
     }
 
-    private Run start(WorkflowDefinition definition, String key) {
+    private Run start(WorkflowDefinition definition, String key, WorkflowEvent event) {
         var run = store.create(
             definition.metadata().name(),
             definition.metadata().version(),
@@ -281,10 +284,45 @@ public class RunEngine implements SignalDelivery {
         if (!definition.vars().isEmpty()) {
             store.updateVars(run.id(), definition.vars());
         }
+        // Which connector this run came in through, so anything the engine
+        // emits about it later — a signal to a parent, a gate released from the
+        // dashboard — still says which system the work lives in. A definition
+        // that names `source` itself means something by it and keeps it.
+        if (event != null && !event.source().isBlank() && !definition.vars().containsKey(SOURCE_VAR)) {
+            store.mergeVars(run.id(), Map.of(SOURCE_VAR, event.source()));
+        }
         store.correlate(CorrelationKind.KEY, key, run.id());
         store.updateStatus(run.id(), RunStatus.RUNNING);
         log.info("Started run {} of {} for {}", run.id(), definition.metadata().name(), key);
         return store.find(run.id()).orElseThrow();
+    }
+
+    /**
+     * Put a stopped run back to work.
+     *
+     * <p>Cancelling is how a person takes the agent off a task, and assigning it
+     * again is how they hand it back. The run keeps its id, its variables and
+     * its history, so a coordinator still counting it as a child sees it become
+     * pending again rather than losing track of it.
+     *
+     * <p>It starts from the beginning: the container it had was destroyed when
+     * it stopped, and a half-finished transition has nothing left to resume
+     * into. A run that <em>completed</em> is left alone; that work was
+     * delivered, and a stray assignment event is not a reason to do it twice.
+     */
+    private Run reopen(WorkflowDefinition definition, Run stopped) {
+        if (stopped.status() == RunStatus.COMPLETED) {
+            log.debug("Run {} already completed; not restarting it", stopped.id());
+            return stopped;
+        }
+        String initial = definition.state().getInitial();
+        store.clearSteps(stopped.id());
+        store.clearPendingWaits(stopped.id());
+        store.updateState(stopped.id(), initial);
+        store.updateStatus(stopped.id(), RunStatus.RUNNING);
+        store.appendEvent(stopped.id(), "run.reopened", Map.of("was", stopped.status().value(), "state", initial));
+        log.info("Run {} ({}) reopened from {}", stopped.id(), stopped.workflowName(), stopped.status().value());
+        return store.find(stopped.id()).orElse(stopped);
     }
 
     /**
@@ -480,12 +518,20 @@ public class RunEngine implements SignalDelivery {
     }
 
     /** The repository a child was working in, so a signal reads like any other event. */
-    private static dev.smithyai.orchestrator.model.RepoInfo repoOf(Run run) {
+    static dev.smithyai.orchestrator.model.RepoInfo repoOf(Run run) {
         Object owner = run.vars().get("owner");
         Object repo = run.vars().get("repo");
         if (owner == null || repo == null) return null;
-        return new dev.smithyai.orchestrator.model.RepoInfo(String.valueOf(owner), String.valueOf(repo), null);
+        return new dev.smithyai.orchestrator.model.RepoInfo(
+            String.valueOf(owner),
+            String.valueOf(repo),
+            null,
+            String.valueOf(run.vars().getOrDefault(SOURCE_VAR, ""))
+        );
     }
+
+    /** The run variable holding the connector a run arrived through. */
+    public static final String SOURCE_VAR = "source";
 
     private static Map<String, Object> failure(String transitionId, RuntimeException e) {
         var payload = new LinkedHashMap<String, Object>();

@@ -125,7 +125,12 @@ public class DashboardController {
         Object owner = run.vars().get("owner");
         Object repo = run.vars().get("repo");
         if (owner == null || repo == null) return null;
-        return new dev.smithyai.orchestrator.model.RepoInfo(String.valueOf(owner), String.valueOf(repo), null);
+        return new dev.smithyai.orchestrator.model.RepoInfo(
+            String.valueOf(owner),
+            String.valueOf(repo),
+            null,
+            String.valueOf(run.vars().getOrDefault(dev.smithyai.orchestrator.runtime.engine.RunEngine.SOURCE_VAR, ""))
+        );
     }
 
     /** What a run is blocked on — an approval nobody has given, a sibling that has not finished. */

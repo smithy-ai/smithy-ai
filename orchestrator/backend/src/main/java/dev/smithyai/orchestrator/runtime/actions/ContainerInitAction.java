@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
+import dev.smithyai.orchestrator.config.Actors;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
@@ -24,10 +25,12 @@ public class ContainerInitAction implements WorkflowAction {
 
     private final RunEnvironments environments;
     private final DockerConfig dockerConfig;
+    private final Actors actors;
 
-    public ContainerInitAction(RunEnvironments environments, DockerConfig dockerConfig) {
+    public ContainerInitAction(RunEnvironments environments, DockerConfig dockerConfig, Actors actors) {
         this.environments = environments;
         this.dockerConfig = dockerConfig;
+        this.actors = actors;
     }
 
     @Override
@@ -63,9 +66,11 @@ public class ContainerInitAction implements WorkflowAction {
             .branch(optional(input, "branch", ""))
             .sourceBranch(optional(input, "sourceBranch", null))
             .cacheVolumes(dockerConfig.getCacheVolumeMap())
-            .gitEmail(optional(input, "gitEmail", null))
+            // The workflow's own actor unless the step says otherwise, so a
+            // container the architect works in pushes as the architect.
+            .gitEmail(optional(input, "gitEmail", actors.email(context.actor())))
             .gitUsername(optional(input, "gitUsername", null))
-            .vcsToken(optional(input, "vcsToken", null))
+            .vcsToken(optional(input, "vcsToken", actors.token(context.actor())))
             .extraRepos(extraRepos(input))
             .workflow(run.workflowName())
             .build();
@@ -89,9 +94,18 @@ public class ContainerInitAction implements WorkflowAction {
                 throw new IllegalArgumentException("container.init extraRepos entries must be maps, got: " + entry);
             }
             var fields = (Map<String, Object>) map;
+            String cloneUrl = optional(fields, "cloneUrl", "");
+            if (cloneUrl.isBlank()) {
+                // Nothing to clone. A workflow can list a repository that only
+                // some events have — a story raised in a tracker with no
+                // repository behind it — without a condition it cannot express
+                // on a list entry.
+                log.debug("container.init: skipping extra repo with no clone URL at {}", fields.get("path"));
+                continue;
+            }
             repos.add(
                 new ContainerConfig.ExtraRepo(
-                    required(fields, "cloneUrl"),
+                    cloneUrl,
                     required(fields, "path"),
                     // Empty, never null: the entry is serialized with List.of,
                     // which rejects nulls, and that failure used to be swallowed.

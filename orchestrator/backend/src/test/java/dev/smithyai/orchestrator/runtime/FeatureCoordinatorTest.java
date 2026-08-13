@@ -163,30 +163,30 @@ class FeatureCoordinatorTest {
                 // exists — so the real ones are registered alongside the stubs.
                 new AgentRunAction(environments, prompts),
                 new AgentNewSessionAction(environments),
-                new PrConversationAction(vcs),
+                new PrConversationAction(vcs.asRegistry()),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                prActions.prCreateAction(vcs),
-                prActions.prCommentAction(vcs),
-                prActions.prRequestReviewAction(vcs),
-                prActions.prReadAction(vcs),
+                prActions.prCreateAction(vcs.asRegistry()),
+                prActions.prCommentAction(vcs.asRegistry()),
+                prActions.prRequestReviewAction(vcs.asRegistry()),
+                prActions.prReadAction(vcs.asRegistry()),
                 git.gitPullAction(environments),
                 git.gitPushAction(environments),
                 git.gitStatusAction(environments),
                 git.execAction(environments),
                 git.agentEnsureCommittedAction(environments),
                 git.instanceDestroyAction(environments),
-                review.commentReactAction(vcs),
-                review.prReplyAction(vcs),
-                review.prIsAssignedAction(vcs),
-                review.prSetAssigneesAction(vcs),
-                review.prFindByHeadAction(vcs),
-                review.prReviewCommentsAction(vcs),
-                review.prReviewAction(vcs),
+                review.commentReactAction(vcs.asRegistry()),
+                review.prReplyAction(vcs.asRegistry()),
+                review.prIsAssignedAction(vcs.asRegistry()),
+                review.prSetAssigneesAction(vcs.asRegistry()),
+                review.prFindByHeadAction(vcs.asRegistry()),
+                review.prReviewCommentsAction(vcs.asRegistry()),
+                review.prReviewAction(vcs.asRegistry()),
                 review.attachmentsFetchAction(trackers, environments),
-                review.fileDeleteAction(vcs),
-                review.fileUrlAction(vcs, vcsProviderConfig()),
-                review.repoCloneUrlAction(vcs),
-                review.prLinkAction(vcs, vcsProviderConfig()),
+                review.fileDeleteAction(vcs.asRegistry()),
+                review.fileUrlAction(vcs.asRegistry(), vcsProviderConfig()),
+                review.repoCloneUrlAction(vcs.asRegistry()),
+                review.prLinkAction(vcs.asRegistry(), vcsProviderConfig()),
                 ci.ciRetryGuardAction(store, new CiConfig(false)),
                 ci.ciResetAction(store),
                 issueActions.issueLabelAction(trackers),
@@ -595,6 +595,49 @@ class FeatureCoordinatorTest {
         // bot answering itself is how comment loops start.
         assertEquals(1, asCoordinator.issueComments.size(), "the coordinator signed its own plan");
         assertTrue(asSmithy.issueComments.isEmpty(), "not the agent that will do the work");
+    }
+
+    @Test
+    void aSignalIsAnsweredWhereTheStoryLivesRatherThanWhereTheWorkDoes() {
+        var jira = new StubVcsClient();
+        var gitlab = new StubVcsClient();
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("gitlab", gitlab, "jira", jira),
+            gitlab
+        );
+
+        // A child finished, so the event this transition sees is a signal from
+        // the child's own system. The comment belongs on the story.
+        var childDone = new WorkflowEvent.Signal(
+            new dev.smithyai.orchestrator.model.RepoInfo("acme", "api", null, "gitlab"),
+            "child-done",
+            Map.of()
+        );
+        new IssueCommentAction(trackers).execute(
+            new ActionContext(null, childDone, Map.of(), Map.of("storySource", "jira")),
+            Map.of("connector", "jira", "owner", "PROJ", "repo", "PROJ", "issue", "PROJ-1", "body", "next wave")
+        );
+
+        assertEquals(1, jira.issueComments.size(), "the story was told, in the system it lives in");
+        assertTrue(gitlab.issueComments.isEmpty());
+    }
+
+    @Test
+    void aStoryWithNoRepositoryBehindItMountsNothingRatherThanCloningNull() {
+        var renderer = new ExpressionRenderer();
+        // Jira scopes a story to its project; there is no repository behind it.
+        var story = new WorkflowEvent.IssueAssigned(
+            new IssueContext(new RepoInfo("PROJ", "PROJ", null, "jira"), "PROJ-1", "Search", "", null, "coordinator"),
+            null
+        );
+        var rendered = renderer.renderInputs(
+            Map.of("extraRepos", java.util.List.of(Map.of("cloneUrl", "{{ repo.cloneUrl }}", "path", "/story"))),
+            new ActionContext(null, story, Map.of(), Map.of())
+        );
+
+        @SuppressWarnings("unchecked")
+        var entries = (java.util.List<Map<String, Object>>) rendered.get("extraRepos");
+        assertEquals("", entries.getFirst().get("cloneUrl"), "empty, not the text \"null\"");
     }
 
     @Test

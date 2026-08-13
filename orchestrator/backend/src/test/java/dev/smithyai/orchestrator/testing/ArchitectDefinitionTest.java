@@ -97,7 +97,7 @@ class ArchitectDefinitionTest {
         var actions = new ActionRegistry(
             List.of(
                 new ForeachAction(null),
-                new ContainerInitAction(environments, dockerConfig()),
+                new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()),
                 new AgentRunAction(environments, prompts),
                 new AgentRunStructuredAction(environments, prompts),
                 new AgentNewSessionAction(environments),
@@ -108,16 +108,16 @@ class ArchitectDefinitionTest {
                 new GateAwaitAction(store),
                 new SignalEmitAction(store, null),
                 new IssueCommentAction(trackers),
-                new PrConversationAction(vcs),
+                new PrConversationAction(vcs.asRegistry()),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
                 new IssueActions().issueCreateAction(trackers),
                 new IssueActions().issueAssignAction(trackers),
                 new IssueActions().issueLabelAction(trackers),
                 new IssueActions().issueReadAction(trackers),
-                new PullRequestActions().prCreateAction(vcs),
-                new PullRequestActions().prCommentAction(vcs),
-                new PullRequestActions().prRequestReviewAction(vcs),
-                new PullRequestActions().prReadAction(vcs),
+                new PullRequestActions().prCreateAction(vcs.asRegistry()),
+                new PullRequestActions().prCommentAction(vcs.asRegistry()),
+                new PullRequestActions().prRequestReviewAction(vcs.asRegistry()),
+                new PullRequestActions().prReadAction(vcs.asRegistry()),
                 new GitActions().gitPullAction(environments),
                 new GitActions().gitPushAction(environments),
                 new GitActions().gitStatusAction(environments),
@@ -127,18 +127,18 @@ class ArchitectDefinitionTest {
                 state.stateSetAction(store),
                 state.stateVarAction(store),
                 state.metricsRecordAction(store),
-                review.commentReactAction(vcs),
-                review.prReplyAction(vcs),
-                review.prIsAssignedAction(vcs),
-                review.prSetAssigneesAction(vcs),
-                review.prFindByHeadAction(vcs),
-                review.prReviewCommentsAction(vcs),
-                review.prReviewAction(vcs),
+                review.commentReactAction(vcs.asRegistry()),
+                review.prReplyAction(vcs.asRegistry()),
+                review.prIsAssignedAction(vcs.asRegistry()),
+                review.prSetAssigneesAction(vcs.asRegistry()),
+                review.prFindByHeadAction(vcs.asRegistry()),
+                review.prReviewCommentsAction(vcs.asRegistry()),
+                review.prReviewAction(vcs.asRegistry()),
                 review.attachmentsFetchAction(trackers, environments),
-                review.fileDeleteAction(vcs),
-                review.fileUrlAction(vcs, vcsProviderConfig()),
-                review.repoCloneUrlAction(vcs),
-                review.prLinkAction(vcs, vcsProviderConfig()),
+                review.fileDeleteAction(vcs.asRegistry()),
+                review.fileUrlAction(vcs.asRegistry(), vcsProviderConfig()),
+                review.repoCloneUrlAction(vcs.asRegistry()),
+                review.prLinkAction(vcs.asRegistry(), vcsProviderConfig()),
                 new CiActions().ciRetryGuardAction(store, new CiConfig(false)),
                 new CiActions().ciResetAction(store)
             )
@@ -181,6 +181,23 @@ class ArchitectDefinitionTest {
         assertEquals(1, mounts.size(), mounts.toString());
         assertTrue(mounts.getFirst().contains("/context-repo"), mounts.toString());
         assertTrue(mounts.getFirst().contains("app-context"), mounts.toString());
+    }
+
+    @Test
+    void theReviewerWorksAsItselfRatherThanAsTheAgentItReviews() {
+        var docker = new FakeDockerCli();
+        runDefinition(docker);
+
+        var env = docker.invocations
+            .stream()
+            .filter(args -> !args.isEmpty() && args.getFirst().equals("create"))
+            .flatMap(java.util.List::stream)
+            .toList();
+
+        // A reader of the repository has to be able to tell the reviewer from
+        // the author, and that means its own account and its own token.
+        assertTrue(env.contains("GIT_EMAIL=architect@localhost"), env.toString());
+        assertTrue(env.contains("VCS_TOKEN=architect-token"), env.toString());
     }
 
     @Test

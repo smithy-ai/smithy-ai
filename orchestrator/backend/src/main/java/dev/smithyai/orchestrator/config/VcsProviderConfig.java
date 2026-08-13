@@ -51,6 +51,8 @@ public record VcsProviderConfig(
         String email,
         @JsonProperty("api-token") String apiToken,
         @JsonProperty("bot-account-id") String botAccountId,
+        @JsonProperty("architect-account-id") String architectAccountId,
+        @JsonProperty("coordinator-account-id") String coordinatorAccountId,
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("repo-field") String repoField,
         @JsonProperty("plan-approved-label") String planApprovedLabel,
@@ -65,6 +67,22 @@ public record VcsProviderConfig(
          */
         public boolean allowsStoriesWithoutRepo() {
             return storiesWithoutRepo != null && storiesWithoutRepo;
+        }
+
+        /**
+         * Which actor a Jira account belongs to, or null for anyone else.
+         *
+         * <p>Assignment is how a person says what kind of work a story is, and
+         * that only works if the actors are separate accounts here too. A
+         * deployment that configures one account has one actor, and every story
+         * assigned to it is the agent's.
+         */
+        public String actorFor(String accountId) {
+            if (accountId == null || accountId.isBlank()) return null;
+            if (accountId.equals(botAccountId)) return SMITHY;
+            if (accountId.equals(architectAccountId)) return ARCHITECT;
+            if (accountId.equals(coordinatorAccountId)) return COORDINATOR;
+            return null;
         }
 
         public boolean isCloud() {
@@ -153,14 +171,27 @@ public record VcsProviderConfig(
         return token != null && !token.isBlank() ? token : smithyToken();
     }
 
-    /** Whether this actor has an identity of its own here. */
+    /**
+     * Whether this actor has an identity of its own here.
+     *
+     * <p>False means everything it does is attributed to the default account,
+     * which is what a single-account deployment gets.
+     */
     public boolean hasOwnToken(String actor) {
         String own = switch (resolvedProvider()) {
-            case "gitlab" -> gitlab == null ? null : (COORDINATOR.equals(actor) ? gitlab.coordinatorToken() : null);
-            case "github" -> github == null ? null : (COORDINATOR.equals(actor) ? github.coordinatorToken() : null);
-            default -> forgejo == null ? null : (COORDINATOR.equals(actor) ? forgejo.coordinatorToken() : null);
+            case "gitlab" -> gitlab == null ? null : tokenOf(actor, gitlab.architectToken(), gitlab.coordinatorToken());
+            case "github" -> github == null ? null : tokenOf(actor, github.architectToken(), github.coordinatorToken());
+            default -> forgejo == null ? null : tokenOf(actor, forgejo.architectToken(), forgejo.coordinatorToken());
         };
         return own != null && !own.isBlank();
+    }
+
+    private static String tokenOf(String actor, String architect, String coordinator) {
+        return switch (actor) {
+            case ARCHITECT -> architect;
+            case COORDINATOR -> coordinator;
+            default -> null;
+        };
     }
 
     public String smithyToken() {

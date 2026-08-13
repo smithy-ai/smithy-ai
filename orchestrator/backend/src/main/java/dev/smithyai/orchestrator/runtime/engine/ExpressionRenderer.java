@@ -258,8 +258,11 @@ public class ExpressionRenderer {
             info.repo(),
             "fullName",
             info.owner() + "/" + info.repo(),
+            // Empty, not the string "null": a story tracked in Jira has no
+            // repository behind it, and a step that clones this must be able to
+            // tell "nothing to clone" from a URL.
             "cloneUrl",
-            String.valueOf(info.cloneUrl())
+            info.cloneUrl() == null ? "" : info.cloneUrl()
         );
     }
 }

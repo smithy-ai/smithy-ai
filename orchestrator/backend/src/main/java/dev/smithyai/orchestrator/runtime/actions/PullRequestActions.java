@@ -1,11 +1,10 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
-import dev.smithyai.orchestrator.service.vcs.VcsClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClients;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,7 +23,7 @@ public class PullRequestActions {
      * landed between the provider call and the record of it.
      */
     @Bean
-    public WorkflowAction prCreateAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prCreateAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -38,6 +37,7 @@ public class PullRequestActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 String owner = required(input, "owner");
                 String repo = required(input, "repo");
                 String head = required(input, "head");
@@ -71,7 +71,7 @@ public class PullRequestActions {
     }
 
     @Bean
-    public WorkflowAction prCommentAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prCommentAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -85,6 +85,7 @@ public class PullRequestActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 int number = intInput(input, "number", -1);
                 if (number < 0) throw new IllegalArgumentException("pr.comment requires 'number'");
                 vcs.createPrComment(required(input, "owner"), required(input, "repo"), number, required(input, "body"));
@@ -94,7 +95,7 @@ public class PullRequestActions {
     }
 
     @Bean
-    public WorkflowAction prRequestReviewAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prRequestReviewAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -113,6 +114,7 @@ public class PullRequestActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 int number = intInput(input, "number", -1);
                 if (number < 0) throw new IllegalArgumentException("pr.requestReview requires 'number'");
 
@@ -148,7 +150,7 @@ public class PullRequestActions {
      * ingestion on a provider round trip for every event.
      */
     @Bean
-    public WorkflowAction prReadAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction prReadAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -162,6 +164,7 @@ public class PullRequestActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
                 int number = intInput(input, "number", -1);
                 if (number < 0) throw new IllegalArgumentException("pr.read requires 'number'");
                 var pr = vcs.getPullRequest(required(input, "owner"), required(input, "repo"), number);

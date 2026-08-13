@@ -116,7 +116,8 @@ From there you can:
 - **Approve a gate** a run is holding at, which is the same as applying the
   approval label.
 - **Cancel a run.** The container goes; the history stays. Anything waiting on it
-  keeps waiting rather than treating it as delivered.
+  keeps waiting rather than treating it as delivered. Assigning the issue again
+  puts the same run back to work, starting over from its first step.
 - **Take over the session** and talk to the agent yourself. While you hold it,
   inbound events are held rather than acted on, so the agent is not working on
   top of what you are typing. Control lapses on its own if you close the tab.

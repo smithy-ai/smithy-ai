@@ -47,7 +47,8 @@ vars:
   # Which connector the catalog's repositories are hosted on — gitlab, forgejo,
   # github. Empty means the same one the story arrived through, which is right
   # whenever a single system tracks both. Set it when stories live in Jira and
-  # the work does not.
+  # the work does not. Read through `childSource`, which resolves the empty
+  # case, rather than directly.
   childConnector: ""
   # A child plan that still misses after this many rounds is escalated to a
   # human rather than argued with indefinitely.
@@ -102,7 +103,7 @@ actions:
             with:
               # In the repository, not in the story tracker: the story may
               # be a Jira ticket and the work is not.
-              connector: "{{ vars.childConnector }}"
+              connector: "{{ vars.childSource }}"
               owner: "{{ item.owner }}"
               repo: "{{ item.repo }}"
               title: "{{ item.title }}"
@@ -118,7 +119,7 @@ actions:
               # for. Nothing reads this.
               body: |-
                 {{ item.body }}
-                {%- if not vars.childConnector or vars.childConnector == vars.storySource %}
+                {%- if vars.childSource == vars.storySource %}
 
                 ---
                 Part of {{ vars.storyOwner }}/{{ vars.storyRepo }}#{{ vars.storyRef }}
@@ -134,6 +135,9 @@ actions:
               issueRef: "{{ steps.child_issue.issueRef }}"
               index: "{{ index }}"
               dependsOn: "{{ item.dependsOn }}"
+              # The child's own connector, so what the engine says about it when
+              # it finishes names the system its issue lives in.
+              source: "{{ vars.childSource }}"
 
           # This replaces the "Parent story:" marker the foreman appended to
           # each issue body and regex-parsed back out: an event about this
@@ -155,7 +159,7 @@ actions:
         steps:
           - uses: issue.assign
             with:
-              connector: "{{ vars.childConnector }}"
+              connector: "{{ vars.childSource }}"
               owner: "{{ item.owner }}"
               repo: "{{ item.repo }}"
               issue: "{{ item.issueRef }}"
@@ -228,6 +232,11 @@ state:
               storyRepo: "{{ repo.name }}"
               storyRef: "{{ event.issueRef }}"
               storySource: "{{ event.source }}"
+              # Where the children go. The story's own system unless the
+              # deployment named another. Resolved once here, because the
+              # transitions that create them are triggered by a signal, which
+              # carries no story of its own.
+              childSource: "{{ vars.childConnector if vars.childConnector else event.source }}"
 
           - uses: issue.comment
             with:
@@ -278,7 +287,7 @@ state:
             steps:
               - uses: issue.assign
                 with:
-                  connector: "{{ vars.childConnector }}"
+                  connector: "{{ vars.childSource }}"
                   owner: "{{ item.owner }}"
                   repo: "{{ item.repo }}"
                   issue: "{{ item.issueRef }}"
@@ -287,6 +296,7 @@ state:
           - uses: issue.comment
             if: "{{ steps.wave.released | length > 0 }}"
             with:
+              connector: "{{ vars.storySource }}"
               owner: "{{ vars.storyOwner }}"
               repo: "{{ vars.storyRepo }}"
               issue: "{{ vars.storyRef }}"
@@ -295,6 +305,7 @@ state:
           - uses: issue.comment
             if: "{{ steps.wave.complete }}"
             with:
+              connector: "{{ vars.storySource }}"
               owner: "{{ vars.storyOwner }}"
               repo: "{{ vars.storyRepo }}"
               issue: "{{ vars.storyRef }}"
@@ -305,6 +316,7 @@ state:
           - uses: issue.comment
             if: "{{ steps.wave.pending == 0 and steps.wave.abandoned > 0 }}"
             with:
+              connector: "{{ vars.storySource }}"
               owner: "{{ vars.storyOwner }}"
               repo: "{{ vars.storyRepo }}"
               issue: "{{ vars.storyRef }}"

@@ -1,11 +1,7 @@
 # Reviews a pull request against the architectural guidelines a repository points at.
 #
-# The port of workflow/flows/architect/ArchitectReviewInstance. Distinct from the
-# development workflow in one important way: it holds no working state and writes
-# nothing to the branch. It reads, reviews, answers follow-up questions, and goes.
-#
-# `workflow.engine` is off by default, so the Java is still what runs until parity
-# has been demonstrated.
+# It holds no working state and writes nothing to the branch: it reads, reviews,
+# answers follow-up questions, and goes.
 
 apiVersion: smithy.ai/v1alpha1
 kind: Workflow
@@ -14,6 +10,9 @@ metadata:
   version: "1"
 
 vars:
+  # The reviewer is its own account, so a review is signed by the reviewer and
+  # not by the agent whose work is under review.
+  actor: architect
   # The reviewer commits nothing, so it needs no write tools.
   tools: [Read, Glob, Grep, Bash]
   gitUsername: "The Architect"

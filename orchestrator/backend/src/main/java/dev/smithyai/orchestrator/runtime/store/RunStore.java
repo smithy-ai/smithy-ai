@@ -259,6 +259,28 @@ public class RunStore {
         return claimed > 0;
     }
 
+    /**
+     * Forget what this run's steps did.
+     *
+     * <p>Steps are remembered so an interrupted transition resumes instead of
+     * repeating what it already did. A run that starts its work over has none of
+     * that to resume into: the container it recorded is gone, and reusing the
+     * recorded outputs would skip every step and leave it stuck. Its history of
+     * events is untouched.
+     *
+     * @return how many step records were dropped
+     */
+    @Transactional
+    public int clearSteps(String runId) {
+        return db.sql("DELETE FROM run_steps WHERE run_id = ?").param(runId).update();
+    }
+
+    /** Release anything this run is still blocked on, so a restart does not inherit a stale gate. */
+    @Transactional
+    public int clearPendingWaits(String runId) {
+        return db.sql("DELETE FROM run_waits WHERE run_id = ? AND satisfied_at IS NULL").param(runId).update();
+    }
+
     @Transactional
     public void completeStep(String runId, String transitionId, String stepId, Map<String, Object> output) {
         db

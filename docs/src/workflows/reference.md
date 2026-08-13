@@ -48,9 +48,9 @@ state:                             # required unless `extends` is set
 
 | `action` | Meaning |
 |---|---|
-| `create` | Start a run if none exists for this key. Stands aside if another workflow's run already owns the thing the event is about |
+| `create` | Start a run if none exists for this key. Stands aside if another workflow's run already owns the thing the event is about. A run that was cancelled or failed is restarted rather than left stopped |
 | `dispatch` | Deliver to an existing run; ignored if there is none |
-| `destroy` | End the run as **cancelled**. Work waiting on it keeps waiting |
+| `destroy` | End the run as **cancelled**. Work waiting on it keeps waiting, and a later `create` for the same key picks it back up |
 | `ignore` | Match and stop, so a later rule cannot claim it |
 
 ## Expression context
@@ -58,7 +58,7 @@ state:                             # required unless `extends` is set
 | Name | Contents |
 |---|---|
 | `run` | `id`, `workflow`, `state` |
-| `vars` | The workflow's `vars`, plus everything `state.var` has written |
+| `vars` | The workflow's `vars`, plus everything `state.var` has written. `vars.source` is set to the connector the run started from, unless the definition declares its own |
 | `steps` | `steps.<id>.<field>`: outputs of earlier steps in this transition |
 | `event` | See [events](#events) |
 | `repo` | `source`, `owner`, `name`, `fullName`, `cloneUrl` |
@@ -143,7 +143,12 @@ Inputs are given in a step's `with:`. Outputs are read as `steps.<id>.<field>`.
 
 **Every issue action** also accepts `connector:` (which system to act against,
 defaulting to `event.source`) and `as:` (which actor to act as, defaulting to the
-workflow's `vars.actor`).
+workflow's `vars.actor`). Pull-request, review and file actions take `as:` too;
+they act on the repository host, which is one system, so they have no
+`connector:`.
+
+`container.init` gets its token and commit address from the workflow's actor as
+well, so an agent working in the container pushes as that identity.
 
 ### Environment and agent
 

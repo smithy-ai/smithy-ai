@@ -51,7 +51,7 @@ class RunEngineTest {
           - event: [issue.plan_approved, issue.commented]
             action: dispatch
             key: "{{ repo.fullName }}#{{ event.issueRef }}"
-          - event: pr.merged
+          - event: [pr.merged, issue.unassigned]
             action: destroy
             key: "{{ repo.fullName }}#{{ event.issueRef }}"
         state:
@@ -158,6 +158,10 @@ class RunEngineTest {
             new IssueContext(REPO, "ECD-9", "Add search", "body", "main", "smithy"),
             "alice"
         );
+    }
+
+    private static WorkflowEvent unassigned() {
+        return new WorkflowEvent.IssueUnassigned(new IssueContext(REPO, "ECD-9", "Add search", "body", "main", ""));
     }
 
     private static WorkflowEvent commented() {
@@ -282,5 +286,73 @@ class RunEngineTest {
         var types = store.findEvents(outcome.runId()).stream().map(RunEvent::type).toList();
         assertEquals(1, types.stream().filter("state.undefined"::equals).count(), "recorded once: " + types);
         assertEquals(RunStatus.WAITING, store.find(outcome.runId()).orElseThrow().status(), "and the run holds");
+    }
+
+    @Test
+    void workTakenOffTheAgentAndHandedBackPicksUpWhereItStarted() {
+        var started = engine.handle(assigned()).getFirst();
+        engine.handle(unassigned());
+        assertEquals(RunStatus.CANCELLED, store.find(started.runId()).orElseThrow().status());
+
+        // Assigning it again is how a person hands the work back.
+        var again = engine.handle(assigned()).getFirst();
+
+        assertTrue(again.handled(), "the run took the event rather than ignoring it");
+        assertEquals(started.runId(), again.runId(), "and it is the same run, so a parent still counts it");
+        var run = store.find(started.runId()).orElseThrow();
+        assertEquals("planning", run.state());
+        assertFalse(run.isTerminal());
+        assertEquals(
+            1,
+            store
+                .findEvents(run.id())
+                .stream()
+                .filter(e -> e.type().equals("run.reopened"))
+                .count()
+        );
+    }
+
+    @Test
+    void aReopenedRunDoesNotSkipTheStepsTheStoppedOneRecorded() {
+        var started = engine.handle(assigned()).getFirst();
+        // The gate armed by the first attempt, and the step outputs behind it.
+        assertEquals(1, store.findPendingWaits(started.runId()).size());
+        engine.handle(unassigned());
+
+        engine.handle(assigned());
+
+        // The gate is armed again, which only happens if the step ran rather
+        // than being skipped as one this transition already completed.
+        assertEquals(1, store.findPendingWaits(started.runId()).size());
+    }
+
+    @Test
+    void workThatWasDeliveredIsNotStartedOverByAStrayAssignment() {
+        var started = engine.handle(assigned()).getFirst();
+        store.updateStatus(started.runId(), RunStatus.COMPLETED);
+
+        var again = engine.handle(assigned()).getFirst();
+
+        assertFalse(again.handled());
+        assertEquals(RunStatus.COMPLETED, store.find(started.runId()).orElseThrow().status());
+    }
+
+    @Test
+    void aRunRemembersWhichConnectorItCameThrough() {
+        var jira = new WorkflowEvent.IssueAssigned(
+            new IssueContext(
+                new RepoInfo("acme", "platform", null, "jira"),
+                "ECD-9",
+                "Add search",
+                "body",
+                "main",
+                "smithy"
+            ),
+            null
+        );
+
+        var outcome = engine.handle(jira).getFirst();
+
+        assertEquals("jira", store.find(outcome.runId()).orElseThrow().vars().get("source"));
     }
 }

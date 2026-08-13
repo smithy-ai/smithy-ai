@@ -7,12 +7,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Records the hardcoded flows into the run store.
+ * How the things a run owns are named in the store.
  *
- * <p>The flows still key their live instances on the container name; this keeps
- * a durable run alongside each one so history survives the container and the
- * dashboard has something to list. When the workflow engine replaces the
- * factories, runs stop being a mirror and become the primary record.
+ * <p>A run is found again through what it registered: the pull request it
+ * opened, the issue it works, the branch it pushes, the container it holds.
+ * These build those references, so one spelling is used everywhere.
  */
 @Slf4j
 @Component

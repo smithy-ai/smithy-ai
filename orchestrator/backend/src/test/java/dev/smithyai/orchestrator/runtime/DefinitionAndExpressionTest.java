@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 class DefinitionAndExpressionTest {
 
-    private static final RepoInfo REPO = new RepoInfo("acme", "app", "https://git.invalid/acme/app");
+    private static final RepoInfo REPO = new RepoInfo("acme", "app", "https://git.invalid/acme/app", "forgejo");
 
     private final WorkflowDefinitionParser parser = new WorkflowDefinitionParser();
     private final ExpressionRenderer renderer = new ExpressionRenderer();
@@ -156,6 +156,23 @@ class DefinitionAndExpressionTest {
 
         assertEquals(Map.of("issue", "7"), rendered.get("context"));
         assertEquals(List.of("app", "static"), rendered.get("labels"));
+    }
+
+    @Test
+    void aVariableCanFallBackToTheEventsOwnConnector() {
+        // How a coordinator says "the catalog is on the system the story came
+        // through, unless I name another one".
+        var context = contextFor(issueAssigned(), Map.of("childConnector", ""));
+        assertEquals(
+            "forgejo",
+            renderer.render("{{ vars.childConnector if vars.childConnector else event.source }}", context)
+        );
+
+        var named = contextFor(issueAssigned(), Map.of("childConnector", "gitlab"));
+        assertEquals(
+            "gitlab",
+            renderer.render("{{ vars.childConnector if vars.childConnector else event.source }}", named)
+        );
     }
 
     @Test

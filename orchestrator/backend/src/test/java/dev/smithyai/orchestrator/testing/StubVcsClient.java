@@ -18,6 +18,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class StubVcsClient implements VcsClient, IssueTrackerClient {
 
+    /** This stub as the only identity, for actions that pick a client per actor. */
+    public dev.smithyai.orchestrator.service.vcs.VcsClients asRegistry() {
+        return new dev.smithyai.orchestrator.service.vcs.VcsClients(this);
+    }
+
     /** A stub stands in for every provider, so it declares everything. */
     @Override
     public java.util.Set<dev.smithyai.orchestrator.runtime.actions.Capability> capabilities() {

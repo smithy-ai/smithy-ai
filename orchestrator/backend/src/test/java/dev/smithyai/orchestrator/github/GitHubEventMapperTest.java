@@ -61,6 +61,41 @@ class GitHubEventMapperTest {
         assertEquals("alice", ((WorkflowEvent.PlanApproved) event).approver());
     }
 
+    @Test
+    void anAssignedIssueSaysWhichActorItWasHandedTo() throws Exception {
+        // Which actor an issue is assigned to is how a person says what kind of
+        // work it is, and it is what a workflow filters on to claim it.
+        var toAgent = mapper().map("issues", mapper.readTree(assignedTo("smithy-bot")));
+        var agent = assertInstanceOf(WorkflowEvent.IssueAssigned.class, toAgent);
+        assertEquals("smithy-bot", agent.ctx().assignee());
+        assertEquals("github", agent.ctx().info().source());
+
+        var toCoordinator = mapper().map("issues", mapper.readTree(assignedTo("coordinator-bot")));
+        var coordinator = assertInstanceOf(WorkflowEvent.IssueAssigned.class, toCoordinator);
+        assertEquals("coordinator-bot", coordinator.ctx().assignee());
+
+        assertNull(mapper().map("issues", mapper.readTree(assignedTo("someone-else"))), "and nobody else's issue");
+    }
+
+    @Test
+    void anIssueTakenOffEveryActorIsAnUnassignment() throws Exception {
+        String payload = assignedTo("someone-else").replace("\"action\": \"assigned\"", "\"action\": \"unassigned\"");
+
+        assertInstanceOf(WorkflowEvent.IssueUnassigned.class, mapper().map("issues", mapper.readTree(payload)));
+    }
+
+    private static String assignedTo(String login) {
+        return """
+        {
+          "action": "assigned",
+          "repository": {"full_name": "acme/app", "owner": {"login": "acme"}, "name": "app",
+                         "html_url": "https://github.com/acme/app", "clone_url": "https://github.com/acme/app.git"},
+          "issue": {"number": 7, "title": "A thing", "body": "", "state": "open",
+                    "assignees": [{"login": "%s"}]}
+        }
+        """.formatted(login);
+    }
+
     private static BotConfig botConfig() {
         return new BotConfig(
             new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),

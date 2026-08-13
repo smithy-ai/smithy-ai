@@ -93,7 +93,7 @@ class DockerLifecycleIT {
     @Test
     void containerInitClonesTheRepositoryAndCreatesTheWorkBranch() {
         var run = store.create("smithy-development", "1", "refine", null);
-        var action = new ContainerInitAction(environments, dockerConfig());
+        var action = new ContainerInitAction(environments, dockerConfig(), TestActors.defaults());
 
         var result = action.execute(context(run), initInputs());
 
@@ -118,7 +118,10 @@ class DockerLifecycleIT {
     @Test
     void theRunHoldsTheContainerAndCanBeFoundFromIt() {
         var run = store.create("smithy-development", "1", "refine", null);
-        new ContainerInitAction(environments, dockerConfig()).execute(context(run), initInputs());
+        new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()).execute(
+            context(run),
+            initInputs()
+        );
 
         assertEquals(
             List.of(CONTAINER),
@@ -135,7 +138,7 @@ class DockerLifecycleIT {
     @Test
     void initIsNotRepeatedForARunThatAlreadyHasAContainer() {
         var run = store.create("smithy-development", "1", "refine", null);
-        var action = new ContainerInitAction(environments, dockerConfig());
+        var action = new ContainerInitAction(environments, dockerConfig(), TestActors.defaults());
         action.execute(context(run), initInputs());
 
         // Cloning again would cost minutes and throw away the working tree.
@@ -148,7 +151,10 @@ class DockerLifecycleIT {
     @Test
     void theStateFileSurvivesAContainerRestart() {
         var run = store.create("smithy-development", "1", "refine", null);
-        new ContainerInitAction(environments, dockerConfig()).execute(context(run), initInputs());
+        new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()).execute(
+            context(run),
+            initInputs()
+        );
         var session = environments.container(store.find(run.id()).orElseThrow());
         session.updateState(state -> state.withSessionId("session-abc"));
 
@@ -168,7 +174,10 @@ class DockerLifecycleIT {
     @Test
     void execRunsCommandsWithTheEnvironmentItWasGiven() {
         var run = store.create("smithy-development", "1", "refine", null);
-        new ContainerInitAction(environments, dockerConfig()).execute(context(run), initInputs());
+        new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()).execute(
+            context(run),
+            initInputs()
+        );
 
         var git = new GitActions();
         var status = git.gitStatusAction(environments).execute(context(store.find(run.id()).orElseThrow()), Map.of());
@@ -195,7 +204,10 @@ class DockerLifecycleIT {
     @Test
     void destroyingTheRunsContainerLeavesTheRunBehind() {
         var run = store.create("smithy-development", "1", "refine", null);
-        new ContainerInitAction(environments, dockerConfig()).execute(context(run), initInputs());
+        new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()).execute(
+            context(run),
+            initInputs()
+        );
         store.appendEvent(run.id(), "plan_posted", null);
 
         environments.destroyContainer(store.find(run.id()).orElseThrow());
@@ -208,7 +220,10 @@ class DockerLifecycleIT {
     @Test
     void aStoppedContainerIsStartedBeforeAStepRunsInIt() {
         var run = store.create("smithy-development", "1", "refine", null);
-        new ContainerInitAction(environments, dockerConfig()).execute(context(run), initInputs());
+        new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()).execute(
+            context(run),
+            initInputs()
+        );
 
         // A machine reboot, a docker stop, a restart policy that lost.
         assertEquals(0, shell("docker stop " + CONTAINER), "the container stops");
@@ -223,13 +238,19 @@ class DockerLifecycleIT {
     @Test
     void aRunAdoptsAContainerNobodyHolds() {
         var first = store.create("smithy-development", "1", "refine", null);
-        new ContainerInitAction(environments, dockerConfig()).execute(context(first), initInputs());
+        new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()).execute(
+            context(first),
+            initInputs()
+        );
         // The record is gone but the container is not — a rebuilt store, or a
         // run that was removed while its container stayed.
         store.detachEnvironment(RunEnvironment.CONTAINER, CONTAINER);
 
         var second = store.create("smithy-development", "1", "refine", null);
-        var result = new ContainerInitAction(environments, dockerConfig()).execute(context(second), initInputs());
+        var result = new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()).execute(
+            context(second),
+            initInputs()
+        );
 
         assertEquals(CONTAINER, result.get("name"));
         assertEquals(
@@ -247,10 +268,13 @@ class DockerLifecycleIT {
     @Test
     void aContainerAnotherRunHoldsIsNotTakenFromIt() {
         var holder = store.create("smithy-development", "1", "refine", null);
-        new ContainerInitAction(environments, dockerConfig()).execute(context(holder), initInputs());
+        new ContainerInitAction(environments, dockerConfig(), TestActors.defaults()).execute(
+            context(holder),
+            initInputs()
+        );
 
         var other = store.create("smithy-development", "1", "refine", null);
-        var action = new ContainerInitAction(environments, dockerConfig());
+        var action = new ContainerInitAction(environments, dockerConfig(), TestActors.defaults());
         var context = context(other);
 
         // Two runs in one container is two agents in one working tree.

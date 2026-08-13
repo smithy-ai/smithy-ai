@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.config;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClients;
 import dev.smithyai.orchestrator.service.vcs.forgejo.ForgejoClient;
 import dev.smithyai.orchestrator.service.vcs.github.GitHubClient;
 import dev.smithyai.orchestrator.service.vcs.gitlab.GitLabClient;
@@ -104,6 +105,39 @@ public class VcsAndIssuesConfig {
                 .toList()
         );
         return new IssueTrackers(byActor, VcsProviderConfig.SMITHY, smithyIssueTracker);
+    }
+
+    /**
+     * Every identity this deployment can act through on the repository host.
+     *
+     * <p>A workflow declares which actor it is, and the steps that write follow
+     * it: the architect's review is signed by the architect, and the plan a
+     * coordinator posts is not signed by the agent that will implement it.
+     */
+    @Bean
+    public VcsClients vcsClients(
+        VcsProviderConfig vcs,
+        @Qualifier("smithyVcs") VcsClient smithyVcs,
+        @Qualifier("architectVcs") VcsClient architectVcs
+    ) {
+        var byActor = new java.util.LinkedHashMap<String, VcsClient>();
+        byActor.put(VcsProviderConfig.SMITHY, smithyVcs);
+        byActor.put(VcsProviderConfig.ARCHITECT, architectVcs);
+        byActor.put(
+            VcsProviderConfig.COORDINATOR,
+            vcs.hasOwnToken(VcsProviderConfig.COORDINATOR)
+                ? createVcsClient(vcs, vcs.resolvedProvider(), VcsProviderConfig.COORDINATOR)
+                : smithyVcs
+        );
+        log.info(
+            "VCS clients by actor: {}",
+            byActor
+                .keySet()
+                .stream()
+                .map(a -> a + (vcs.hasOwnToken(a) ? "*" : ""))
+                .toList()
+        );
+        return new VcsClients(byActor, VcsProviderConfig.SMITHY);
     }
 
     @Bean
