@@ -38,6 +38,9 @@ public class FakeDockerCli extends DockerCli {
     /** Shell commands to fail, keyed by a substring of the command. */
     private final Map<String, ExecResult> execOverrides = new LinkedHashMap<>();
 
+    /** docker exec flags that consume the argument after them. */
+    private static final Set<String> VALUED_EXEC_FLAGS = Set.of("-w", "--workdir", "-e", "--env", "-u", "--user");
+
     public FakeDockerCli() {
         super(new DockerConfig("docker", "net", "img", null));
     }
@@ -125,6 +128,16 @@ public class FakeDockerCli extends DockerCli {
         files.computeIfAbsent(name, c -> new ConcurrentHashMap<>());
         // smithy-init writes this once setup succeeds; the real one is the CMD.
         files.get(name).put("/tmp/smithy-init-done", "");
+        // And it records the branch it forked from, resolving the remote's
+        // default when none was given. Workflows read this back, so a fake that
+        // omitted it would let a definition pass here and fail on a real clone.
+        String source = args
+            .stream()
+            .filter(arg -> arg.startsWith("SOURCE_BRANCH="))
+            .map(arg -> arg.substring("SOURCE_BRANCH=".length()))
+            .findFirst()
+            .orElse("");
+        files.get(name).put("/tmp/smithy-base-branch", source.isBlank() ? "main" : source);
         return ok(name);
     }
 
@@ -136,9 +149,15 @@ public class FakeDockerCli extends DockerCli {
     }
 
     private ExecResult handleExec(List<String> args, byte[] stdin) {
-        // Skip "exec" and any flags to find the container name.
+        // Skip "exec" and its flags to find the container name. Flags that take
+        // a value have to consume it too: treating the argument after -w as the
+        // container name made every command look like it ran somewhere else and
+        // quietly return nothing, which is a fake that lies rather than fails.
         int idx = 1;
-        while (idx < args.size() && args.get(idx).startsWith("-")) idx++;
+        while (idx < args.size() && args.get(idx).startsWith("-")) {
+            boolean takesValue = VALUED_EXEC_FLAGS.contains(args.get(idx));
+            idx += takesValue ? 2 : 1;
+        }
         if (idx >= args.size()) return ok("");
         String container = args.get(idx);
         List<String> command = args.subList(idx + 1, args.size());

@@ -421,9 +421,18 @@ public class ReviewActions {
         };
     }
 
-    /** A browsable link to a file on a branch — provider URL shapes differ. */
+    /**
+     * A browsable link to a file on a branch.
+     *
+     * <p>Takes the repository rather than a URL: the obvious thing to pass is
+     * the clone URL, and on Forgejo that produces links with ".git" in the
+     * middle of them that resolve to nothing.
+     */
     @Bean
-    public WorkflowAction fileUrlAction(@Qualifier("smithyVcsClient") VcsClient vcs) {
+    public WorkflowAction fileUrlAction(
+        @Qualifier("smithyVcsClient") VcsClient vcs,
+        dev.smithyai.orchestrator.config.VcsProviderConfig vcsConfig
+    ) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -437,11 +446,13 @@ public class ReviewActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                var url = new LinkedHashMap<String, Object>();
-                url.put(
-                    "url",
-                    vcs.fileBrowseUrl(required(input, "repoUrl"), required(input, "branch"), required(input, "path"))
+                String root = "%s/%s/%s".formatted(
+                    vcsConfig.resolvedExternalUrl(),
+                    required(input, "owner"),
+                    required(input, "repo")
                 );
+                var url = new LinkedHashMap<String, Object>();
+                url.put("url", vcs.fileBrowseUrl(root, required(input, "branch"), required(input, "path")));
                 return url;
             }
         };

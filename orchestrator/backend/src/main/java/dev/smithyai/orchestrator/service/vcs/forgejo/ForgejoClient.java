@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.service.vcs.forgejo;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.forgejoclient.ApiClient;
 import dev.smithyai.forgejoclient.ApiException;
 import dev.smithyai.forgejoclient.api.IssueApi;
@@ -300,8 +301,23 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     @Override
     public Optional<String> readRepositoryFile(String owner, String repo, String path, String ref) {
         try {
-            String fileRef = resolveRef(owner, repo, ref);
-            var contents = api(() -> repoApi.repoGetContents(owner, repo, path, fileRef));
+            // Same reason as listRepositoryFiles: the generated client percent-
+            // encodes the separators inside a path, and Forgejo answers 400 to
+            // `.smithy%2Fconfig.yml`. Every path this reads is multi-segment, so
+            // that failure was total — and silent, because callers treat an
+            // unreadable per-repository config as "there isn't one".
+            String url = "%s/api/v1/repos/%s/%s/contents/%s?ref=%s".formatted(
+                baseUrl,
+                encode(owner),
+                encode(repo),
+                encodePath(path),
+                encode(resolveRef(owner, repo, ref))
+            );
+            JsonNode node = readJson(url);
+            if (node == null || node.isMissingNode()) return Optional.empty();
+            var contents = new dev.smithyai.forgejoclient.model.ContentsResponse();
+            contents.setContent(node.path("content").isMissingNode() ? null : node.path("content").asText());
+            contents.setEncoding(node.path("encoding").asText("base64"));
             String content = contents.getContent();
             if (content == null) return Optional.empty();
             if ("base64".equalsIgnoreCase(contents.getEncoding())) {
@@ -329,7 +345,7 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
                 encodePath(path),
                 encode(resolveRef(owner, repo, ref))
             );
-            JsonNode node = rest.get().uri(URI.create(url)).retrieve().body(JsonNode.class);
+            JsonNode node = readJson(url);
             if (node == null || !node.isArray()) return List.of();
 
             var files = new ArrayList<String>();
@@ -364,6 +380,26 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     }
 
     // ── VcsClient: URL helpers ───────────────────────────────
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    /**
+     * Fetch and parse JSON from a raw URL.
+     *
+     * <p>Asked for as text rather than as a tree: Spring Boot 4 ships Jackson 3,
+     * whose message converter cannot construct the Jackson 2 node type the rest
+     * of this class works with, and the failure is a conversion error rather
+     * than anything that names the real problem.
+     */
+    private JsonNode readJson(String url) {
+        String body = rest.get().uri(URI.create(url)).retrieve().body(String.class);
+        if (body == null || body.isBlank()) return null;
+        try {
+            return JSON.readTree(body);
+        } catch (Exception e) {
+            throw new ForgejoApiException(502, "Unreadable JSON from " + url, e);
+        }
+    }
 
     @Override
     public String fileBrowseUrl(String repoHtmlUrl, String branch, String path) {

@@ -281,6 +281,44 @@ class FeatureCoordinatorTest {
     // ── Tests ────────────────────────────────────────────────
 
     @Test
+    void theBuiltInWithNoCatalogClaimsNothing() throws Exception {
+        // The shipped coordinator has an empty catalog. Left unguarded it claimed
+        // every issue assigned anywhere and raced the workflow that should have
+        // handled it — which is exactly what happened the first time this ran
+        // against a real repository.
+        var bare = Files.createDirectory(tempDir.resolve("bare-workflows"));
+        var registry = new WorkflowRegistry(
+            new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
+            new CapabilityValidator(new ActionRegistry(List.of())),
+            new WorkflowPolicyConfig(null, null, bare.toString()),
+            vcs,
+            vcs
+        );
+        registry.loadAll();
+
+        var decisions = new WorkflowRouter(new ExpressionRenderer()).route(storyAssigned(), registry.all());
+
+        assertTrue(
+            decisions.stream().noneMatch(d -> d.workflowName().equals("feature-coordinator")),
+            "the catalog-less built-in stays out of it: " + decisions
+        );
+    }
+
+    @Test
+    void aCatalogIsWhatMakesItClaimAStory() {
+        // And the guard reads the workflow's own vars, which only exist on the
+        // definition at routing time — there is no run yet.
+        assertEquals(
+            1,
+            engine
+                .handle(storyAssigned())
+                .stream()
+                .filter(o -> o.handled())
+                .count()
+        );
+    }
+
+    @Test
     void planningPostsThePlanAndWaitsForAHuman() {
         engine.handle(storyAssigned());
 

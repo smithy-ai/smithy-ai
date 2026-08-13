@@ -151,7 +151,7 @@ class SmithyDefinitionTest {
                 review.prReviewAction(vcs),
                 review.attachmentsFetchAction(vcs, environments),
                 review.fileDeleteAction(vcs),
-                review.fileUrlAction(vcs),
+                review.fileUrlAction(vcs, vcsProviderConfig()),
                 review.prLinkAction(vcs, vcsProviderConfig()),
                 ci.ciRetryGuardAction(store, new CiConfig(false)),
                 ci.ciResetAction(store)
@@ -261,6 +261,16 @@ class SmithyDefinitionTest {
         // happened, not only on a pull request nobody has been told about.
         assertEquals(2, comments.size(), comments.toString());
         assertTrue(comments.get(1).contains("Plan approved"), comments.get(1));
+    }
+
+    @Test
+    void theBaseBranchComesFromTheContainerNotTheEvent() {
+        // An issue event rarely names a base branch; smithy-init resolves the
+        // remote's default and records it. Trusting the event instead left
+        // pr.create with no base at all.
+        var commands = runDefinition(new FakeDockerCli(), true).containerCommands();
+
+        assertTrue(commandsContain(commands, "cat /tmp/smithy-base-branch"), commands.toString());
     }
 
     @Test

@@ -46,10 +46,15 @@ vars:
       actually planned
 
 routing:
+  # Only claims a story when it has somewhere to fan work out to. Without this
+  # guard the built-in — which ships with an empty catalog — claims every issue
+  # assigned anywhere and races the workflow that should have handled it.
   - event: issue.assigned
+    when: "{{ vars.catalog | length > 0 }}"
     action: create
     key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
   - event: [issue.plan_approved, issue.commented]
+    when: "{{ vars.catalog | length > 0 }}"
     action: dispatch
     key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
 

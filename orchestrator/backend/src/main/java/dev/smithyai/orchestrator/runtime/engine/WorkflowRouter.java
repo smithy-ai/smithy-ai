@@ -40,10 +40,13 @@ public class WorkflowRouter {
      * two definitions listening on the same event can be told apart.
      */
     public List<Decision> route(WorkflowEvent event, List<WorkflowDefinition> definitions) {
-        var context = new ActionContext(null, event, Map.of(), Map.of());
         var decisions = new ArrayList<Decision>();
 
         for (var definition : definitions) {
+            // The definition's own vars, because a routing rule's whole job can
+            // be to ask a question about them — "do I have a repository catalog
+            // to fan out to?" — and there is no run yet to read them from.
+            var context = new ActionContext(null, event, Map.of(), definition.vars());
             for (var rule : definition.routing()) {
                 if (!rule.matchesName(event.name())) continue;
                 if (!renderer.isTruthy(rule.when(), context)) {

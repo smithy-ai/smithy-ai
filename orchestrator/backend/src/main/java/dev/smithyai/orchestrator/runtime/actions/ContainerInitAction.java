@@ -58,7 +58,9 @@ public class ContainerInitAction implements WorkflowAction {
         String name = required(input, "name");
         var config = ContainerConfig.builder()
             .cloneUrl(required(input, "cloneUrl"))
-            .branch(required(input, "branch"))
+            // Empty is meaningful: smithy-init then clones the remote's
+            // default branch, which is what a workspace that only reads wants.
+            .branch(optional(input, "branch", ""))
             .sourceBranch(optional(input, "sourceBranch", null))
             .cacheVolumes(dockerConfig.getCacheVolumeMap())
             .gitEmail(optional(input, "gitEmail", null))

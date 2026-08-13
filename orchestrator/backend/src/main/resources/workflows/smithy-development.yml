@@ -76,6 +76,14 @@ state:
               sourceBranch: "{{ event.baseBranch }}"
               stage: refine
 
+          # smithy-init records the branch it forked from, resolving the
+          # remote's default when the event did not name one — which for an
+          # issue is most of the time. Reading it back beats trusting the event.
+          - uses: exec
+            id: base
+            with:
+              command: [cat, /tmp/smithy-base-branch]
+
           - uses: state.var
             with:
               branch: "{{ vars.branchPrefix }}{{ event.issueRef }}-{{ event.issueTitle | slug }}"
@@ -83,7 +91,7 @@ state:
               issueRef: "{{ event.issueRef }}"
               owner: "{{ repo.owner }}"
               repo: "{{ repo.name }}"
-              baseBranch: "{{ event.baseBranch }}"
+              baseBranch: "{{ steps.base.stdout }}"
 
           # Designs carry requirements the issue text omits, and the agent
           # cannot follow a link out of its container.
@@ -150,7 +158,8 @@ state:
             id: planLink
             if: "{{ steps.plan.hasPlan }}"
             with:
-              repoUrl: "{{ repo.cloneUrl }}"
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
               branch: "{{ vars.branchPrefix }}{{ event.issueRef }}-{{ event.issueTitle | slug }}"
               path: "{{ vars.planDir }}/{{ event.issueRef }}.md"
 
