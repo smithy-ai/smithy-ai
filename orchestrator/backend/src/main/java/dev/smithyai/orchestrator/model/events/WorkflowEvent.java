@@ -21,6 +21,21 @@ public interface WorkflowEvent {
      */
     String name();
 
+    /**
+     * What distinguishes this occurrence from the next one of the same name.
+     *
+     * <p>Transitions resume by replaying, and replaying is only safe when the
+     * engine can tell a redelivered event from a new one. A second review
+     * comment in the same state is new work; the same comment arriving twice
+     * because a webhook was retried is not.
+     *
+     * <p>Empty means the event happens once per state — an assignment, a merge —
+     * and any repeat is a redelivery.
+     */
+    default String identity() {
+        return "";
+    }
+
     interface IssueScoped extends WorkflowEvent {
         IssueContext ctx();
 
@@ -56,6 +71,13 @@ public interface WorkflowEvent {
 
     record IssueComment(IssueContext ctx, String commentBody) implements IssueScoped {
         @Override
+        public String identity() {
+            // No comment id survives the adapters, so the text is what tells two
+            // comments apart — and makes a redelivery of one look the same.
+            return commentBody == null ? "" : Integer.toHexString(commentBody.hashCode());
+        }
+
+        @Override
         public String name() {
             return "issue.commented";
         }
@@ -90,6 +112,11 @@ public interface WorkflowEvent {
         String discussionId
     ) implements PrScoped {
         @Override
+        public String identity() {
+            return String.valueOf(commentId);
+        }
+
+        @Override
         public String name() {
             return "pr.commented";
         }
@@ -102,12 +129,22 @@ public interface WorkflowEvent {
         String discussionId
     ) implements PrScoped {
         @Override
+        public String identity() {
+            return String.valueOf(commentId);
+        }
+
+        @Override
         public String name() {
             return "pr.review_commented";
         }
     }
 
     record ReviewSubmitted(PrContext prc, long reviewId, String reviewBody, String reviewer) implements PrScoped {
+        @Override
+        public String identity() {
+            return reviewId > 0 ? String.valueOf(reviewId) : String.valueOf(reviewer);
+        }
+
         @Override
         public String name() {
             return "pr.review_submitted";
@@ -153,6 +190,13 @@ public interface WorkflowEvent {
     // ── CI events ───────────────────────────────
     record CiFailure(RepoInfo info, CiRunInfo ciRun, String workflowName) implements WorkflowEvent {
         @Override
+        public String identity() {
+            // A pipeline can fail repeatedly on the same branch, and each failure
+            // deserves its own attempt rather than the first one's recorded result.
+            return String.valueOf(workflowName) + "@" + System.identityHashCode(ciRun);
+        }
+
+        @Override
         public String name() {
             return "ci.failed";
         }
@@ -183,6 +227,12 @@ public interface WorkflowEvent {
         public String name() {
             return "signal:" + signal;
         }
+
+        @Override
+        public String identity() {
+            // Every child reporting in is its own occurrence.
+            return String.valueOf(payload == null ? "" : payload.getOrDefault("child", payload.get("from")));
+        }
     }
 
     /**
@@ -200,6 +250,14 @@ public interface WorkflowEvent {
         @Override
         public RepoInfo info() {
             return latest.info();
+        }
+
+        @Override
+        public String identity() {
+            return events
+                .stream()
+                .map(WorkflowEvent::identity)
+                .reduce("", (a, b) -> a + "+" + b);
         }
 
         @Override

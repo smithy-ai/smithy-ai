@@ -163,6 +163,15 @@ public class ExpressionRenderer {
         if (event == null) return Map.of();
         // A batch reads as its most recent member, plus the whole burst under
         // `event.batch` for a step that wants to answer all of it at once.
+        if (event instanceof WorkflowEvent.Signal signal) {
+            // A signal's payload reads as event fields, so a definition can say
+            // `event.key` rather than reaching into a map.
+            var view = new LinkedHashMap<String, Object>();
+            view.put("name", signal.name());
+            view.put("signal", signal.signal());
+            if (signal.payload() != null) view.putAll(signal.payload());
+            return view;
+        }
         if (event instanceof WorkflowEvent.Batch batch) {
             var view = new LinkedHashMap<>(eventView(batch.latest()));
             view.put("batch", batch.events().stream().map(this::eventView).toList());

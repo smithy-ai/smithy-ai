@@ -35,6 +35,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 class StepExecutorTest {
 
     private static final RepoInfo REPO = new RepoInfo("acme", "app", "https://git.invalid/acme/app");
+    private static final IssueContext ISSUE = new IssueContext(REPO, "7", "Add a thing", "body", "main");
 
     @TempDir
     Path tempDir;
@@ -233,5 +234,34 @@ class StepExecutorTest {
             executor.execute(run, event(), "refine:issue.assigned", List.of(step("does.not.exist", "x", Map.of())))
         );
         assertTrue(error.getMessage().contains("does.not.exist"), error.getMessage());
+    }
+
+    @Test
+    void twoDistinctEventsOfTheSameNameEachGetTheirOwnTransition() {
+        var first = new WorkflowEvent.IssueComment(ISSUE, "please rename the field");
+        var second = new WorkflowEvent.IssueComment(ISSUE, "and add a test for it");
+
+        // The same state and the same event name — only the comment differs.
+        assertNotEquals(
+            StepExecutor.transitionId("refine", first),
+            StepExecutor.transitionId("refine", second),
+            "a second comment is new work, not a replay of the first"
+        );
+    }
+
+    @Test
+    void aRedeliveredEventKeepsItsTransition() {
+        var comment = new WorkflowEvent.IssueComment(ISSUE, "please rename the field");
+        var redelivered = new WorkflowEvent.IssueComment(ISSUE, "please rename the field");
+
+        // A webhook retry carries the same payload and must resume, not re-run.
+        assertEquals(StepExecutor.transitionId("refine", comment), StepExecutor.transitionId("refine", redelivered));
+    }
+
+    @Test
+    void anEventThatHappensOnceKeepsTheBareTransitionId() {
+        var assigned = new WorkflowEvent.IssueAssigned(ISSUE, null);
+
+        assertEquals("new:issue.assigned", StepExecutor.transitionId("new", assigned));
     }
 }

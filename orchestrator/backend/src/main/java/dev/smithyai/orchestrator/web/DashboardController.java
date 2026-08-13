@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.web;
 
+import dev.smithyai.orchestrator.runtime.engine.RunEngine;
 import dev.smithyai.orchestrator.runtime.engine.RunTakeover;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.RunEvent;
@@ -39,19 +40,25 @@ public class DashboardController {
     private final RunStore runStore;
     private final RunEnvironments environments;
     private final RunTakeover takeover;
+    private final RunEngine engine;
+
+    /** What a workflow listens for to act on a gate released from the dashboard. */
+    static final String GATE_APPROVED = "gate-approved";
 
     public DashboardController(
         ContainerService containerService,
         MetricsRecorder metrics,
         RunStore runStore,
         RunEnvironments environments,
-        RunTakeover takeover
+        RunTakeover takeover,
+        RunEngine engine
     ) {
         this.containerService = containerService;
         this.metrics = metrics;
         this.runStore = runStore;
         this.environments = environments;
         this.takeover = takeover;
+        this.engine = engine;
     }
 
     @GetMapping("/dashboard/metrics")
@@ -113,6 +120,14 @@ public class DashboardController {
         );
     }
 
+    /** The repository a run is working in, taken from the vars its workflow recorded. */
+    private static dev.smithyai.orchestrator.model.RepoInfo repoOf(dev.smithyai.orchestrator.runtime.store.Run run) {
+        Object owner = run.vars().get("owner");
+        Object repo = run.vars().get("repo");
+        if (owner == null || repo == null) return null;
+        return new dev.smithyai.orchestrator.model.RepoInfo(String.valueOf(owner), String.valueOf(repo), null);
+    }
+
     /** What a run is blocked on — an approval nobody has given, a sibling that has not finished. */
     @GetMapping("/dashboard/runs/{runId}/waits")
     public ResponseEntity<List<RunWait>> getRunWaits(@PathVariable String runId) {
@@ -130,11 +145,22 @@ public class DashboardController {
      */
     @PostMapping("/dashboard/runs/{runId}/waits/{key}")
     public ResponseEntity<Map<String, Object>> approveWait(@PathVariable String runId, @PathVariable String key) {
-        if (runStore.find(runId).isEmpty()) return ResponseEntity.notFound().build();
+        var run = runStore.find(runId);
+        if (run.isEmpty()) return ResponseEntity.notFound().build();
         int released = runStore.satisfyWait(runId, key);
         runStore.appendEvent(runId, "gate.approved", Map.of("key", key, "via", "dashboard"));
-        log.info("Gate '{}' on run {} approved from the dashboard", key, runId);
-        return ResponseEntity.ok(Map.of("key", key, "released", released));
+        // Releasing the wait is not enough on its own — nothing re-reads it. The
+        // run is told, so a workflow that parked at this gate can act on it.
+        boolean handled = engine.deliver(
+            runId,
+            new dev.smithyai.orchestrator.model.events.WorkflowEvent.Signal(
+                repoOf(run.get()),
+                GATE_APPROVED,
+                Map.of("key", key, "via", "dashboard")
+            )
+        );
+        log.info("Gate '{}' on run {} approved from the dashboard (handled={})", key, runId, handled);
+        return ResponseEntity.ok(Map.of("key", key, "released", released, "handled", handled));
     }
 
     /**

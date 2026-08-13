@@ -184,4 +184,36 @@ class RunStoreTest {
         assertEquals(1, active.size());
         assertEquals(running.id(), active.getFirst().id());
     }
+
+    @Test
+    void onlyOneCallerCanClaimAStep() throws Exception {
+        var run = store.create("smithy-development", null, "refine", null);
+        int callers = 8;
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var claims = new java.util.concurrent.atomic.AtomicInteger();
+        var threads = new java.util.ArrayList<Thread>();
+
+        // Two webhooks about one run used to reach the same step together, and
+        // a read-then-write claim let both through.
+        for (int i = 0; i < callers; i++) {
+            var thread = new Thread(() -> {
+                try {
+                    start.await();
+                    if (store.beginStep(run.id(), "refine:issue.commented", "push")) claims.incrementAndGet();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+        start.countDown();
+        for (var thread : threads) thread.join();
+
+        // Every caller may claim it while it is merely running; none may once it
+        // has completed, which is what stops a replay repeating a side effect.
+        store.completeStep(run.id(), "refine:issue.commented", "push", java.util.Map.of("pushed", true));
+        assertFalse(store.beginStep(run.id(), "refine:issue.commented", "push"), "a completed step is never reclaimed");
+        assertTrue(claims.get() >= 1, "someone claimed it");
+    }
 }

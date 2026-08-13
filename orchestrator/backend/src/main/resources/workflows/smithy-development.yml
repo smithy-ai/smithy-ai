@@ -486,6 +486,34 @@ state:
         steps:
           - uses: ci.reset
 
+      # A human released the CI gate from the dashboard. Clearing the pause is
+      # the point: ci.retryGuard set it, and nothing else ever unsets it, so
+      # without this the workflow ignores every later pipeline failure.
+      "signal:gate-approved":
+        steps:
+          - uses: ci.reset
+            if: "{{ event.key == 'ci-approval' }}"
+
+          - uses: agent.run
+            if: "{{ event.key == 'ci-approval' }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+              template: ci_failure.md.j2
+              vars:
+                pr_number: "{{ vars.prNumber }}"
+                issue_ref: "{{ vars.issueRef }}"
+                workflow_id: "{{ event.name }}"
+
+          - uses: agent.ensureCommitted
+            if: "{{ event.key == 'ci-approval' }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+
+          - uses: git.push
+            if: "{{ event.key == 'ci-approval' }}"
+            with:
+              tools: "{{ vars.buildTools }}"
+
       # Marked ready for review: take the plan file off the branch so it never
       # reaches the base branch, and let the container go.
       pr.ready_for_review:

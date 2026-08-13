@@ -242,23 +242,21 @@ public class RunStore {
      */
     @Transactional
     public boolean beginStep(String runId, String transitionId, String stepId) {
-        var existing = db
-            .sql("SELECT status FROM run_steps WHERE run_id = ? AND transition_id = ? AND step_id = ?")
-            .params(runId, transitionId, stepId)
-            .query(String.class)
-            .optional();
-        if (existing.filter("completed"::equals).isPresent()) return false;
-
-        db
+        // One statement rather than a read followed by a write: two callers that
+        // both looked first would both see "not completed" and both go on to run
+        // the step. The conditional upsert leaves a completed row alone and
+        // reports no rows changed.
+        int claimed = db
             .sql(
                 """
                 INSERT INTO run_steps (run_id, transition_id, step_id, status, started_at) VALUES (?, ?, ?, 'running', ?)
                 ON CONFLICT (run_id, transition_id, step_id) DO UPDATE SET status = 'running', started_at = excluded.started_at
+                WHERE run_steps.status <> 'completed'
                 """
             )
             .params(runId, transitionId, stepId, iso(Instant.now()))
             .update();
-        return true;
+        return claimed > 0;
     }
 
     @Transactional

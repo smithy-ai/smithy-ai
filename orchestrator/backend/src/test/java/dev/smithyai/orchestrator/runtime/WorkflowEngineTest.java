@@ -190,12 +190,7 @@ class WorkflowEngineTest {
         var run = store.create(decision.workflowName(), null, definition.state().getInitial(), null);
 
         var transition = definition.state().getStages().get(run.state()).on().get(event.name());
-        var outputs = executor.execute(
-            run,
-            event,
-            StepExecutor.transitionId(run.state(), event.name()),
-            transition.steps()
-        );
+        var outputs = executor.execute(run, event, StepExecutor.transitionId(run.state(), event), transition.steps());
         store.updateState(run.id(), transition.to());
 
         assertEquals(List.of("Working on Add a thing"), posted);

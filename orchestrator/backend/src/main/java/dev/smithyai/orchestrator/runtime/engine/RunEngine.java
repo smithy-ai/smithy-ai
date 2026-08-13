@@ -273,7 +273,29 @@ public class RunEngine implements SignalDelivery {
         return store.find(run.id()).orElseThrow();
     }
 
+    /**
+     * One event at a time per run.
+     *
+     * <p>Two webhooks about the same run arriving together would otherwise run
+     * its steps concurrently — two agent turns in one container, two pull
+     * requests from one branch. The schema always intended leases to serialize
+     * this; a monitor is enough while one orchestrator owns the store, and it
+     * does not leave a lock behind if the process dies.
+     */
     private Outcome dispatch(WorkflowDefinition definition, Run run, WorkflowEvent event) {
+        synchronized (lockFor(run.id())) {
+            return dispatchSerially(definition, run, event);
+        }
+    }
+
+    private final java.util.concurrent.ConcurrentMap<String, Object> locks =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
+    private Object lockFor(String runId) {
+        return locks.computeIfAbsent(runId, id -> new Object());
+    }
+
+    private Outcome dispatchSerially(WorkflowDefinition definition, Run run, WorkflowEvent event) {
         if (store.isLeased(run.id())) {
             // Someone is driving this session by hand. Acting on a webhook on
             // top of what they are typing produces work neither asked for.
@@ -322,7 +344,7 @@ public class RunEngine implements SignalDelivery {
             return new Outcome(definition.metadata().name(), run.id(), run.state(), run.state(), false);
         }
 
-        String transitionId = StepExecutor.transitionId(run.state(), event.name());
+        String transitionId = StepExecutor.transitionId(run.state(), event);
         store.updateStatus(run.id(), RunStatus.RUNNING);
         store.appendEvent(run.id(), event.name(), null);
 

@@ -119,8 +119,19 @@ public class StepExecutor {
         return outputs;
     }
 
-    /** A transition's identity within a run: its state and the event that fired it. */
-    public static String transitionId(String state, String eventName) {
-        return state + ":" + eventName;
+    /**
+     * A transition's identity within a run.
+     *
+     * <p>State and event name alone were too coarse: a second comment in the
+     * same state looked like the first one being replayed, so every step that
+     * had already run was skipped and its recorded output reused — the agent
+     * never saw the new comment. The event's own identity separates a new
+     * occurrence from a redelivery of the same one.
+     */
+    public static String transitionId(String state, WorkflowEvent event) {
+        String identity = event == null ? "" : event.identity();
+        return identity.isEmpty()
+            ? state + ":" + event.name()
+            : state + ":" + event.name() + ":" + Integer.toHexString(identity.hashCode());
     }
 }
