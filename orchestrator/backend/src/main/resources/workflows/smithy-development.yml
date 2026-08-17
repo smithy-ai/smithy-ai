@@ -13,7 +13,10 @@ metadata:
 
 vars:
   actor: smithy
-  botUser: smithy
+  # The actor a task is handed to. An actor name, not an account name: the
+  # account each actor uses is deployment configuration, and every step that
+  # assigns or checks an assignment resolves it there.
+  taskActor: smithy
   # Where plans live on the branch. Removed before the pull request is
   # finalized, so a plan never reaches the base branch.
   planDir: ".smithy/plans"
@@ -28,7 +31,7 @@ routing:
   # an issue.assigned too, and without this both workflows claim it and two
   # agents start on the same issue.
   - event: issue.assigned
-    when: "{{ event.assignee == vars.botUser }}"
+    when: "{{ event.assignee == vars.taskActor }}"
     action: create
     key: "{{ repo.fullName }}#{{ event.issueRef }}"
 
@@ -253,7 +256,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               number: "{{ steps.pr.number }}"
-              actors: ["{{ vars.botUser }}"]
+              actors: ["{{ vars.taskActor }}"]
 
           - uses: metrics.record
             with:
@@ -306,7 +309,7 @@ state:
               number: "{{ steps.pr.number }}"
               reviewers: "{{ event.approver }}"
               # The agent authored it, so it cannot review it.
-              notFromActor: "{{ vars.botUser }}"
+              notFromActor: "{{ vars.taskActor }}"
 
           - uses: metrics.record
             with:
@@ -332,7 +335,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               number: "{{ vars.prNumber }}"
-              assignedActor: "{{ vars.botUser }}"
+              assignedActor: "{{ vars.taskActor }}"
 
           - uses: agent.run
             id: answer
@@ -416,7 +419,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               number: "{{ vars.prNumber }}"
-              assignedActor: "{{ vars.botUser }}"
+              assignedActor: "{{ vars.taskActor }}"
 
           - uses: exec
             if: "{{ steps.mine.assigned }}"

@@ -63,7 +63,7 @@ vars:
 
   repositoryCatalog: acme-product
 
-  coordinatorUser: coordinator     # who a story is assigned to
+  storyActor: coordinator          # who a story is assigned to
   childActor: smithy               # who child issues are assigned to
 ```
 
@@ -73,7 +73,7 @@ A coordinator listens for assigned issues, and every child it creates is itself
 an assigned issue, so it needs both guards to avoid claiming its own children:
 
 - **`storyRepos`**: it only claims issues raised where stories are raised.
-- **`coordinatorUser`**: it only claims issues handed to that actor.
+- **`storyActor`**: it only claims issues handed to that actor.
 
 The coordinator therefore needs an identity on every connector it acts through;
 the child actor needs one on every catalog connector. See

@@ -1,12 +1,16 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
+import dev.smithyai.orchestrator.config.ConnectorRegistry;
 import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinition;
+import dev.smithyai.orchestrator.runtime.engine.RunEngine;
 import dev.smithyai.orchestrator.runtime.engine.WorkflowRegistry;
 import dev.smithyai.orchestrator.runtime.store.RunStatus;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,10 +27,21 @@ public class RunSpawnAction implements WorkflowAction {
 
     private final RunStore store;
     private final WorkflowRegistry workflows;
+    private final ConnectorRegistry connectors;
 
     public RunSpawnAction(RunStore store, @org.springframework.context.annotation.Lazy WorkflowRegistry workflows) {
+        this(store, workflows, null);
+    }
+
+    @Autowired
+    public RunSpawnAction(
+        RunStore store,
+        @org.springframework.context.annotation.Lazy WorkflowRegistry workflows,
+        @Nullable ConnectorRegistry connectors
+    ) {
         this.store = store;
         this.workflows = workflows;
+        this.connectors = connectors;
     }
 
     @Override
@@ -66,6 +81,13 @@ public class RunSpawnAction implements WorkflowAction {
         vars.putAll(input);
         vars.remove("workflow");
         vars.remove("state");
+        // Which provider is behind a connector is configuration, so nothing
+        // that names one — least of all an agent writing a plan — has to
+        // restate it correctly for the child to know what system it is in.
+        Object source = vars.get(RunEngine.SOURCE_VAR);
+        if (connectors != null && source != null && !String.valueOf(source).isBlank()) {
+            vars.put(RunEngine.SOURCE_PROVIDER_VAR, connectors.provider(String.valueOf(source)));
+        }
         if (!vars.isEmpty()) {
             store.mergeVars(child.id(), vars);
         }

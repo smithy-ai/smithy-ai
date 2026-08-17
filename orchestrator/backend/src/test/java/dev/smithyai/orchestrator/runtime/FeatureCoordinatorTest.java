@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.CiConfig;
+import dev.smithyai.orchestrator.config.ConnectorActorConfig;
 import dev.smithyai.orchestrator.config.ConnectorConfig;
 import dev.smithyai.orchestrator.config.OrchestratorConfig;
 import dev.smithyai.orchestrator.config.RepositoryCatalogConfig;
@@ -60,7 +61,6 @@ class FeatureCoordinatorTest {
         vars:
           storyRepos: [acme/product]
           repositoryCatalog: acme-product
-          botUser: acme-bot
         """;
 
     @TempDir
@@ -158,7 +158,52 @@ class FeatureCoordinatorTest {
         );
         var environments = new RunEnvironments(store, null, null);
         var foreach = new ForeachAction(null);
-        var spawn = new RunSpawnAction(store, null);
+        var deploymentConfig = new OrchestratorConfig(
+            OrchestratorConfig.API_VERSION,
+            OrchestratorConfig.KIND,
+            null,
+            null,
+            null,
+            null,
+            // The actors this coordinator and its children act as. A connector
+            // that configures neither is a deployment the workflow cannot run
+            // in, and the registry now says so at load.
+            Map.of(
+                "forgejo-main",
+                new ConnectorConfig(
+                    "forgejo",
+                    "",
+                    null,
+                    null,
+                    Map.of(
+                        "smithy",
+                        new ConnectorActorConfig("smithy", null, null, null, null, null),
+                        "coordinator",
+                        new ConnectorActorConfig("coordinator", null, null, null, null, null)
+                    ),
+                    null,
+                    null
+                )
+            ),
+            new dev.smithyai.orchestrator.config.DefaultsConfig("forgejo-main", "event.source", "smithy"),
+            null,
+            Map.of(
+                "acme-product",
+                List.of(
+                    new RepositoryCatalogConfig("forgejo-main", "acme", "api", "The HTTP API"),
+                    new RepositoryCatalogConfig("forgejo-main", "acme", "web", "The web client")
+                )
+            ),
+            null,
+            null
+        );
+        // The registry answers what provider a connector speaks, so a
+        // spawned child does not depend on its parent restating it.
+        var connectors = new dev.smithyai.orchestrator.config.ConnectorRegistry(
+            deploymentConfig,
+            new org.springframework.mock.env.MockEnvironment()
+        );
+        var spawn = new RunSpawnAction(store, null, connectors);
 
         var actions = new ActionRegistry(
             List.of(
@@ -217,26 +262,6 @@ class FeatureCoordinatorTest {
         setExecutor(foreach, executor);
 
         var policy = new WorkflowPolicyConfig(null, null, definitions.toString());
-        var deploymentConfig = new OrchestratorConfig(
-            OrchestratorConfig.API_VERSION,
-            OrchestratorConfig.KIND,
-            null,
-            null,
-            null,
-            null,
-            Map.of("forgejo-main", new ConnectorConfig("forgejo", "", null, null, Map.of(), null, null)),
-            null,
-            null,
-            Map.of(
-                "acme-product",
-                List.of(
-                    new RepositoryCatalogConfig("forgejo-main", "acme", "api", "The HTTP API"),
-                    new RepositoryCatalogConfig("forgejo-main", "acme", "web", "The web client")
-                )
-            ),
-            null,
-            null
-        );
         workflows = new WorkflowRegistry(
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),
@@ -393,6 +418,20 @@ class FeatureCoordinatorTest {
     private static WorkflowEvent storyApproved() {
         return new WorkflowEvent.PlanApproved(
             new IssueContext(STORY_REPO, "PROD-1", "Search everywhere", "Users want search", "main", "coordinator"),
+            "alice"
+        );
+    }
+
+    private static WorkflowEvent storyApproved(String source) {
+        return new WorkflowEvent.PlanApproved(
+            new IssueContext(
+                new RepoInfo("acme", "product", "https://git.invalid/acme/product", source),
+                "PROD-1",
+                "Search everywhere",
+                "Users want search",
+                "main",
+                "coordinator"
+            ),
             "alice"
         );
     }
@@ -578,6 +617,27 @@ class FeatureCoordinatorTest {
         var child = store.findByCorrelation(CorrelationKind.ISSUE, "acme/api#" + created.issueRef()).orElseThrow();
         assertEquals("smithy-development", child.workflowName());
         assertEquals(story().id(), child.parentRunId());
+    }
+
+    /**
+     * A child knows which system it is in, and knows it from configuration.
+     *
+     * <p>The provider used to be threaded through the plan the agent wrote, so
+     * a model that dropped the field left the child labelled with its parent's
+     * provider — which for a Jira story fanning out to repositories is never
+     * the right answer.
+     */
+    @Test
+    void aChildKnowsItsProviderWithoutThePlanHavingToSayIt() {
+        // The plan the agent returns names a source and nothing more; the
+        // provider behind it is looked up, not repeated.
+        engine.handle(storyAssigned("forgejo-main"));
+        engine.handle(storyApproved("forgejo-main"));
+
+        var child = store.findChildren(story().id()).getFirst();
+
+        assertEquals("forgejo-main", child.vars().get(RunEngine.SOURCE_VAR));
+        assertEquals("forgejo", child.vars().get(RunEngine.SOURCE_PROVIDER_VAR));
     }
 
     @Test

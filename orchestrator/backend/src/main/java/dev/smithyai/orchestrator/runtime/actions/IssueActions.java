@@ -81,8 +81,7 @@ public class IssueActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                String requestedTarget = Trackers.target(this, context, input);
-                String target = requestedTarget;
+                String target = Trackers.target(this, context, input);
                 List<String> actors = requiredListInput(input, "actors");
                 List<String> assignees = actors
                     .stream()

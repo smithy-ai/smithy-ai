@@ -129,6 +129,7 @@ public class WorkflowRegistry {
             LoadedWorkflowDefinition resolved;
             try {
                 resolved = resolveRepositoryCatalog(resolveExtends(loaded, raw));
+                requireConfiguredActor(resolved);
                 validator.validate(resolved.source(), resolved.definition(), supported);
             } catch (WorkflowDefinitionException e) {
                 log.error("Workflow '{}' from {} is not runnable here: {}", name, loaded.source(), e.getMessage());
@@ -182,6 +183,32 @@ public class WorkflowRegistry {
         );
         log.info("Workflow '{}' extends '{}'", loaded.definition().metadata().name(), parentName);
         return new LoadedWorkflowDefinition(loaded.source() + " (extends " + parentName + ")", merged);
+    }
+
+    /**
+     * A workflow acts as an identity, and one this deployment has not
+     * configured is not an accident to discover on the first event: it means
+     * the workflow cannot run here at all. Refused for the same reason a
+     * missing capability is, so it stays out of the registry rather than
+     * failing once per event with a token it was never given.
+     */
+    private void requireConfiguredActor(LoadedWorkflowDefinition loaded) {
+        if (orchestratorConfig == null) return;
+        Object declared = loaded.definition().vars().get("actor");
+        if (declared == null) return;
+        String actor = String.valueOf(declared);
+        // Any connector, not the default one: a deployment may keep the
+        // reviewer on the system it reviews and nowhere else.
+        boolean configured = orchestratorConfig
+            .connectors()
+            .values()
+            .stream()
+            .anyMatch(connector -> connector.actors().containsKey(actor));
+        if (!configured) {
+            throw new WorkflowDefinitionException(
+                "acts as '%s', which no connector configures an identity for".formatted(actor)
+            );
+        }
     }
 
     private LoadedWorkflowDefinition resolveRepositoryCatalog(LoadedWorkflowDefinition loaded) {

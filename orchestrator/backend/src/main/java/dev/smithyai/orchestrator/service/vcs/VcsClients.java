@@ -88,7 +88,7 @@ public class VcsClients {
                 )
             );
         }
-        VcsClient client = connectors == null ? null : connectors.get(resolvedConnector);
+        VcsClient client = connectors.get(resolvedConnector);
         if (client == null) {
             throw new IllegalArgumentException(
                 "No VCS connector named '%s' is configured for actor '%s'".formatted(resolvedConnector, resolvedActor)

@@ -43,7 +43,7 @@ vars:
   # The actor a feature story is handed to. Distinct from childActor: assigning a
   # story to this one is how a person says "plan this across repositories"
   # rather than "do this here".
-  coordinatorUser: coordinator
+  storyActor: coordinator
   # Fallback connector for hand-written catalog entries that do not carry their
   # own source. Configured repository catalogs always name a source per entry.
   childConnector: ""
@@ -74,7 +74,7 @@ routing:
     when: >-
       {{ vars.catalog | length > 0
          and repo.fullName in vars.storyRepos
-         and event.assignee == vars.coordinatorUser }}
+         and event.assignee == vars.storyActor }}
     action: create
     key: "story:{{ repo.fullName }}#{{ event.issueRef }}"
   - event: [issue.plan_approved, issue.commented]
@@ -135,7 +135,6 @@ actions:
               # The child's own connector, so what the engine says about it when
               # it finishes names the system its issue lives in.
               source: "{{ item.source if item.source else vars.childSource }}"
-              sourceProvider: "{{ item.sourceProvider if item.sourceProvider else vars.childSourceProvider }}"
 
           # This replaces the "Parent story:" marker the foreman appended to
           # each issue body and regex-parsed back out: an event about this
@@ -219,7 +218,6 @@ state:
                 summary: string
                 issues:
                   - source: string
-                    sourceProvider: string
                     owner: string
                     repo: string
                     title: string
@@ -238,7 +236,6 @@ state:
               # transitions that create them are triggered by a signal, which
               # carries no story of its own.
               childSource: "{{ vars.childConnector if vars.childConnector else event.source.id }}"
-              childSourceProvider: "{{ event.source.provider }}"
 
           - uses: issue.comment
             with:
