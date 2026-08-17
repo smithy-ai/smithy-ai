@@ -12,8 +12,6 @@ import dev.smithyai.orchestrator.service.vcs.dto.PrData;
 import dev.smithyai.orchestrator.util.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 
 @Slf4j
 public class EventMapper {
@@ -30,22 +28,11 @@ public class EventMapper {
     private final String sourceId;
     private final String sourceProvider;
 
-    @Autowired
     public EventMapper(
         BotConfig botConfig,
         VcsProviderConfig vcsConfig,
         WorkflowPolicyConfig workflowPolicy,
-        @Qualifier("smithyVcs") VcsClient smithyClient,
-        dev.smithyai.orchestrator.config.ConnectorRegistry connectors
-    ) {
-        this(botConfig, vcsConfig, workflowPolicy, smithyClient, connectors.defaultVcs());
-    }
-
-    public EventMapper(
-        BotConfig botConfig,
-        VcsProviderConfig vcsConfig,
-        WorkflowPolicyConfig workflowPolicy,
-        @Qualifier("smithyVcs") VcsClient smithyClient
+        VcsClient smithyClient
     ) {
         this(botConfig, vcsConfig, workflowPolicy, smithyClient, RepoInfo.FORGEJO);
     }

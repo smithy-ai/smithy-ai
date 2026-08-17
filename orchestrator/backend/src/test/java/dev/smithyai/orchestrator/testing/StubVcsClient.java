@@ -20,7 +20,12 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
 
     /** This stub as the only identity, for actions that pick a client per actor. */
     public dev.smithyai.orchestrator.service.vcs.VcsClients asRegistry() {
-        return new dev.smithyai.orchestrator.service.vcs.VcsClients(this);
+        var connector = Map.<String, VcsClient>of("default", this);
+        return new dev.smithyai.orchestrator.service.vcs.VcsClients(
+            Map.of("smithy", connector, "architect", connector, "coordinator", connector),
+            "smithy",
+            "default"
+        );
     }
 
     /** A stub stands in for every provider, so it declares everything. */

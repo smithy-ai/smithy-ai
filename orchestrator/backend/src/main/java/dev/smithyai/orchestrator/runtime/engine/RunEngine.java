@@ -303,8 +303,13 @@ public class RunEngine implements SignalDelivery {
         // emits about it later — a signal to a parent, a gate released from the
         // dashboard — still says which system the work lives in. A definition
         // that names `source` itself means something by it and keeps it.
-        if (event != null && !event.source().isBlank() && !definition.vars().containsKey(SOURCE_VAR)) {
-            store.mergeVars(run.id(), Map.of(SOURCE_VAR, event.source()));
+        if (event != null && !event.source().isBlank()) {
+            var sourceVars = new LinkedHashMap<String, Object>();
+            if (!definition.vars().containsKey(SOURCE_VAR)) sourceVars.put(SOURCE_VAR, event.source());
+            if (!definition.vars().containsKey(SOURCE_PROVIDER_VAR)) {
+                sourceVars.put(SOURCE_PROVIDER_VAR, event.sourceInfo().provider());
+            }
+            if (!sourceVars.isEmpty()) store.mergeVars(run.id(), sourceVars);
         }
         store.correlate(CorrelationKind.KEY, key, run.id());
         if (event instanceof WorkflowEvent.IssueScoped issue) {
@@ -548,12 +553,16 @@ public class RunEngine implements SignalDelivery {
             String.valueOf(owner),
             String.valueOf(repo),
             null,
-            String.valueOf(run.vars().getOrDefault(SOURCE_VAR, ""))
+            String.valueOf(run.vars().getOrDefault(SOURCE_VAR, "")),
+            String.valueOf(run.vars().getOrDefault(SOURCE_PROVIDER_VAR, ""))
         );
     }
 
     /** The run variable holding the connector a run arrived through. */
     public static final String SOURCE_VAR = "source";
+
+    /** The provider implementation behind {@link #SOURCE_VAR}. */
+    public static final String SOURCE_PROVIDER_VAR = "sourceProvider";
 
     private static Map<String, Object> failure(String transitionId, RuntimeException e) {
         var payload = new LinkedHashMap<String, Object>();

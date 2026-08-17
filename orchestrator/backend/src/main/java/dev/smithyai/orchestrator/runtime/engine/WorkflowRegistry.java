@@ -207,6 +207,7 @@ public class WorkflowRegistry {
             .map(entry -> {
                 var item = new LinkedHashMap<String, Object>();
                 item.put("source", entry.source());
+                item.put("sourceProvider", orchestratorConfig.connectors().get(entry.source()).resolvedProvider());
                 item.put("owner", entry.owner());
                 item.put("repo", entry.repo());
                 item.put("description", entry.description() == null ? "" : entry.description());

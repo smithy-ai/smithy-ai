@@ -95,17 +95,20 @@ public class ConnectorRegistry {
         ConnectorConfig connector = connector(connectorId);
         String logicalActor = normalizeActor(actorName);
         ConnectorActorConfig identity = connector.actors().get(logicalActor);
-        if (identity == null) identity = connector.actors().get(defaultActor());
         if (identity == null) {
             throw new IllegalArgumentException(
-                "Connector '%s' has no identity for actor '%s' or default actor '%s'".formatted(
+                "Connector '%s' has no identity for actor '%s'; configured actors: %s".formatted(
                     connectorId,
                     logicalActor,
-                    defaultActor()
+                    connector.actors().keySet()
                 )
             );
         }
         return identity;
+    }
+
+    public boolean hasActor(String connectorId, String actorName) {
+        return connector(connectorId).actors().containsKey(normalizeActor(actorName));
     }
 
     public String username(String connectorId, String actorName) {
@@ -138,7 +141,8 @@ public class ConnectorRegistry {
         String logicalActor = normalizeActor(actorName);
         ConnectorActorConfig identity = actor(connectorId, logicalActor);
         SecretRef ref = "jira".equals(provider(connectorId)) ? identity.apiToken() : identity.token();
-        return resolve(ref, "connectors." + connectorId + ".actors." + logicalActor + ".token");
+        String field = "jira".equals(provider(connectorId)) ? "apiToken" : "token";
+        return resolve(ref, "connectors." + connectorId + ".actors." + logicalActor + "." + field);
     }
 
     public String webhookSecret(String connectorId) {

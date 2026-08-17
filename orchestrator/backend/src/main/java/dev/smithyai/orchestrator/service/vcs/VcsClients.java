@@ -11,9 +11,8 @@ import java.util.Set;
  * separate questions from what is being done, and a reader of the repository
  * should be able to tell the reviewer from the author.
  *
- * <p>An actor with no identity of its own falls back to the default one, so a
- * single-account deployment keeps working, at the cost of everything being
- * attributed to that account.
+ * <p>Every actor/connector pair is explicit. Missing identities fail rather
+ * than borrowing another actor's credentials and misattributing work.
  */
 public class VcsClients {
 
@@ -80,11 +79,16 @@ public class VcsClients {
     public VcsClient forConnector(String actor, String connector) {
         String resolvedActor = actor == null || actor.isBlank() ? defaultActor : actor;
         String resolvedConnector = connector == null || connector.isBlank() ? defaultConnector : connector;
-        var connectors = byActor.getOrDefault(resolvedActor, byActor.get(defaultActor));
-        VcsClient client = connectors == null ? null : connectors.get(resolvedConnector);
-        if (client == null && !resolvedActor.equals(defaultActor)) {
-            client = byActor.getOrDefault(defaultActor, Map.of()).get(resolvedConnector);
+        var connectors = byActor.get(resolvedActor);
+        if (connectors == null) {
+            throw new IllegalArgumentException(
+                "No VCS identity is configured for actor '%s'; configured actors: %s".formatted(
+                    resolvedActor,
+                    byActor.keySet()
+                )
+            );
         }
+        VcsClient client = connectors == null ? null : connectors.get(resolvedConnector);
         if (client == null) {
             throw new IllegalArgumentException(
                 "No VCS connector named '%s' is configured for actor '%s'".formatted(resolvedConnector, resolvedActor)

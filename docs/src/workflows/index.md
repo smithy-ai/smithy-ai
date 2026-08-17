@@ -249,7 +249,7 @@ metadata:
   extends: feature-coordinator
 vars:
   storyRepos: [acme/product]
-  catalog: [...]
+  repositoryCatalog: acme-product
 ```
 
 `extends` contributes variables only; routing and states come from the base. A

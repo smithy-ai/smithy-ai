@@ -89,4 +89,10 @@ public interface WorkflowAction {
         String single = String.valueOf(value).strip();
         return single.isEmpty() ? List.of() : List.of(single);
     }
+
+    default List<String> requiredListInput(Map<String, Object> input, String key) {
+        var values = listInput(input, key);
+        if (values.isEmpty()) throw new IllegalArgumentException(type() + " requires '" + key + "'");
+        return values;
+    }
 }

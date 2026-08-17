@@ -34,7 +34,13 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
  */
 class RunEngineTest {
 
-    private static final RepoInfo REPO = new RepoInfo("acme", "platform", "https://git.invalid/acme/platform");
+    private static final RepoInfo REPO = new RepoInfo(
+        "acme",
+        "platform",
+        "https://git.invalid/acme/platform",
+        "forgejo-main",
+        "forgejo"
+    );
 
     private static final String COORDINATOR = """
         apiVersion: smithy.ai/v1alpha1
@@ -183,6 +189,8 @@ class RunEngineTest {
         var run = store.find(outcome.runId()).orElseThrow();
         assertEquals("planning ECD-9", run.vars().get("greeting"), "the step wrote to the run");
         assertEquals(3, run.vars().get("maxReviewRounds"), "and the workflow's own vars seeded it");
+        assertEquals("forgejo-main", run.vars().get(RunEngine.SOURCE_VAR));
+        assertEquals("forgejo", run.vars().get(RunEngine.SOURCE_PROVIDER_VAR));
         assertEquals(1, store.findPendingWaits(run.id()).size(), "and the gate is armed");
     }
 

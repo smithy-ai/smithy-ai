@@ -253,7 +253,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               number: "{{ steps.pr.number }}"
-              actors: [smithy]
+              actors: ["{{ vars.botUser }}"]
 
           - uses: metrics.record
             with:
@@ -306,7 +306,7 @@ state:
               number: "{{ steps.pr.number }}"
               reviewers: "{{ event.approver }}"
               # The agent authored it, so it cannot review it.
-              notFrom: "{{ vars.botUser }}"
+              notFromActor: "{{ vars.botUser }}"
 
           - uses: metrics.record
             with:
@@ -332,7 +332,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               number: "{{ vars.prNumber }}"
-              user: "{{ vars.botUser }}"
+              assignedActor: "{{ vars.botUser }}"
 
           - uses: agent.run
             id: answer
@@ -416,7 +416,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               number: "{{ vars.prNumber }}"
-              user: "{{ vars.botUser }}"
+              assignedActor: "{{ vars.botUser }}"
 
           - uses: exec
             if: "{{ steps.mine.assigned }}"

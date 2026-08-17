@@ -102,6 +102,11 @@ the connector ID:
 https://smithy.example.com/webhooks/github-main
 ```
 
+Actor identities are connector-specific and never inherit another actor's
+credentials. Every workflow actor must be configured on each connector it acts
+through; a missing identity fails the action instead of posting as the default
+actor.
+
 Actors are logical identities scoped to a connector. Workflows refer to `smithy`,
 `architect`, or another logical name; the connector resolves it to a username,
 Jira account ID, credentials, and git identity. An actor omitted from a connector
@@ -174,7 +179,6 @@ metadata:
 vars:
   repositoryCatalog: acme-product
   storyRepos: [PRODUCT/PRODUCT]
-  childConnector: gitlab-main
 ```
 
 The registry resolves `repositoryCatalog` into the workflow's `vars.catalog` and

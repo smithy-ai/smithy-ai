@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.CiConfig;
+import dev.smithyai.orchestrator.config.ConnectorConfig;
 import dev.smithyai.orchestrator.config.OrchestratorConfig;
 import dev.smithyai.orchestrator.config.RepositoryCatalogConfig;
 import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
@@ -119,12 +120,29 @@ class FeatureCoordinatorTest {
         );
 
         // One stub answers for every connector in these tests.
-        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
-            java.util.Map.of("forgejo", vcs, "forgejo-main", vcs, "gitlab", vcs, "jira", vcs),
+        var trackerConnectors = Map.<String, dev.smithyai.orchestrator.service.vcs.IssueTrackerClient>of(
+            "forgejo",
+            vcs,
+            "forgejo-main",
+            vcs,
+            "gitlab",
+            vcs,
+            "jira",
             vcs
         );
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            Map.of("smithy", trackerConnectors, "coordinator", trackerConnectors),
+            "smithy",
+            "forgejo",
+            (connector, actor) -> actor
+        );
         var vcsClients = new dev.smithyai.orchestrator.service.vcs.VcsClients(
-            Map.of("smithy", Map.of("default", vcs, "forgejo", vcs, "forgejo-main", vcs)),
+            Map.of(
+                "smithy",
+                Map.of("default", vcs, "forgejo", vcs, "forgejo-main", vcs),
+                "coordinator",
+                Map.of("default", vcs, "forgejo", vcs, "forgejo-main", vcs)
+            ),
             "smithy",
             "default"
         );
@@ -206,7 +224,7 @@ class FeatureCoordinatorTest {
             null,
             null,
             null,
-            Map.of(),
+            Map.of("forgejo-main", new ConnectorConfig("forgejo", "", null, null, Map.of(), null, null)),
             null,
             null,
             Map.of(
@@ -567,8 +585,7 @@ class FeatureCoordinatorTest {
         var jira = new StubVcsClient();
         var gitlab = new StubVcsClient();
         var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
-            java.util.Map.of("jira", jira, "gitlab", gitlab),
-            jira
+            java.util.Map.of("jira", jira, "gitlab", gitlab)
         );
         var comment = new IssueCommentAction(trackers);
 
@@ -593,8 +610,7 @@ class FeatureCoordinatorTest {
         var jira = new StubVcsClient();
         var gitlab = new StubVcsClient();
         var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
-            java.util.Map.of("jira", jira, "gitlab", gitlab),
-            jira
+            java.util.Map.of("jira", jira, "gitlab", gitlab)
         );
 
         // What a coordinator does: the story arrived from Jira, the child issue
@@ -621,8 +637,7 @@ class FeatureCoordinatorTest {
                 "coordinator",
                 Map.<String, dev.smithyai.orchestrator.service.vcs.IssueTrackerClient>of("forgejo", asCoordinator)
             ),
-            "smithy",
-            asSmithy
+            "smithy"
         );
         var comment = new IssueCommentAction(trackers);
         var input = Map.<String, Object>of("owner", "acme", "repo", "product", "issue", "1", "body", "planned");
@@ -640,8 +655,7 @@ class FeatureCoordinatorTest {
         var jira = new StubVcsClient();
         var gitlab = new StubVcsClient();
         var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
-            java.util.Map.of("gitlab", gitlab, "jira", jira),
-            gitlab
+            java.util.Map.of("gitlab", gitlab, "jira", jira)
         );
 
         // A child finished, so the event this transition sees is a signal from
@@ -683,8 +697,7 @@ class FeatureCoordinatorTest {
         var jira = new StubVcsClient();
         var gitlab = new StubVcsClient();
         var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
-            java.util.Map.of("jira", jira, "gitlab", gitlab),
-            jira
+            java.util.Map.of("jira", jira, "gitlab", gitlab)
         );
         var create = new IssueActions().issueCreateAction(trackers);
         var context = new ActionContext(null, storyAssigned("jira"), Map.of(), Map.of());

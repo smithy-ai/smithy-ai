@@ -276,8 +276,7 @@ class LiveEndToEndIT {
         var prompts = new PromptRenderer(new DefaultResourceLoader());
         // One stub answers for every connector in these tests.
         var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
-            java.util.Map.of("forgejo", issues, "gitlab", issues, "jira", issues),
-            issues
+            java.util.Map.of("forgejo", issues, "gitlab", issues, "jira", issues)
         );
         var renderer = new ExpressionRenderer();
         var foreach = new ForeachAction(null);

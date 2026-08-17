@@ -129,7 +129,10 @@ public class DashboardController {
             String.valueOf(owner),
             String.valueOf(repo),
             null,
-            String.valueOf(run.vars().getOrDefault(dev.smithyai.orchestrator.runtime.engine.RunEngine.SOURCE_VAR, ""))
+            String.valueOf(run.vars().getOrDefault(dev.smithyai.orchestrator.runtime.engine.RunEngine.SOURCE_VAR, "")),
+            String.valueOf(
+                run.vars().getOrDefault(dev.smithyai.orchestrator.runtime.engine.RunEngine.SOURCE_PROVIDER_VAR, "")
+            )
         );
     }
 

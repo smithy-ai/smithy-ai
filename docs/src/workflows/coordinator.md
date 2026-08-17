@@ -30,7 +30,23 @@ link on both. It is there for people to follow; nothing in Smithy reads it.
 ## Configuring it
 
 The built-in coordinator has an empty catalog and no story repositories, so on
-its own it claims nothing. Extend it and supply both:
+its own it claims nothing. Define the repository catalog in deployment config:
+
+```yaml
+# /config/orchestrator.yml
+repositoryCatalogs:
+  acme-product:
+    - source: gitlab-main
+      owner: acme
+      repo: api
+      description: The HTTP API. Contract in the story repo under specs/.
+    - source: gitlab-main
+      owner: acme
+      repo: web
+      description: The web client.
+```
+
+Then extend the built-in and reference that catalog:
 
 ```yaml
 # /config/workflows/acme-coordinator.yml
@@ -45,20 +61,10 @@ vars:
   # there are this coordinator's own children.
   storyRepos: [acme/product]
 
-  catalog:
-    - owner: acme
-      repo: api
-      description: The HTTP API. Contract in the story repo under specs/.
-    - owner: acme
-      repo: web
-      description: The web client.
-
-  # Which connector the catalog lives on. Empty means the same one the story
-  # arrived through, which is right when one system tracks both.
-  childConnector: ""
+  repositoryCatalog: acme-product
 
   coordinatorUser: coordinator     # who a story is assigned to
-  botUser: smithy                  # who child issues are assigned to
+  childActor: smithy               # who child issues are assigned to
 ```
 
 ### Two guards
@@ -69,7 +75,8 @@ an assigned issue, so it needs both guards to avoid claiming its own children:
 - **`storyRepos`**: it only claims issues raised where stories are raised.
 - **`coordinatorUser`**: it only claims issues handed to that actor.
 
-The coordinator therefore needs an account of its own; see
+The coordinator therefore needs an identity on every connector it acts through;
+the child actor needs one on every catalog connector. See
 [actors](../concepts.md#actors).
 
 ## What the agent sees when planning

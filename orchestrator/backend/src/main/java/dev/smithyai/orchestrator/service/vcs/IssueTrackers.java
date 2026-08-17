@@ -14,47 +14,38 @@ import java.util.Set;
  * implements one task of it are different accounts, and a reader of the issue
  * should be able to tell which of them wrote something.
  *
- * <p>An actor with no identity of its own falls back to the default one. That
- * keeps a single-account deployment working, at the cost of everything being
- * attributed to that account.
+ * <p>Every actor/connector pair is explicit. Missing identities fail rather
+ * than borrowing another actor's credentials and misattributing work.
  */
 public class IssueTrackers {
 
     private final Map<String, Map<String, IssueTrackerClient>> byActor;
     private final String defaultActor;
     private final String defaultConnector;
-    private final IssueTrackerClient fallback;
     private final java.util.function.BiFunction<String, String, String> assigneeResolver;
 
     public IssueTrackers(
         Map<String, Map<String, IssueTrackerClient>> byActor,
         String defaultActor,
         String defaultConnector,
-        IssueTrackerClient fallback,
         java.util.function.BiFunction<String, String, String> assigneeResolver
     ) {
         this.byActor = new LinkedHashMap<>(byActor);
         this.defaultActor = defaultActor;
         this.defaultConnector = defaultConnector;
-        this.fallback = fallback;
         this.assigneeResolver = assigneeResolver;
     }
 
-    public IssueTrackers(
-        Map<String, Map<String, IssueTrackerClient>> byActor,
-        String defaultActor,
-        IssueTrackerClient fallback
-    ) {
-        this(byActor, defaultActor, "", fallback, (connector, actor) -> actor);
+    public IssueTrackers(Map<String, Map<String, IssueTrackerClient>> byActor, String defaultActor) {
+        this(byActor, defaultActor, "", (connector, actor) -> actor);
     }
 
     /** Single-actor deployments, and tests. */
-    public IssueTrackers(Map<String, IssueTrackerClient> byConnector, IssueTrackerClient fallback) {
+    public IssueTrackers(Map<String, IssueTrackerClient> byConnector) {
         this(
             Map.of("smithy", byConnector),
             "smithy",
             byConnector.keySet().stream().findFirst().orElse(""),
-            fallback,
             (connector, actor) -> actor
         );
     }
@@ -65,11 +56,19 @@ public class IssueTrackers {
      *                  the caller, and unknown is a mistake worth reporting
      */
     public IssueTrackerClient forConnector(String actor, String connector) {
-        var connectors = byActor.get(actor == null || actor.isBlank() ? defaultActor : actor);
-        if (connectors == null) connectors = byActor.getOrDefault(defaultActor, Map.of());
+        String resolvedActor = actor == null || actor.isBlank() ? defaultActor : actor;
+        var connectors = byActor.get(resolvedActor);
+        if (connectors == null) {
+            throw new IllegalArgumentException(
+                "No issue tracker identity is configured for actor '%s'; configured actors: %s".formatted(
+                    resolvedActor,
+                    byActor.keySet()
+                )
+            );
+        }
 
         if (connector == null || connector.isBlank()) {
-            return connectors.getOrDefault(defaultConnector, fallback);
+            connector = defaultConnector;
         }
         var tracker = connectors.get(connector);
         if (tracker == null) {

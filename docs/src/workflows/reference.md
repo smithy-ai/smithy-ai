@@ -144,9 +144,9 @@ Inputs are given in a step's `with:`. Outputs are read as `steps.<id>.<field>`.
 Provider actions accept `target:` (a connector ID, defaulting to the event source)
 and `actor:` (a logical actor, defaulting to the workflow's `vars.actor`). VCS
 actions fall back to `defaults.vcs` when the event came from an issue-only
-connector such as Jira. `issue.assign`, `pr.setAssignees`, and
-`pr.requestReview` accept logical names under `actors:` and resolve them through
-the target connector.
+connector such as Jira. Assignment actions require logical names under `actors:`
+and resolve them through the target connector. `pr.requestReview` accepts raw
+provider usernames under `reviewers:` or logical names under `actors:`.
 
 `container.init` gets its token and commit address from the workflow's actor as
 well, so an agent working in the container pushes as that identity.
@@ -203,7 +203,7 @@ on.
 | Action | Required | Optional | Outputs |
 |---|---|---|---|
 | `issue.create` | `owner`, `repo`, `title` | `body`, `labels[]` | `issueRef`, `title`, `baseBranch` |
-| `issue.assign` | `owner`, `repo`, `issue` | `assignees[]` (or `to`) | `assignees` |
+| `issue.assign` | `owner`, `repo`, `issue`, `actors[]` | none | `actors`, `assignees` |
 | `issue.label` | `owner`, `repo`, `issue`, `label` or `labels[]` | none | `labels` |
 | `issue.comment` | `owner`, `repo`, `issue`, `body` | none | `commentId` |
 | `issue.read` | `owner`, `repo`, `issue` | none | `issueRef`, `title`, `body`, `state`, `assignees`, `labels`, `baseBranch` |
@@ -221,16 +221,16 @@ on.
 | `pr.conversation` | `owner`, `repo`, `number` | none | `entries`, `count` |
 | `pr.read` | `owner`, `repo`, `number` | none | `number`, `title`, `body`, `merged`, `headRef`, `baseRef`, `assignees` |
 | `pr.findByHead` | `owner`, `repo`, `head` | none | `found`, `number`, `title`, `merged`, `assignees` |
-| `pr.isAssigned` | `owner`, `repo`, `number`, `user` | none | `assigned` |
-| `pr.setAssignees` | `owner`, `repo`, `number` | `assignees[]` | `assignees` |
-| `pr.requestReview` | `owner`, `repo`, `number` | `reviewers[]`, `notFrom` | `requested`, `reviewers`, `reason` |
+| `pr.isAssigned` | `owner`, `repo`, `number`, `assignedActor` | none | `assigned`, `actor`, `username` |
+| `pr.setAssignees` | `owner`, `repo`, `number`, `actors[]` | none | `actors`, `assignees` |
+| `pr.requestReview` | `owner`, `repo`, `number` | `reviewers[]`, `actors[]`, `notFromActor` | `requested`, `reviewers`, `reason` |
 | `pr.link` | `owner`, `repo`, `number` | none | `url` |
 | `comment.react` | `owner`, `repo`, `number`, `commentId` | `reaction` (default `eyes`) | `reacted` |
 
 `pr.create` reuses an existing pull request for the same head branch instead of
-opening a second one. `pr.requestReview` drops `notFrom` from the list, and a
-failure to request the review is reported in `reason` without stopping the
-transition.
+opening a second one. `pr.requestReview` resolves `notFromActor` and drops that
+provider username from the list. A failure to request the review is reported in
+`reason` without stopping the transition.
 
 ### Files and repositories
 

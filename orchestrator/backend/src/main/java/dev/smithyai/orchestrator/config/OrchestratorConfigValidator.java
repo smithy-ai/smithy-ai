@@ -18,6 +18,7 @@ final class OrchestratorConfigValidator {
         require(!config.connectors().isEmpty(), "connectors must contain at least one connector");
         var defaults = config.defaults();
         require(defaults != null, "defaults is required");
+        require(defaults.vcs() != null && !defaults.vcs().isBlank(), "defaults.vcs is required");
         require(config.connectors().containsKey(defaults.vcs()), "defaults.vcs must name a configured connector");
         require(
             !"jira".equals(config.connectors().get(defaults.vcs()).resolvedProvider()),

@@ -7,4 +7,3 @@ metadata:
 vars:
   repositoryCatalog: acme-product
   storyRepos: [PRODUCT/PRODUCT]
-  childConnector: gitlab-main

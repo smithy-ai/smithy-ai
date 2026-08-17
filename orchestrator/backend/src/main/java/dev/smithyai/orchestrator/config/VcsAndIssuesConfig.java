@@ -46,15 +46,15 @@ public class VcsAndIssuesConfig {
      * without a workflow having to say which is which.
      */
     @Bean
-    public IssueTrackers issueTrackers(
-        ConnectorRegistry connectors,
-        @Qualifier("smithyIssueTracker") IssueTrackerClient smithyIssueTracker
-    ) {
+    public IssueTrackers issueTrackers(ConnectorRegistry connectors) {
         var byActor = new java.util.LinkedHashMap<String, java.util.Map<String, IssueTrackerClient>>();
         for (String actor : connectors.actors()) {
             var byConnector = new java.util.LinkedHashMap<String, IssueTrackerClient>();
-            for (String connector : connectors.connectorIds())
-                byConnector.put(connector, connectors.issues(connector, actor));
+            for (String connector : connectors.connectorIds()) {
+                if (connectors.hasActor(connector, actor)) {
+                    byConnector.put(connector, connectors.issues(connector, actor));
+                }
+            }
             byActor.put(actor, byConnector);
         }
         log.info("Issue trackers: connectors={}, actors={}", connectors.connectorIds(), byActor.keySet());
@@ -62,7 +62,6 @@ public class VcsAndIssuesConfig {
             byActor,
             connectors.defaultActor(),
             connectors.defaultIssueTracker(""),
-            smithyIssueTracker,
             connectors::assignee
         );
     }
@@ -79,8 +78,11 @@ public class VcsAndIssuesConfig {
         var byActor = new java.util.LinkedHashMap<String, java.util.Map<String, VcsClient>>();
         for (String actor : connectors.actors()) {
             var byConnector = new java.util.LinkedHashMap<String, VcsClient>();
-            for (String connector : connectors.vcsConnectorIds())
-                byConnector.put(connector, connectors.vcs(connector, actor));
+            for (String connector : connectors.vcsConnectorIds()) {
+                if (connectors.hasActor(connector, actor)) {
+                    byConnector.put(connector, connectors.vcs(connector, actor));
+                }
+            }
             byActor.put(actor, byConnector);
         }
         log.info("VCS clients: connectors={}, actors={}", connectors.vcsConnectorIds(), byActor.keySet());
@@ -91,17 +93,5 @@ public class VcsAndIssuesConfig {
             connectors::username,
             connector -> connectors.connector(connector).resolvedExternalUrl()
         );
-    }
-
-    @Bean
-    @Qualifier("architectVcs")
-    public VcsClient architectVcsClient(ConnectorRegistry connectors) {
-        return connectors.vcs(connectors.defaultVcs(), VcsProviderConfig.ARCHITECT);
-    }
-
-    @Bean
-    @Qualifier("architectIssueTracker")
-    public IssueTrackerClient architectIssueTrackerClient(ConnectorRegistry connectors) {
-        return connectors.issues(connectors.defaultIssueTracker(""), VcsProviderConfig.ARCHITECT);
     }
 }

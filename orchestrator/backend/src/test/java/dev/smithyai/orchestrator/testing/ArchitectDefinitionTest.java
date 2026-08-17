@@ -85,9 +85,19 @@ class ArchitectDefinitionTest {
         var containers = new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker);
         var environments = new RunEnvironments(store, containers, new KnowledgebaseConfig(false, null, null));
         // One stub answers for every connector in these tests.
-        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
-            java.util.Map.of("forgejo", vcs, "gitlab", vcs, "jira", vcs),
+        var trackerConnectors = java.util.Map.<String, dev.smithyai.orchestrator.service.vcs.IssueTrackerClient>of(
+            "forgejo",
+            vcs,
+            "gitlab",
+            vcs,
+            "jira",
             vcs
+        );
+        var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
+            java.util.Map.of("smithy", trackerConnectors, "architect", trackerConnectors),
+            "smithy",
+            "forgejo",
+            (connector, actor) -> actor
         );
         var renderer = new ExpressionRenderer();
         var prompts = new PromptRenderer(new DefaultResourceLoader());

@@ -50,10 +50,7 @@ public class Actors {
         };
     }
 
-    /**
-     * The token it acts with, falling back to the default account's where this
-     * actor has none of its own.
-     */
+    /** The token this actor uses on the default VCS connector. */
     public String token(String actor) {
         if (connectors != null) return connectors.token(connectors.defaultVcs(), actor);
         return vcs.tokenFor(named(actor));

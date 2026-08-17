@@ -37,6 +37,10 @@ class OrchestratorConfigTest {
         assertEquals("jira-product", registry.defaultIssueTracker("jira-product"));
         assertEquals("build/test.db", loader.storageConfig().resolvedDatabase());
         assertEquals("forgejo-main", config.repositoryCatalogs().get("product").getFirst().source());
+        var missingActor = assertThrows(IllegalArgumentException.class, () ->
+            registry.username("forgejo-main", "architect")
+        );
+        assertTrue(missingActor.getMessage().contains("no identity for actor 'architect'"));
     }
 
     @Test
@@ -56,6 +60,22 @@ class OrchestratorConfigTest {
     @Test
     void secretReferencesNeverRenderTheirLiteralValue() {
         assertEquals("SecretRef(redacted)", SecretRef.literal("do-not-print-me").toString());
+    }
+
+    @Test
+    void missingDefaultVcsHasAClearValidationError() throws Exception {
+        Path webhookSecret = tempDir.resolve("webhook-secret");
+        Files.writeString(webhookSecret, "hook");
+        Path configFile = tempDir.resolve("orchestrator.yml");
+        Files.writeString(configFile, config(webhookSecret).replace("vcs: forgejo-main", "vcs:"));
+        var environment = new MockEnvironment()
+            .withProperty("ORCHESTRATOR_CONFIG", configFile.toString())
+            .withProperty("CLAUDE_TOKEN", "claude")
+            .withProperty("FORGEJO_SMITHY_TOKEN", "forgejo");
+
+        var error = assertThrows(IllegalStateException.class, () -> new ConfigLoader(environment));
+
+        assertEquals("defaults.vcs is required in orchestrator.yml", error.getMessage());
     }
 
     private static String config(Path webhookSecret) {

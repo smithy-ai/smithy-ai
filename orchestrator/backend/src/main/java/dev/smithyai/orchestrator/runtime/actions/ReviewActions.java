@@ -125,13 +125,16 @@ public class ReviewActions {
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var vcs = Vcs.pick(this, context, input, clients);
+                String target = Vcs.target(this, context, input, clients);
+                String actor = required(input, "assignedActor");
+                String username = clients.username(target, actor);
                 boolean assigned = vcs.isAssigned(
                     required(input, "owner"),
                     required(input, "repo"),
                     intInput(input, "number", 0),
-                    required(input, "user")
+                    username
                 );
-                return Map.of("assigned", assigned);
+                return Map.of("assigned", assigned, "actor", actor, "username", username);
             }
         };
     }
@@ -153,7 +156,7 @@ public class ReviewActions {
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var vcs = Vcs.pick(this, context, input, clients);
                 String target = Vcs.target(this, context, input, clients);
-                var actors = listInput(input, "actors");
+                var actors = requiredListInput(input, "actors");
                 var assignees = actors
                     .stream()
                     .map(actor -> clients.username(target, actor))

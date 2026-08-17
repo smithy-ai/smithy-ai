@@ -121,8 +121,9 @@ public class PullRequestActions {
                 // Never the author. Providers reject it, and the request was
                 // only ever a courtesy — the approver is often the person who
                 // asked for the work, and sometimes the agent itself.
-                String author = optional(input, "notFrom", "");
                 String target = Vcs.target(this, context, input, clients);
+                String excludedActor = optional(input, "notFromActor", "");
+                String excludedUsername = excludedActor.isBlank() ? "" : clients.username(target, excludedActor);
                 var requestedReviewers = new java.util.ArrayList<>(listInput(input, "reviewers"));
                 requestedReviewers.addAll(
                     listInput(input, "actors")
@@ -132,7 +133,7 @@ public class PullRequestActions {
                 );
                 var reviewers = requestedReviewers
                     .stream()
-                    .filter(reviewer -> !reviewer.isBlank() && !reviewer.equals(author))
+                    .filter(reviewer -> !reviewer.isBlank() && !reviewer.equals(excludedUsername))
                     .distinct()
                     .toList();
                 if (reviewers.isEmpty()) return Map.of("number", number, "requested", false, "reason", "no-one to ask");
