@@ -152,14 +152,19 @@ public class ReviewActions {
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var vcs = Vcs.pick(this, context, input, clients);
-                var assignees = listInput(input, "assignees");
+                String target = Vcs.target(this, context, input, clients);
+                var actors = listInput(input, "actors");
+                var assignees = actors
+                    .stream()
+                    .map(actor -> clients.username(target, actor))
+                    .toList();
                 vcs.setPrAssignees(
                     required(input, "owner"),
                     required(input, "repo"),
                     intInput(input, "number", 0),
                     assignees
                 );
-                return Map.of("assignees", assignees);
+                return Map.of("actors", actors, "assignees", assignees);
             }
         };
     }
@@ -425,10 +430,7 @@ public class ReviewActions {
 
     /** A link to a pull request that works outside the network the orchestrator is on. */
     @Bean
-    public WorkflowAction prLinkAction(
-        VcsClients clients,
-        dev.smithyai.orchestrator.config.VcsProviderConfig vcsConfig
-    ) {
+    public WorkflowAction prLinkAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -443,10 +445,11 @@ public class ReviewActions {
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var vcs = Vcs.pick(this, context, input, clients);
+                String target = Vcs.target(this, context, input, clients);
                 return Map.of(
                     "url",
                     vcs.prUrl(
-                        vcsConfig.resolvedExternalUrl(),
+                        clients.externalUrl(target),
                         required(input, "owner"),
                         required(input, "repo"),
                         intInput(input, "number", 0)
@@ -464,10 +467,7 @@ public class ReviewActions {
      * middle of them that resolve to nothing.
      */
     @Bean
-    public WorkflowAction fileUrlAction(
-        VcsClients clients,
-        dev.smithyai.orchestrator.config.VcsProviderConfig vcsConfig
-    ) {
+    public WorkflowAction fileUrlAction(VcsClients clients) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -482,8 +482,9 @@ public class ReviewActions {
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var vcs = Vcs.pick(this, context, input, clients);
+                String target = Vcs.target(this, context, input, clients);
                 String root = "%s/%s/%s".formatted(
-                    vcsConfig.resolvedExternalUrl(),
+                    clients.externalUrl(target),
                     required(input, "owner"),
                     required(input, "repo")
                 );

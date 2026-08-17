@@ -19,10 +19,12 @@ public class GitHubEventMapper {
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
+    private final java.util.Map<String, String> actorUsers;
     private final java.util.List<String> actors;
-    private final String smithyEmail;
+    private final java.util.List<String> actorEmails;
     private final String planApprovedLabel;
     private final String branchPrefix;
+    private final String sourceId;
 
     public GitHubEventMapper(
         BotConfig botConfig,
@@ -30,14 +32,26 @@ public class GitHubEventMapper {
         WorkflowPolicyConfig workflowPolicy,
         VcsClient smithyClient
     ) {
+        this(botConfig, vcsConfig, workflowPolicy, smithyClient, RepoInfo.GITHUB);
+    }
+
+    public GitHubEventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        WorkflowPolicyConfig workflowPolicy,
+        VcsClient smithyClient,
+        String sourceId
+    ) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
+        this.actorUsers = botConfig.actorUsers();
         this.actors = botConfig.actors();
-        this.smithyEmail = botConfig.resolvedSmithyEmail();
+        this.actorEmails = botConfig.actorEmails();
         this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
         this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
+        this.sourceId = sourceId;
         log.info(
             "GitHubEventMapper initialized: smithyBot='{}', architectBot='{}'",
             botUser,
@@ -76,7 +90,8 @@ public class GitHubEventMapper {
     private WorkflowEvent mapIssueAssigned(JsonNode payload) {
         // Any actor this orchestrator answers as, and the event says which: a
         // feature handed to the coordinator is not a task handed to smithy.
-        String assignee = assignedActor(payload);
+        String assignee = actorForLogin(payload.path("assignee").path("login").asText(""));
+        if (assignee == null) assignee = assignedActor(payload);
         if (assignee == null) return null;
         if (!"open".equals(payload.path("issue").path("state").asText(""))) return null;
 
@@ -86,8 +101,12 @@ public class GitHubEventMapper {
     }
 
     private WorkflowEvent mapIssueUnassigned(JsonNode payload) {
-        if (assignedActor(payload) != null) return null;
         var ctx = extractIssue(payload);
+        String remaining = assignedActor(payload);
+        if (remaining != null) {
+            String repoHtmlUrl = payload.path("repository").path("html_url").asText("");
+            return new WorkflowEvent.IssueAssigned(withAssignee(ctx, remaining), repoHtmlUrl);
+        }
         return new WorkflowEvent.IssueUnassigned(ctx);
     }
 
@@ -105,7 +124,7 @@ public class GitHubEventMapper {
     private WorkflowEvent mapIssueComment(JsonNode payload) {
         if (!"created".equals(payload.path("action").asText(""))) return null;
         String commentUser = payload.path("comment").path("user").path("login").asText("");
-        if (botUser.equals(commentUser)) return null;
+        if (actors.contains(commentUser)) return null;
 
         var issue = payload.path("issue");
         // GitHub sends PR conversation comments as issue_comment events
@@ -160,7 +179,7 @@ public class GitHubEventMapper {
             for (var c : commits) {
                 // GitHub uses author.email for the commit author
                 String email = c.path("author").path("email").asText("");
-                if (!smithyEmail.equals(email)) {
+                if (!actorEmails.contains(email)) {
                     isHuman = true;
                     break;
                 }
@@ -187,7 +206,7 @@ public class GitHubEventMapper {
 
     private WorkflowEvent mapReviewRequested(JsonNode payload) {
         String reviewer = payload.path("requested_reviewer").path("login").asText("");
-        if (!reviewer.equals(botConfig.resolvedArchitectUser())) return null;
+        if (!reviewer.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))) return null;
 
         var info = repoInfo(payload);
         var prc = extractPr(info, payload.path("pull_request"));
@@ -250,7 +269,7 @@ public class GitHubEventMapper {
 
         var review = payload.path("review");
         String reviewUser = review.path("user").path("login").asText("");
-        if (botUser.equals(reviewUser)) return null;
+        if (actors.contains(reviewUser)) return null;
 
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
@@ -273,13 +292,13 @@ public class GitHubEventMapper {
 
         var comment = payload.path("comment");
         String commentUser = comment.path("user").path("login").asText("");
-        if (botUser.equals(commentUser)) return null;
+        if (actors.contains(commentUser)) return null;
 
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
 
         // Comments on the architect's own context PR route back to its learn session.
-        if (Naming.isArchitectBranch(headBranch) && !commentUser.equals(botConfig.resolvedArchitectUser())) {
+        if (Naming.isArchitectBranch(headBranch) && !commentUser.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))) {
             var info = repoInfo(payload);
             var prc = extractPr(info, pr);
             return new WorkflowEvent.PrConversationComment(
@@ -340,7 +359,8 @@ public class GitHubEventMapper {
     // ── Helpers ──────────────────────────────────────────────
 
     private RepoInfo repoInfo(JsonNode payload) {
-        return Naming.repoInfo(payload, vcsConfig.resolvedUrl(), RepoInfo.GITHUB);
+        var info = Naming.repoInfo(payload, vcsConfig.resolvedUrl(), sourceId);
+        return new RepoInfo(info.owner(), info.repo(), info.cloneUrl(), sourceId, RepoInfo.GITHUB);
     }
 
     private IssueContext extractIssue(JsonNode payload) {
@@ -379,10 +399,20 @@ public class GitHubEventMapper {
 
     /** Which of this deployment's actors the issue was handed to, if any. */
     private String assignedActor(JsonNode payload) {
-        for (String actor : actors) {
-            if (isUserAssigned(payload, actor)) return actor;
+        for (var actor : actorUsers.entrySet()) {
+            if (isUserAssigned(payload, actor.getValue())) return actor.getKey();
         }
         return null;
+    }
+
+    private String actorForLogin(String login) {
+        return actorUsers
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().equals(login))
+            .map(java.util.Map.Entry::getKey)
+            .findFirst()
+            .orElse(null);
     }
 
     private static IssueContext withAssignee(IssueContext ctx, String assignee) {

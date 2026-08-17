@@ -19,7 +19,7 @@ from setup_lib import (
     prompt_forgejo_url,
 )
 
-WEBHOOK_URL = "http://orchestrator:8080/webhooks/forgejo"
+WEBHOOK_URL = "http://orchestrator:8080/webhooks/forgejo-main"
 
 MAIN_REPO_EVENTS = [
     "issues",

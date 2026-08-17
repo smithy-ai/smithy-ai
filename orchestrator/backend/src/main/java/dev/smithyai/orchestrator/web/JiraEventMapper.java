@@ -24,11 +24,22 @@ public class JiraEventMapper {
     private final JiraProviderConfig jira;
     private final VcsClient smithyVcs;
     private final IssueTrackerClient issueTracker;
+    private final String sourceId;
 
     public JiraEventMapper(VcsProviderConfig vcsConfig, VcsClient smithyVcs, IssueTrackerClient issueTracker) {
+        this(vcsConfig, smithyVcs, issueTracker, RepoInfo.JIRA);
+    }
+
+    public JiraEventMapper(
+        VcsProviderConfig vcsConfig,
+        VcsClient smithyVcs,
+        IssueTrackerClient issueTracker,
+        String sourceId
+    ) {
         this.jira = vcsConfig.jira();
         this.smithyVcs = smithyVcs;
         this.issueTracker = issueTracker;
+        this.sourceId = sourceId;
         log.info(
             "JiraEventMapper initialized: botAccountId='{}', repoField='{}', approvalLabel='{}'",
             jira.botAccountId(),
@@ -110,7 +121,7 @@ public class JiraEventMapper {
         var issue = payload.path("issue");
         var comment = payload.path("comment");
         String author = comment.path("author").path("accountId").asText(comment.path("author").path("name").asText(""));
-        if (jira.botAccountId().equals(author)) return null;
+        if (jira.actorFor(author) != null) return null;
         if (!isBot(issue.path("fields").path("assignee"))) return null;
 
         var ctx = extractIssue(issue, false);
@@ -157,7 +168,7 @@ public class JiraEventMapper {
             String project = key.contains("-") ? key.substring(0, key.indexOf('-')) : key;
             log.debug("Jira issue {} has no repository field; scoping it to project {}", key, project);
             return new IssueContext(
-                new RepoInfo(project, project, null, RepoInfo.JIRA),
+                new RepoInfo(project, project, null, sourceId, RepoInfo.JIRA),
                 key,
                 fields.path("summary").asText(""),
                 fields.path("description").asText(""),
@@ -195,7 +206,7 @@ public class JiraEventMapper {
             return null;
         }
 
-        var info = new RepoInfo(parts[0], parts[1], smithyVcs.cloneUrl(parts[0], parts[1]), RepoInfo.JIRA);
+        var info = new RepoInfo(parts[0], parts[1], smithyVcs.cloneUrl(parts[0], parts[1]), sourceId, RepoInfo.JIRA);
         return new IssueContext(
             info,
             key,

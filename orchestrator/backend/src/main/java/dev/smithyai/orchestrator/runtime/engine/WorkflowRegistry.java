@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -40,20 +41,43 @@ public class WorkflowRegistry {
     private final CapabilityValidator validator;
     private final WorkflowPolicyConfig policy;
     private final Set<Capability> supported;
+    private final dev.smithyai.orchestrator.config.OrchestratorConfig orchestratorConfig;
 
     private final Map<String, LoadedWorkflowDefinition> byName = new LinkedHashMap<>();
 
+    @Autowired
     public WorkflowRegistry(
         WorkflowDefinitionLoader loader,
         CapabilityValidator validator,
         WorkflowPolicyConfig policy,
         @Qualifier("smithyVcsClient") VcsClient vcs,
         @Qualifier("smithyIssueTracker") IssueTrackerClient issues,
-        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues
+        @Qualifier("repoIssueTracker") IssueTrackerClient repoIssues,
+        dev.smithyai.orchestrator.config.OrchestratorConfig orchestratorConfig
     ) {
         this.loader = loader;
         this.validator = validator;
         this.policy = policy;
+        this.orchestratorConfig = orchestratorConfig;
+        this.supported = supportedCapabilities(vcs, issues, repoIssues);
+    }
+
+    public WorkflowRegistry(
+        WorkflowDefinitionLoader loader,
+        CapabilityValidator validator,
+        WorkflowPolicyConfig policy,
+        VcsClient vcs,
+        IssueTrackerClient issues,
+        IssueTrackerClient repoIssues
+    ) {
+        this(loader, validator, policy, vcs, issues, repoIssues, null);
+    }
+
+    private static Set<Capability> supportedCapabilities(
+        VcsClient vcs,
+        IssueTrackerClient issues,
+        IssueTrackerClient repoIssues
+    ) {
         // The platform always supplies an environment and an agent; everything
         // else depends on which providers are configured.
         //
@@ -66,7 +90,7 @@ public class WorkflowRegistry {
         capabilities.addAll(vcs.capabilities());
         capabilities.addAll(issues.capabilities());
         capabilities.addAll(repoIssues.capabilities());
-        this.supported = Set.copyOf(capabilities);
+        return Set.copyOf(capabilities);
     }
 
     @PostConstruct
@@ -104,7 +128,7 @@ public class WorkflowRegistry {
             }
             LoadedWorkflowDefinition resolved;
             try {
-                resolved = resolveExtends(loaded, raw);
+                resolved = resolveRepositoryCatalog(resolveExtends(loaded, raw));
                 validator.validate(resolved.source(), resolved.definition(), supported);
             } catch (WorkflowDefinitionException e) {
                 log.error("Workflow '{}' from {} is not runnable here: {}", name, loaded.source(), e.getMessage());
@@ -158,6 +182,51 @@ public class WorkflowRegistry {
         );
         log.info("Workflow '{}' extends '{}'", loaded.definition().metadata().name(), parentName);
         return new LoadedWorkflowDefinition(loaded.source() + " (extends " + parentName + ")", merged);
+    }
+
+    private LoadedWorkflowDefinition resolveRepositoryCatalog(LoadedWorkflowDefinition loaded) {
+        Object reference = loaded.definition().vars().get("repositoryCatalog");
+        if (reference == null) return loaded;
+        String name = String.valueOf(reference);
+        if (orchestratorConfig == null) {
+            throw new WorkflowDefinitionException(
+                "references repository catalog '" + name + "' without deployment config"
+            );
+        }
+        var entries = orchestratorConfig.repositoryCatalogs().get(name);
+        if (entries == null) {
+            throw new WorkflowDefinitionException(
+                "references unknown repository catalog '%s' (available: %s)".formatted(
+                    name,
+                    orchestratorConfig.repositoryCatalogs().keySet()
+                )
+            );
+        }
+        var catalog = entries
+            .stream()
+            .map(entry -> {
+                var item = new LinkedHashMap<String, Object>();
+                item.put("source", entry.source());
+                item.put("owner", entry.owner());
+                item.put("repo", entry.repo());
+                item.put("description", entry.description() == null ? "" : entry.description());
+                return (Object) item;
+            })
+            .toList();
+        var definition = loaded.definition();
+        var vars = new LinkedHashMap<String, Object>(definition.vars());
+        vars.put("catalog", catalog);
+        var resolved = new WorkflowDefinition(
+            definition.apiVersion(),
+            definition.kind(),
+            definition.metadata(),
+            definition.defaults(),
+            vars,
+            definition.routing(),
+            definition.state(),
+            definition.actions()
+        );
+        return new LoadedWorkflowDefinition(loaded.source() + " (catalog " + name + ")", resolved);
     }
 
     public Optional<WorkflowDefinition> find(String name) {

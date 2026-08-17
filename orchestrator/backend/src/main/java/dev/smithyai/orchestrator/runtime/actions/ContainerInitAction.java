@@ -59,6 +59,10 @@ public class ContainerInitAction implements WorkflowAction {
         }
 
         String name = required(input, "name");
+        String eventSource = context.event() == null ? "" : context.event().source();
+        String connector = optional(input, "target", actors.vcsConnector(eventSource));
+        if ("event.source".equals(connector)) connector = actors.vcsConnector(eventSource);
+        String actor = optional(input, "actor", context.actor());
         var config = ContainerConfig.builder()
             .cloneUrl(required(input, "cloneUrl"))
             // Empty is meaningful: smithy-init then clones the remote's
@@ -68,9 +72,11 @@ public class ContainerInitAction implements WorkflowAction {
             .cacheVolumes(dockerConfig.getCacheVolumeMap())
             // The workflow's own actor unless the step says otherwise, so a
             // container the architect works in pushes as the architect.
-            .gitEmail(optional(input, "gitEmail", actors.email(context.actor())))
-            .gitUsername(optional(input, "gitUsername", null))
-            .vcsToken(optional(input, "vcsToken", actors.token(context.actor())))
+            .gitEmail(optional(input, "gitEmail", actors.email(connector, actor)))
+            .gitUsername(optional(input, "gitUsername", actors.gitName(connector, actor)))
+            .vcsUrl(actors.vcsUrl(connector))
+            .vcsToken(optional(input, "vcsToken", actors.token(connector, actor)))
+            .gitAuthUser(actors.gitAuthUser(connector))
             .extraRepos(extraRepos(input))
             .workflow(run.workflowName())
             .build();

@@ -22,21 +22,41 @@ public class IssueTrackers {
 
     private final Map<String, Map<String, IssueTrackerClient>> byActor;
     private final String defaultActor;
+    private final String defaultConnector;
     private final IssueTrackerClient fallback;
+    private final java.util.function.BiFunction<String, String, String> assigneeResolver;
+
+    public IssueTrackers(
+        Map<String, Map<String, IssueTrackerClient>> byActor,
+        String defaultActor,
+        String defaultConnector,
+        IssueTrackerClient fallback,
+        java.util.function.BiFunction<String, String, String> assigneeResolver
+    ) {
+        this.byActor = new LinkedHashMap<>(byActor);
+        this.defaultActor = defaultActor;
+        this.defaultConnector = defaultConnector;
+        this.fallback = fallback;
+        this.assigneeResolver = assigneeResolver;
+    }
 
     public IssueTrackers(
         Map<String, Map<String, IssueTrackerClient>> byActor,
         String defaultActor,
         IssueTrackerClient fallback
     ) {
-        this.byActor = new LinkedHashMap<>(byActor);
-        this.defaultActor = defaultActor;
-        this.fallback = fallback;
+        this(byActor, defaultActor, "", fallback, (connector, actor) -> actor);
     }
 
     /** Single-actor deployments, and tests. */
     public IssueTrackers(Map<String, IssueTrackerClient> byConnector, IssueTrackerClient fallback) {
-        this(Map.of("smithy", byConnector), "smithy", fallback);
+        this(
+            Map.of("smithy", byConnector),
+            "smithy",
+            byConnector.keySet().stream().findFirst().orElse(""),
+            fallback,
+            (connector, actor) -> actor
+        );
     }
 
     /**
@@ -49,8 +69,7 @@ public class IssueTrackers {
         if (connectors == null) connectors = byActor.getOrDefault(defaultActor, Map.of());
 
         if (connector == null || connector.isBlank()) {
-            // No connector named and none on the event: the deployment's own.
-            return connectors.values().stream().findFirst().orElse(fallback);
+            return connectors.getOrDefault(defaultConnector, fallback);
         }
         var tracker = connectors.get(connector);
         if (tracker == null) {
@@ -72,5 +91,9 @@ public class IssueTrackers {
     public Optional<IssueTrackerClient> find(String actor, String connector) {
         var connectors = byActor.get(actor);
         return connectors == null ? Optional.empty() : Optional.ofNullable(connectors.get(connector));
+    }
+
+    public String assignee(String connector, String actor) {
+        return assigneeResolver.apply(connector == null || connector.isBlank() ? defaultConnector : connector, actor);
     }
 }

@@ -177,6 +177,21 @@ public class RunEngine implements SignalDelivery {
         WorkflowEvent event
     ) {
         if (existing.isEmpty() && owner.isPresent()) {
+            Run owned = owner.get();
+            if (
+                event instanceof WorkflowEvent.IssueAssigned &&
+                owned.parentRunId() == null &&
+                !owned.workflowName().equals(definition.metadata().name())
+            ) {
+                if (!owned.isTerminal()) close(owned, RunStatus.CANCELLED);
+                log.info(
+                    "Transferring issue from run {} ({}) to workflow {}",
+                    owned.id(),
+                    owned.workflowName(),
+                    definition.metadata().name()
+                );
+                return dispatch(definition, start(definition, key, event), event);
+            }
             log.debug(
                 "{} stands aside: this work already belongs to run {} ({})",
                 definition.metadata().name(),
@@ -292,6 +307,13 @@ public class RunEngine implements SignalDelivery {
             store.mergeVars(run.id(), Map.of(SOURCE_VAR, event.source()));
         }
         store.correlate(CorrelationKind.KEY, key, run.id());
+        if (event instanceof WorkflowEvent.IssueScoped issue) {
+            store.correlate(
+                CorrelationKind.ISSUE,
+                RunRecorder.issueRef(issue.ctx().info().owner(), issue.ctx().info().repo(), issue.ctx().issueRef()),
+                run.id()
+            );
+        }
         store.updateStatus(run.id(), RunStatus.RUNNING);
         log.info("Started run {} of {} for {}", run.id(), definition.metadata().name(), key);
         return store.find(run.id()).orElseThrow();

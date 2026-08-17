@@ -18,11 +18,12 @@ class GitLabEventMapperTest {
     void anIssueOpenedAgainstAnActorSaysWhichOne() throws Exception {
         var toAgent = mapper().map("Issue Hook", json.readTree(opened("smithy-bot")));
         var agent = assertInstanceOf(WorkflowEvent.IssueAssigned.class, toAgent);
-        assertEquals("smithy-bot", agent.ctx().assignee());
-        assertEquals("gitlab", agent.ctx().info().source());
+        assertEquals("smithy", agent.ctx().assignee());
+        assertEquals("gitlab-main", agent.ctx().info().source());
+        assertEquals("gitlab", agent.ctx().info().sourceProvider());
 
         var toCoordinator = mapper().map("Issue Hook", json.readTree(opened("coordinator-bot")));
-        assertEquals("coordinator-bot", ((WorkflowEvent.IssueAssigned) toCoordinator).ctx().assignee());
+        assertEquals("coordinator", ((WorkflowEvent.IssueAssigned) toCoordinator).ctx().assignee());
 
         assertNull(mapper().map("Issue Hook", json.readTree(opened("someone-else"))));
     }
@@ -43,7 +44,7 @@ class GitLabEventMapperTest {
 
         var event = mapper().map("Issue Hook", json.readTree(payload));
 
-        assertEquals("coordinator-bot", assertInstanceOf(WorkflowEvent.IssueAssigned.class, event).ctx().assignee());
+        assertEquals("coordinator", assertInstanceOf(WorkflowEvent.IssueAssigned.class, event).ctx().assignee());
     }
 
     private static String opened(String username) {
@@ -75,6 +76,6 @@ class GitLabEventMapperTest {
             "oauth2"
         );
         var vcs = new VcsProviderConfig("gitlab", null, null, gitlab, null, null);
-        return new GitLabEventMapper(bots, vcs, WorkflowPolicyConfig.defaults(), null);
+        return new GitLabEventMapper(bots, vcs, WorkflowPolicyConfig.defaults(), null, "gitlab-main");
     }
 }

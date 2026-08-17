@@ -171,7 +171,7 @@ public class ExpressionRenderer {
             view.put("signal", signal.signal());
             // Signals carry the origin of whatever triggered them, so a
             // definition filters them the same way it filters anything else.
-            view.put("source", signal.source());
+            view.put("source", sourceView(signal));
             if (signal.payload() != null) view.putAll(signal.payload());
             return view;
         }
@@ -184,7 +184,7 @@ public class ExpressionRenderer {
         var view = new LinkedHashMap<String, Object>();
         view.put("name", event.name());
         // The connector it arrived through, so a definition can filter on it.
-        view.put("source", event.source());
+        view.put("source", sourceView(event));
         switch (event) {
             case WorkflowEvent.IssueScoped e -> {
                 view.put("issueRef", e.ctx().issueRef());
@@ -264,5 +264,10 @@ public class ExpressionRenderer {
             "cloneUrl",
             info.cloneUrl() == null ? "" : info.cloneUrl()
         );
+    }
+
+    private static Map<String, Object> sourceView(WorkflowEvent event) {
+        var source = event.sourceInfo();
+        return Map.of("id", source.id(), "provider", source.provider());
     }
 }

@@ -44,10 +44,12 @@ docker build -t claude-task-myenv:latest images/claude-task-myenv
 
 ### 3. Configure the orchestrator
 
-Set `TASK_IMAGE` in your `.env` or environment:
+Set `runtime.docker.taskImage` in `orchestrator.yml`:
 
 ```bash
-TASK_IMAGE=claude-task-myenv:latest
+runtime:
+  docker:
+    taskImage: claude-task-myenv:latest
 ```
 
 ## Example: Node.js only
@@ -78,4 +80,3 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /workspace
 CMD ["sleep", "infinity"]
 ```
-

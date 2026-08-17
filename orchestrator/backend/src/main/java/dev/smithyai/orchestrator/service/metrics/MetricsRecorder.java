@@ -1,6 +1,7 @@
 package dev.smithyai.orchestrator.service.metrics;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.smithyai.orchestrator.config.StorageConfig;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -11,7 +12,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
@@ -29,8 +29,8 @@ public class MetricsRecorder {
     private final ObjectMapper mapper = new ObjectMapper();
     private volatile boolean writable = true;
 
-    public MetricsRecorder(Environment env) {
-        this.path = Path.of(env.getProperty("METRICS_PATH", "/config/metrics.jsonl"));
+    public MetricsRecorder(StorageConfig storage) {
+        this.path = Path.of(storage.resolvedMetrics());
     }
 
     /** Best-effort: metrics must never break a workflow. */

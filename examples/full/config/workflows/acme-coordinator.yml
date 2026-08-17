@@ -1,0 +1,10 @@
+apiVersion: smithy.ai/v1alpha1
+kind: Workflow
+metadata:
+  name: acme-coordinator
+  extends: feature-coordinator
+
+vars:
+  repositoryCatalog: acme-product
+  storyRepos: [PRODUCT/PRODUCT]
+  childConnector: gitlab-main

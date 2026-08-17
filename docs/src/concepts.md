@@ -21,14 +21,15 @@ small set of fields.
 An adapter reports what happened; deciding what it means is the workflow's job.
 The full list is in the [reference](workflows/reference.md#events).
 
-Every event carries the **connector** it arrived through, readable as
-`event.source`. Two systems can produce the same event name: a Jira story and a
+Every event carries the **connector** it arrived through as `event.source.id` and
+its implementation as `event.source.provider`. Two systems can produce the same event name: a Jira story and a
 GitLab issue are both `issue.assigned`. The connector is what tells them apart.
 
 ## Connectors
 
-A connector is one system Smithy-AI talks to: `forgejo`, `gitlab`, `github`,
-`jira`. Which one an event came from decides which system an action works
+A connector is one named system Smithy-AI talks to, such as `forgejo-main` or
+`jira-product`. Its provider is `forgejo`, `gitlab`, `github`, or `jira`.
+Which connector an event came from decides which system an action works
 against, unless a step says otherwise.
 
 In a split setup, with stories in Jira and the work in GitLab repositories, an

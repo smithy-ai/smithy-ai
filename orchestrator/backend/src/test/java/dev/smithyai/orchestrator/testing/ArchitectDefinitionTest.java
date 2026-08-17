@@ -136,9 +136,9 @@ class ArchitectDefinitionTest {
                 review.prReviewAction(vcs.asRegistry()),
                 review.attachmentsFetchAction(trackers, environments),
                 review.fileDeleteAction(vcs.asRegistry()),
-                review.fileUrlAction(vcs.asRegistry(), vcsProviderConfig()),
+                review.fileUrlAction(vcs.asRegistry()),
                 review.repoCloneUrlAction(vcs.asRegistry()),
-                review.prLinkAction(vcs.asRegistry(), vcsProviderConfig()),
+                review.prLinkAction(vcs.asRegistry()),
                 new CiActions().ciRetryGuardAction(store, new CiConfig(false)),
                 new CiActions().ciResetAction(store)
             )

@@ -1,95 +1,61 @@
-docker:
-  command: ${DOCKER_COMMAND:docker}
-  network: ${DOCKER_NETWORK:forgejo-net}
-  task-image: ${TASK_IMAGE:claude-task-default:latest}
-  cache-volumes: ${CACHE_VOLUMES:pnpm,npm}
+apiVersion: smithy.ai/v1alpha1
+kind: OrchestratorConfig
 
-claude:
-  oauth-token: ${CLAUDE_CODE_OAUTH_TOKEN:}
-  api-key: ${ANTHROPIC_API_KEY:}
-  model: ${CLAUDE_MODEL:claude-opus-5}
+storage:
+  database: /config/smithy.db
+  metrics: /config/metrics.jsonl
 
-vcs:
-  provider: ${VCS_PROVIDER:forgejo}
-  issue-provider: ${ISSUE_PROVIDER:}
+runtime:
+  docker:
+    command: docker
+    network: forgejo-net
+    taskImage: claude-task-default:latest
+    caches: [pnpm, npm]
 
-  forgejo:
-    url: ${FORGEJO_URL:http://forgejo:3000}
-    external-url: ${FORGEJO_EXTERNAL_URL:http://localhost:3000}
-    webhook-secret: ${WEBHOOK_SECRET:}
-    smithy-token: ${SMITHY_FORGEJO_TOKEN:}
-    architect-token: ${ARCHITECT_FORGEJO_TOKEN:}
-    # The coordinator's own account. Without it a coordinator acts as smithy,
-    # and a story's plan appears to be written by the agent that implements it.
-    coordinator-token: ${COORDINATOR_FORGEJO_TOKEN:}
+agent:
+  claude:
+    model: claude-opus-5
+    oauthToken:
+      env: CLAUDE_CODE_OAUTH_TOKEN
+    apiKey:
+      env: ANTHROPIC_API_KEY
 
-  gitlab:
-    url: ${GITLAB_URL:}
-    external-url: ${GITLAB_EXTERNAL_URL:}
-    webhook-secret: ${GITLAB_WEBHOOK_SECRET:}
-    smithy-token: ${SMITHY_GITLAB_TOKEN:}
-    architect-token: ${ARCHITECT_GITLAB_TOKEN:}
-    coordinator-token: ${COORDINATOR_GITLAB_TOKEN:}
-    token-type: ${GITLAB_TOKEN_TYPE:}
+auth:
+  admin:
+    passwordHash:
+      env: ADMIN_PASSWORD_HASH
 
-  github:
-    url: ${GITHUB_URL:}
-    external-url: ${GITHUB_EXTERNAL_URL:}
-    webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
-    smithy-token: ${SMITHY_GITHUB_TOKEN:}
-    architect-token: ${ARCHITECT_GITHUB_TOKEN:}
-    coordinator-token: ${COORDINATOR_GITHUB_TOKEN:}
+connectors:
+  forgejo-main:
+    provider: forgejo
+    url: http://forgejo:3000
+    externalUrl: http://localhost:3000
+    webhookSecret:
+      env: WEBHOOK_SECRET
+    actors:
+      smithy:
+        username: smithy
+        token:
+          env: SMITHY_FORGEJO_TOKEN
+        git:
+          name: Smithy
+          email: smithy@localhost
+defaults:
+  vcs: forgejo-main
+  issueTracker: event.source
+  actor: smithy
 
-  jira:
-    url: ${JIRA_URL:}
-    email: ${JIRA_EMAIL:}
-    api-token: ${JIRA_API_TOKEN:}
-    # One account per actor, as on any other connector: which one a story is
-    # assigned to is how a person says what kind of work it is.
-    bot-account-id: ${JIRA_BOT_ACCOUNT_ID:}
-    architect-account-id: ${JIRA_ARCHITECT_ACCOUNT_ID:}
-    coordinator-account-id: ${JIRA_COORDINATOR_ACCOUNT_ID:}
-    webhook-secret: ${JIRA_WEBHOOK_SECRET:}
-    repo-field: ${JIRA_REPO_FIELD:}
-    plan-approved-label: ${JIRA_PLAN_APPROVED_LABEL:plan-approved}
-    plan-approved-status: ${JIRA_PLAN_APPROVED_STATUS:}
-    # Hand stories with no repository field to the workflows anyway, scoped to
-    # their Jira project. A coordinator picks repositories from its catalog, so
-    # it does not need the field; a development workflow does.
-    stories-without-repo: ${JIRA_STORIES_WITHOUT_REPO:false}
-
-workflow:
-  # The label that unlocks implementation, and the prefix of the branches the
-  # agent works on. The event adapters read these rather than hardcoding them.
-  plan-approved-label: ${PLAN_APPROVED_LABEL:Plan Approved}
-  branch-prefix: ${SMITHY_BRANCH_PREFIX:smithy/}
-
-  # Workflow definitions dropped here override the built-in ones by name, and
-  # anything new is picked up at startup. This is also where a coordinator's
-  # repository catalog goes — see workflows/feature-coordinator.yml.
-  definitions-dir: ${WORKFLOW_DIR:/config/workflows}
-
+workflows:
+  definitionsDir: /config/workflows
+  repositoryWorkflows: true
+  defaults:
+    branchPrefix: smithy/
+    planApprovedLabel: Plan Approved
 
 ci:
-  # When false, a failed pipeline pauses the workflow and asks for approval
-  # on the MR (reply with a thumbs-up) instead of debugging automatically.
-  autofix: ${CI_AUTOFIX:false}
+  autofix: false
 
 knowledgebase:
-  enabled: ${KNOWLEDGEBASE_ENABLED:false}
-  url: ${KNOWLEDGEBASE_URL:http://knowledgebase:8000/mcp}
-  tool-name: ${KNOWLEDGEBASE_TOOL_NAME:searchKnowledge}
-
-bots:
-  smithy:
-    user: ${SMITHY_BOT_USER:smithy}
-    email: ${SMITHY_BOT_EMAIL:}
-  architect:
-    user: ${ARCHITECT_BOT_USER:architect}
-    email: ${ARCHITECT_BOT_EMAIL:}
-  # The actor a feature story is assigned to. Which actor an issue is handed to
-  # is how a person says whether it is a feature to plan across repositories or
-  # a task to do in one.
-  coordinator:
-    user: ${COORDINATOR_BOT_USER:coordinator}
-    email: ${COORDINATOR_BOT_EMAIL:}
+  enabled: false
+  url: http://knowledgebase:8000/mcp
+  toolName: searchKnowledge

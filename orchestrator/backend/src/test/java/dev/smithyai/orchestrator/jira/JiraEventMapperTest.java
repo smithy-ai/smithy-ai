@@ -41,7 +41,7 @@ class JiraEventMapperTest {
             inv -> "https://gitlab.example.com/" + inv.getArgument(0) + "/" + inv.getArgument(1) + ".git"
         );
         when(vcs.baseUrl()).thenReturn("https://gitlab.example.com");
-        return new JiraEventMapper(vcsConfig, vcs, issueTracker);
+        return new JiraEventMapper(vcsConfig, vcs, issueTracker, "jira-product");
     }
 
     private String issueJson(String assigneeId, String repoFieldValue) {
@@ -90,7 +90,8 @@ class JiraEventMapperTest {
 
         var assigned = assertInstanceOf(WorkflowEvent.IssueAssigned.class, mapper().map(JSON.readTree(payload)));
         assertEquals("coordinator", assigned.ctx().assignee());
-        assertEquals("jira", assigned.ctx().info().source());
+        assertEquals("jira-product", assigned.ctx().info().source());
+        assertEquals("jira", assigned.ctx().info().sourceProvider());
     }
 
     @Test

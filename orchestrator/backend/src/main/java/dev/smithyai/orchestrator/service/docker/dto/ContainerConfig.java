@@ -12,7 +12,9 @@ public record ContainerConfig(
     Map<String, String> cacheVolumes,
     String gitEmail,
     String gitUsername,
+    String vcsUrl,
     String vcsToken,
+    String gitAuthUser,
     List<ExtraRepo> extraRepos,
     String workflow
 ) {

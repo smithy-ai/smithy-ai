@@ -20,10 +20,12 @@ public class GitLabEventMapper {
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
+    private final java.util.Map<String, String> actorUsers;
     private final java.util.List<String> actors;
-    private final String smithyEmail;
+    private final java.util.List<String> actorEmails;
     private final String planApprovedLabel;
     private final String branchPrefix;
+    private final String sourceId;
 
     public GitLabEventMapper(
         BotConfig botConfig,
@@ -31,14 +33,26 @@ public class GitLabEventMapper {
         WorkflowPolicyConfig workflowPolicy,
         VcsClient smithyClient
     ) {
+        this(botConfig, vcsConfig, workflowPolicy, smithyClient, RepoInfo.GITLAB);
+    }
+
+    public GitLabEventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        WorkflowPolicyConfig workflowPolicy,
+        VcsClient smithyClient,
+        String sourceId
+    ) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
+        this.actorUsers = botConfig.actorUsers();
         this.actors = botConfig.actors();
-        this.smithyEmail = botConfig.resolvedSmithyEmail();
+        this.actorEmails = botConfig.actorEmails();
         this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
         this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
+        this.sourceId = sourceId;
         log.info(
             "GitLabEventMapper initialized: smithyBot='{}', architectBot='{}'",
             botUser,
@@ -124,7 +138,7 @@ public class GitLabEventMapper {
             state
         );
 
-        if (currentActor != null && previousActor == null) {
+        if (currentActor != null && !currentActor.equals(previousActor)) {
             if (!"opened".equals(state)) {
                 log.debug("Issue assignee change skipped: state is '{}', expected 'opened'", state);
                 return null;
@@ -141,8 +155,8 @@ public class GitLabEventMapper {
 
     /** Which of this deployment's actors the issue is handed to, if any. */
     private String assignedActor(JsonNode assignees) {
-        for (String actor : actors) {
-            if (isUserInArray(assignees, actor)) return actor;
+        for (var actor : actorUsers.entrySet()) {
+            if (isUserInArray(assignees, actor.getValue())) return actor.getKey();
         }
         return null;
     }
@@ -182,7 +196,7 @@ public class GitLabEventMapper {
             .path("author")
             .path("username")
             .asText(payload.path("user").path("username").asText(""));
-        if (botUser.equals(commentUser)) return null;
+        if (actors.contains(commentUser)) return null;
 
         return switch (noteableType) {
             case "Issue" -> mapIssueNote(payload, attrs, commentUser);
@@ -220,7 +234,10 @@ public class GitLabEventMapper {
         // Regular note → conversation comment. Comments on the architect's own
         // context MR route back to its learn session; keying on the branch
         // rather than a "<repo>-context" name lets that repo be named anything.
-        if (Naming.isArchitectBranch(prc.headBranch()) && !commentUser.equals(botConfig.resolvedArchitectUser())) {
+        if (
+            Naming.isArchitectBranch(prc.headBranch()) &&
+            !commentUser.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))
+        ) {
             return new WorkflowEvent.PrConversationComment(
                 prc,
                 commentUser,
@@ -256,7 +273,7 @@ public class GitLabEventMapper {
         if (commits.isArray()) {
             for (var c : commits) {
                 String email = c.path("author").path("email").asText("");
-                if (!smithyEmail.equals(email)) {
+                if (!actorEmails.contains(email)) {
                     isHuman = true;
                     break;
                 }
@@ -292,7 +309,12 @@ public class GitLabEventMapper {
             var currentReviewers = payload.path("reviewers");
             if (currentReviewers.isArray()) {
                 for (var r : currentReviewers) {
-                    if (botConfig.resolvedArchitectUser().equals(r.path("username").asText(""))) {
+                    if (
+                        java.util.Objects.equals(
+                            actorUsers.get(VcsProviderConfig.ARCHITECT),
+                            r.path("username").asText("")
+                        )
+                    ) {
                         var prc = extractPrFromMr(info, attrs);
                         return new WorkflowEvent.ReviewRequested(prc);
                     }
@@ -349,7 +371,7 @@ public class GitLabEventMapper {
 
     private WorkflowEvent mapMrApproved(JsonNode payload, JsonNode attrs) {
         String reviewer = payload.path("user").path("username").asText("");
-        if (botUser.equals(reviewer)) return null;
+        if (actors.contains(reviewer)) return null;
 
         var info = repoInfo(payload);
         String headBranch = attrs.path("source_branch").asText("");
@@ -429,7 +451,7 @@ public class GitLabEventMapper {
                 log.warn("Failed to rewrite GitLab URL: {}", gitUrl);
             }
         }
-        return new RepoInfo(parts[0], parts[1], gitUrl, RepoInfo.GITLAB);
+        return new RepoInfo(parts[0], parts[1], gitUrl, sourceId, RepoInfo.GITLAB);
     }
 
     private IssueContext extractIssueFromAttrs(RepoInfo info, JsonNode attrs) {

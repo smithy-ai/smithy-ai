@@ -1,142 +1,194 @@
 # Configuration Reference
 
-Smithy-AI is configured through environment variables. These map to settings in `orchestrator.yml`. All variables can be set in your `.env` file or passed directly as environment variables to the orchestrator container.
+The orchestrator is configured by one YAML file. It loads the path in
+`ORCHESTRATOR_CONFIG`, then `/config/orchestrator.yml`, then the classpath example.
+The environment is used only when a `SecretRef` names an environment variable.
 
-## Docker settings
+```yaml
+apiVersion: smithy.ai/v1alpha1
+kind: OrchestratorConfig
 
-| Variable | Default | Description |
-|---|---|---|
-| `DOCKER_COMMAND` | `docker` | Docker CLI command |
-| `DOCKER_NETWORK` | `smithy-net` | Docker network that task containers attach to |
-| `TASK_IMAGE` | `claude-task:latest` | Docker image used for task containers |
-| `CACHE_VOLUMES` | `pnpm,npm` | Comma-separated cache volume types: `pnpm`, `npm`, `maven`, `gradle` |
+storage:
+  database: /data/smithy.db
+  metrics: /data/metrics.jsonl
 
-## Claude settings
+runtime:
+  docker:
+    command: docker
+    network: smithy-net
+    taskImage: ghcr.io/smithy-ai/claude-task-default:dev
+    caches: [pnpm, npm, maven, gradle]
 
-| Variable | Default | Description |
-|---|---|---|
-| `CLAUDE_CODE_OAUTH_TOKEN` | none | OAuth token from `claude setup-token` **(required)** |
-| `CLAUDE_MODEL` | `opus` | Claude model used by agent sessions (e.g. `opus`, `sonnet`) |
+agent:
+  claude:
+    model: claude-opus-5
+    oauthToken: {env: CLAUDE_CODE_OAUTH_TOKEN}
+    apiKey: {env: ANTHROPIC_API_KEY}
 
-## VCS provider
+auth:
+  admin:
+    passwordHash: {env: ADMIN_PASSWORD_HASH}
 
-| Variable | Default | Description |
-|---|---|---|
-| `VCS_PROVIDER` | `forgejo` | Git provider: `forgejo`, `gitlab`, or `github` |
-| `ISSUE_PROVIDER` | none | Override issue provider (defaults to `VCS_PROVIDER` value) |
+connectors:
+  forgejo-main:
+    provider: forgejo
+    url: http://forgejo:3000
+    externalUrl: https://git.example.com
+    webhookSecret: {env: FORGEJO_WEBHOOK_SECRET}
+    actors:
+      smithy:
+        username: smithy-bot
+        token: {env: SMITHY_FORGEJO_TOKEN}
+        git:
+          name: Smithy
+          email: smithy@example.com
+      architect:
+        username: architect-bot
+        token: {file: /run/secrets/architect_forgejo_token}
+        git:
+          name: Architect
+          email: architect@example.com
 
-## Forgejo settings
+defaults:
+  vcs: forgejo-main
+  issueTracker: event.source
+  actor: smithy
 
-| Variable | Default | Description |
-|---|---|---|
-| `FORGEJO_URL` | `http://forgejo:3000` | Internal Forgejo URL (reachable from orchestrator) |
-| `FORGEJO_EXTERNAL_URL` | `http://localhost:3000` | Browser-reachable Forgejo URL |
-| `WEBHOOK_SECRET` | none | HMAC secret for verifying Forgejo webhook signatures |
-| `SMITHY_FORGEJO_TOKEN` | none | API token for the smithy bot user |
-| `ARCHITECT_FORGEJO_TOKEN` | none | API token for the architect bot user |
-| `COORDINATOR_FORGEJO_TOKEN` | none | API token for the coordinator actor. Without it a coordinator acts as smithy, and a feature's plan appears written by the agent implementing it |
+workflows:
+  definitionsDir: /config/workflows
+  repositoryWorkflows: true
+  defaults:
+    branchPrefix: smithy/
+    planApprovedLabel: Plan Approved
 
-## GitHub settings
-
-| Variable | Default | Description |
-|---|---|---|
-| `GITHUB_URL` | none | GitHub instance URL. Leave empty for github.com; set for GitHub Enterprise (e.g. `https://github.example.com`) |
-| `GITHUB_EXTERNAL_URL` | none | Browser-reachable URL (defaults to `GITHUB_URL` or `https://github.com`) |
-| `GITHUB_WEBHOOK_SECRET` | none | HMAC secret for verifying GitHub webhook signatures |
-| `SMITHY_GITHUB_TOKEN` | none | Personal access token for the smithy bot user |
-| `ARCHITECT_GITHUB_TOKEN` | none | Personal access token for the architect bot user |
-| `COORDINATOR_GITHUB_TOKEN` | none | Personal access token for the coordinator actor |
-
-## GitLab settings
-
-| Variable | Default | Description |
-|---|---|---|
-| `GITLAB_URL` | none | Internal GitLab URL (reachable from orchestrator) |
-| `GITLAB_EXTERNAL_URL` | none | Browser-reachable GitLab URL |
-| `GITLAB_TOKEN_TYPE` | `oauth2` | Token type: `oauth2` for group/project access tokens, `private-token` for personal or impersonation tokens |
-| `GITLAB_WEBHOOK_SECRET` | none | Secret for verifying GitLab webhook signatures |
-| `SMITHY_GITLAB_TOKEN` | none | Access token for the smithy bot user |
-| `ARCHITECT_GITLAB_TOKEN` | none | Access token for the architect bot user |
-| `COORDINATOR_GITLAB_TOKEN` | none | Access token for the coordinator actor |
-
-## Actors
-
-An actor is a machine identity Smithy-AI acts as. Which actor an issue is
-assigned to is how a person says what kind of work it is: a feature for the
-coordinator, a task for smithy. They need separate accounts for that. See
-[concepts](concepts.md#actors).
-
-| Variable | Default | Description |
-|---|---|---|
-| `SMITHY_BOT_USER` | `smithy` | Username of the smithy actor |
-| `SMITHY_BOT_EMAIL` | `smithy@localhost` | Email of the smithy actor (git commits, push detection) |
-| `ARCHITECT_BOT_USER` | `architect` | Username of the architect actor |
-| `ARCHITECT_BOT_EMAIL` | `architect@localhost` | Email of the architect actor (git commits) |
-| `COORDINATOR_BOT_USER` | `coordinator` | Username of the coordinator actor, the one a feature story is assigned to |
-| `COORDINATOR_BOT_EMAIL` | `coordinator@localhost` | Email of the coordinator actor |
-
-An actor with no token of its own falls back to smithy's, so a single-account
-deployment keeps working, at the cost of everything being attributed to that
-account. The startup log lists the actors and marks the ones that have their own
-identity:
-
-```
-Issue trackers by actor: [smithy*, architect*, coordinator]
-VCS clients by actor: [smithy*, architect*, coordinator]
+ci: {autofix: false}
+knowledgebase:
+  enabled: false
+  url: http://knowledgebase:8000/mcp
+  toolName: searchKnowledge
 ```
 
-Here the coordinator has no token, so its comments, issues and plans are posted
-by smithy.
+Unknown fields and invalid connector references fail startup. A deployment should
+mount the file read-only and mount writable storage separately:
 
-Jira identifies accounts by id rather than username, so the actors are set
-separately under [Jira settings](#jira-settings).
+```yaml
+volumes:
+  - ./config/orchestrator.yml:/config/orchestrator.yml:ro
+  - ./config/workflows:/config/workflows:ro
+  - orchestrator-data:/data
+```
 
-## Storage
+## Secrets
 
-| Variable | Default | Description |
-|---|---|---|
-| `DB_PATH` | `/config/smithy.db` | SQLite file holding runs, history and correlations. Mount it: this is the durable record of every piece of work |
-| `METRICS_PATH` | none | Append-only metrics log |
-| `ADMIN_PASSWORD_HASH` | none | bcrypt hash for the dashboard's `admin` user. A random password is generated and printed at startup when unset |
+Every credential accepts exactly one secret source:
 
+```yaml
+token: {env: SMITHY_GITHUB_TOKEN}
+token: {file: /run/secrets/smithy_github_token}
+token: {literal: local-development-only}
+```
 
-## Repository settings
+Environment and file references keep values out of the deployment file. Literal
+values are intended only for local development. Resolved values are never included
+in configuration diagnostics.
 
-Repositories can define Smithy-specific settings in `.smithy/config.yml`.
+## Connectors and actors
+
+A connector ID such as `github-main` is the stable routing identity. `provider`
+selects the implementation (`forgejo`, `gitlab`, `github`, or `jira`). Webhooks use
+the connector ID:
+
+```text
+https://smithy.example.com/webhooks/github-main
+```
+
+Actors are logical identities scoped to a connector. Workflows refer to `smithy`,
+`architect`, or another logical name; the connector resolves it to a username,
+Jira account ID, credentials, and git identity. An actor omitted from a connector
+uses the default actor's credentials for outbound actions and is not recognized as
+an inbound assignee on that connector.
+
+GitLab connectors may set `tokenType: oauth2` (the default) or
+`tokenType: private-token`.
+
+## Jira with a VCS connector
+
+Jira is an issue connector, never a VCS connector. A split deployment defines both:
+
+```yaml
+connectors:
+  gitlab-main:
+    provider: gitlab
+    url: https://gitlab.example.com
+    webhookSecret: {env: GITLAB_WEBHOOK_SECRET}
+    actors:
+      smithy:
+        username: smithy-bot
+        token: {env: SMITHY_GITLAB_TOKEN}
+        git: {name: Smithy, email: smithy@example.com}
+
+  jira-product:
+    provider: jira
+    url: https://company.atlassian.net
+    webhookSecret: {env: JIRA_WEBHOOK_SECRET}
+    actors:
+      smithy:
+        accountId: abc123
+        email: smithy@example.com
+        apiToken: {env: SMITHY_JIRA_API_TOKEN}
+    issueMapping:
+      repositoryField: customfield_12345
+      allowStoriesWithoutRepository: true
+      planApprovedLabel: plan-approved
+      planApprovedStatus: Ready for Smithy
+
+defaults:
+  vcs: gitlab-main
+  issueTracker: event.source
+  actor: smithy
+```
+
+Issue actions answer the connector that produced the event. Repository actions use
+that source when it is a VCS connector and otherwise use `defaults.vcs`.
+
+## Repository catalogs
+
+Reusable coordinator catalogs belong in deployment configuration:
+
+```yaml
+repositoryCatalogs:
+  acme-product:
+    - {source: gitlab-main, owner: acme, repo: api, description: HTTP API}
+    - {source: gitlab-main, owner: acme, repo: web, description: Web client}
+```
+
+Workflow customization remains in `/config/workflows`, not in the main config. A
+small workflow file can extend the built-in coordinator and import a catalog:
+
+```yaml
+apiVersion: smithy.ai/v1alpha1
+kind: Workflow
+metadata:
+  name: acme-coordinator
+  extends: feature-coordinator
+vars:
+  repositoryCatalog: acme-product
+  storyRepos: [PRODUCT/PRODUCT]
+  childConnector: gitlab-main
+```
+
+The registry resolves `repositoryCatalog` into the workflow's `vars.catalog` and
+rejects unknown catalog names.
+
+## Repository-local configuration
+
+Repository behavior stays with the repository. `.smithy/config.yml` currently
+supports the context repository:
 
 ```yaml
 context:
   repository: shared-guidelines
 ```
 
-`context.repository` can be either a repository name in the same owner/group or an `owner/repo` value. When omitted, Smithy uses `<repo>-context`.
-
-## Workflow settings
-
-| Variable | Default | Description |
-|---|---|---|
-| `PLAN_APPROVED_LABEL` | `Plan Approved` | Label the adapters translate into `issue.plan_approved` |
-| `SMITHY_BRANCH_PREFIX` | `smithy/` | Prefix the adapters recognise as an agent's branch |
-| `WORKFLOW_DIR` | `/config/workflows` | Directory of workflow definitions. Files here override the built-ins by name |
-
-Everything else about how the agents behave lives in the workflow definitions
-themselves, not here. See [writing a workflow](workflows/index.md).
-
-## Jira settings
-
-Used when `ISSUE_PROVIDER=jira`, which lets stories be tracked in Jira while the
-work happens in repositories.
-
-| Variable | Default | Description |
-|---|---|---|
-| `JIRA_URL` | none | Jira instance URL |
-| `JIRA_EMAIL` | none | Account email for API authentication |
-| `JIRA_API_TOKEN` | none | API token |
-| `JIRA_BOT_ACCOUNT_ID` | none | Jira account of the smithy actor |
-| `JIRA_ARCHITECT_ACCOUNT_ID` | none | Jira account of the architect actor |
-| `JIRA_COORDINATOR_ACCOUNT_ID` | none | Jira account of the coordinator actor. A story can only be handed to the coordinator if it has one |
-| `JIRA_WEBHOOK_SECRET` | none | Shared secret, sent as `X-Jira-Token` or `?token=` |
-| `JIRA_REPO_FIELD` | none | Custom field holding `owner/repo[@base-branch]` |
-| `JIRA_PLAN_APPROVED_LABEL` | `plan-approved` | Label that means approval |
-| `JIRA_PLAN_APPROVED_STATUS` | none | Status transition that means approval |
-| `JIRA_STORIES_WITHOUT_REPO` | `false` | Hand stories with no repository field to the workflows anyway, scoped to their Jira project. A coordinator picks repositories from its catalog and does not need the field; a development workflow does |
+Repository-owned workflows live under `.smithy/workflows/*.yml` and can be disabled
+deployment-wide with `workflows.repositoryWorkflows: false`.

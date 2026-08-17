@@ -12,7 +12,7 @@ Create an issue in your repository describing the feature or bug you want to add
 
 ### 2. Assign to Agent Smithy
 
-Assign the issue to the `smithy` user (or your configured `SMITHY_BOT_USER`). This triggers Smithy to:
+Assign the issue to the username configured for the `smithy` actor on that connector. This triggers Smithy to:
 
 - Create a new branch for the issue
 - Analyze the codebase and write a plan
@@ -131,4 +131,3 @@ From there you can:
 The label is configurable (`workflow.plan-approved-label`), and a workflow can
 treat something else as approval instead. Nothing outside the workflow definition
 depends on this particular label.
-

@@ -84,8 +84,8 @@ renders `alice`, which is false. Write `{{ event.approver != '' }}`.
 
 ## Events
 
-Every event has `event.name` and `event.source` (the connector: `forgejo`,
-`gitlab`, `github`, `jira`), and `repo.*`.
+Every event has `event.name`, `event.source.id` (the configured connector ID),
+`event.source.provider` (`forgejo`, `gitlab`, `github`, or `jira`), and `repo.*`.
 
 ### Issue events
 
@@ -141,11 +141,12 @@ and `event.batchSize`.
 
 Inputs are given in a step's `with:`. Outputs are read as `steps.<id>.<field>`.
 
-**Every issue action** also accepts `connector:` (which system to act against,
-defaulting to `event.source`) and `as:` (which actor to act as, defaulting to the
-workflow's `vars.actor`). Pull-request, review and file actions take `as:` too;
-they act on the repository host, which is one system, so they have no
-`connector:`.
+Provider actions accept `target:` (a connector ID, defaulting to the event source)
+and `actor:` (a logical actor, defaulting to the workflow's `vars.actor`). VCS
+actions fall back to `defaults.vcs` when the event came from an issue-only
+connector such as Jira. `issue.assign`, `pr.setAssignees`, and
+`pr.requestReview` accept logical names under `actors:` and resolve them through
+the target connector.
 
 `container.init` gets its token and commit address from the workflow's actor as
 well, so an agent working in the container pushes as that identity.
@@ -296,7 +297,7 @@ the capability.
 Read at startup, later winning by name:
 
 1. **Built in**: the definitions that ship with Smithy-AI.
-2. **`workflow.definitions-dir`** (`WORKFLOW_DIR`, default `/config/workflows`).
+2. **`workflows.definitionsDir`** (default `/config/workflows`).
 3. **A repository's `.smithy/workflows/*.yml`**, read over the provider API when
    an event from that repository arrives, cached briefly. Highest precedence. A
    definition that fails to parse or validate is skipped and logged; the rest of

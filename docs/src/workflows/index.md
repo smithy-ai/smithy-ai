@@ -274,8 +274,8 @@ event, and it carries on from that step.
 | Symptom | Cause |
 |---|---|
 | Workflow never claims anything | `when:` does not render to `true`, or another workflow already owns the event's issue |
-| Every issue claimed, including ones you meant for another workflow | No `when:` guard; filter on `event.assignee` or `event.source` |
+| Every issue claimed, including ones you meant for another workflow | No `when:` guard; filter on `event.assignee` or `event.source.id` |
 | `foreach` iterates characters | `items:` has text around the expression, so it rendered to a string |
 | A step is skipped on a second identical event | Expected: same event identity means replay. A genuinely new occurrence has a different identity |
 | Workflow missing at startup | Failed validation; the log line names the action or capability |
-| Comment posted to the wrong system | Split connectors: name one with `connector:`, or let it default to `event.source` |
+| Comment posted to the wrong system | Split connectors: name one with `target:`, or let it default to `event.source.id` |

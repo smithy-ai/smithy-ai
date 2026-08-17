@@ -81,15 +81,20 @@ public class IssueActions {
 
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
-                List<String> assignees = listInput(input, "assignees");
-                if (assignees.isEmpty()) assignees = listInput(input, "to");
+                String requestedTarget = Trackers.target(this, context, input);
+                String target = requestedTarget;
+                List<String> actors = listInput(input, "actors");
+                List<String> assignees = actors
+                    .stream()
+                    .map(actor -> trackers.assignee(target, actor))
+                    .toList();
                 Trackers.pick(this, context, input, trackers).setIssueAssignees(
                     required(input, "owner"),
                     required(input, "repo"),
                     required(input, "issue"),
                     assignees
                 );
-                return Map.of("assignees", assignees);
+                return Map.of("actors", actors, "assignees", assignees);
             }
         };
     }

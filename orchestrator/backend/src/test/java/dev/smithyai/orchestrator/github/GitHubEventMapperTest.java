@@ -67,12 +67,13 @@ class GitHubEventMapperTest {
         // work it is, and it is what a workflow filters on to claim it.
         var toAgent = mapper().map("issues", mapper.readTree(assignedTo("smithy-bot")));
         var agent = assertInstanceOf(WorkflowEvent.IssueAssigned.class, toAgent);
-        assertEquals("smithy-bot", agent.ctx().assignee());
-        assertEquals("github", agent.ctx().info().source());
+        assertEquals("smithy", agent.ctx().assignee());
+        assertEquals("github-main", agent.ctx().info().source());
+        assertEquals("github", agent.ctx().info().sourceProvider());
 
         var toCoordinator = mapper().map("issues", mapper.readTree(assignedTo("coordinator-bot")));
         var coordinator = assertInstanceOf(WorkflowEvent.IssueAssigned.class, toCoordinator);
-        assertEquals("coordinator-bot", coordinator.ctx().assignee());
+        assertEquals("coordinator", coordinator.ctx().assignee());
 
         assertNull(mapper().map("issues", mapper.readTree(assignedTo("someone-else"))), "and nobody else's issue");
     }
@@ -131,7 +132,7 @@ class GitHubEventMapperTest {
             "coordinator-token"
         );
         var vcsConfig = new VcsProviderConfig("github", null, null, null, github, null);
-        return new GitHubEventMapper(botConfig, vcsConfig, WorkflowPolicyConfig.defaults(), null);
+        return new GitHubEventMapper(botConfig, vcsConfig, WorkflowPolicyConfig.defaults(), null, "github-main");
     }
 
     private String reviewCommentPayload() {

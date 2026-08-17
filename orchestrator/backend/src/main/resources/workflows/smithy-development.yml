@@ -253,7 +253,7 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               number: "{{ steps.pr.number }}"
-              assignees: "{{ vars.botUser }}"
+              actors: [smithy]
 
           - uses: metrics.record
             with:

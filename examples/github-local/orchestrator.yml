@@ -1,0 +1,39 @@
+apiVersion: smithy.ai/v1alpha1
+kind: OrchestratorConfig
+
+storage: {database: /data/smithy.db, metrics: /data/metrics.jsonl}
+runtime:
+  docker:
+    command: docker
+    network: smithy-net
+    taskImage: ghcr.io/smithy-ai/claude-task-default:dev
+    caches: [pnpm, npm]
+agent:
+  claude:
+    model: claude-opus-5
+    oauthToken: {env: CLAUDE_CODE_OAUTH_TOKEN}
+auth:
+  admin:
+    passwordHash: {env: ADMIN_PASSWORD_HASH}
+connectors:
+  github-main:
+    provider: github
+    url: https://github.com
+    externalUrl: https://github.com
+    webhookSecret: {env: GITHUB_WEBHOOK_SECRET}
+    actors:
+      smithy:
+        username: smithy-bot
+        token: {env: SMITHY_GITHUB_TOKEN}
+        git: {name: Smithy, email: smithy@users.noreply.github.com}
+      architect:
+        username: architect-bot
+        token: {env: ARCHITECT_GITHUB_TOKEN}
+        git: {name: Architect, email: architect@users.noreply.github.com}
+defaults: {vcs: github-main, issueTracker: event.source, actor: smithy}
+workflows:
+  definitionsDir: /config/workflows
+  repositoryWorkflows: true
+  defaults: {branchPrefix: smithy/, planApprovedLabel: Plan Approved}
+ci: {autofix: false}
+knowledgebase: {enabled: false}

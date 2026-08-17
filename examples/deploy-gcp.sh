@@ -143,9 +143,9 @@ gcloud compute scp \
   "$VM_NAME:~/smithy/" \
   $ZONE_FLAG $PROJECT_FLAG
 
-gcloud compute scp \
-  "$COMPOSE_DIR/config/knowledgebase.yml" \
-  "$VM_NAME:~/smithy/config/" \
+gcloud compute scp --recurse \
+  "$COMPOSE_DIR/config" \
+  "$VM_NAME:~/smithy/" \
   $ZONE_FLAG $PROJECT_FLAG
 
 # --- Deploy -------------------------------------------------------------------
@@ -168,11 +168,9 @@ cat <<EOF
 ==> Smithy-AI deployed successfully!
 
     External IP:  $EXTERNAL_IP
-    Webhook URLs:
-      GitLab:  http://$EXTERNAL_IP:8080/webhooks/gitlab
-      Forgejo: http://$EXTERNAL_IP:8080/webhooks/forgejo
+    GitLab webhook: http://$EXTERNAL_IP/webhooks/gitlab-main
 
-    Configure your git provider webhooks to point to the appropriate URL.
+    Connector IDs in config determine webhook URL paths.
 
     View logs:
       gcloud compute ssh $VM_NAME --zone=$ZONE --command="cd ~/smithy && sudo docker compose logs -f"

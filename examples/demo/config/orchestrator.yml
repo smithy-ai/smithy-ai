@@ -1,0 +1,57 @@
+apiVersion: smithy.ai/v1alpha1
+kind: OrchestratorConfig
+
+storage:
+  database: /data/smithy.db
+  metrics: /data/metrics.jsonl
+
+runtime:
+  docker:
+    command: docker
+    network: forgejo-net
+    taskImage: ghcr.io/smithy-ai/claude-task-default:dev
+    caches: [pnpm, npm, maven, gradle]
+
+agent:
+  claude:
+    model: claude-opus-5
+    oauthToken: {env: CLAUDE_CODE_OAUTH_TOKEN}
+    apiKey: {env: ANTHROPIC_API_KEY}
+
+auth:
+  admin:
+    passwordHash: {env: ADMIN_PASSWORD_HASH}
+
+connectors:
+  forgejo-main:
+    provider: forgejo
+    url: http://forgejo:3000
+    externalUrl: http://localhost:3000
+    webhookSecret: {env: WEBHOOK_SECRET}
+    actors:
+      smithy:
+        username: smithy
+        token: {env: SMITHY_FORGEJO_TOKEN}
+        git: {name: Smithy, email: smithy@localhost}
+      architect:
+        username: architect
+        token: {env: ARCHITECT_FORGEJO_TOKEN}
+        git: {name: Architect, email: architect@localhost}
+
+defaults:
+  vcs: forgejo-main
+  issueTracker: event.source
+  actor: smithy
+
+workflows:
+  definitionsDir: /config/workflows
+  repositoryWorkflows: true
+  defaults:
+    branchPrefix: smithy/
+    planApprovedLabel: Plan Approved
+
+ci: {autofix: false}
+knowledgebase:
+  enabled: false
+  url: http://knowledgebase:8000/mcp
+  toolName: searchKnowledge

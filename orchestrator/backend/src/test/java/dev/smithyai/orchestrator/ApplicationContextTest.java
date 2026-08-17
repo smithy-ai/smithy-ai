@@ -12,7 +12,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * Boots the whole application context. This is the cheapest check that the bean
@@ -23,18 +22,6 @@ import org.springframework.test.context.TestPropertySource;
  * which {@code @SpringBootTest} does not fire, so no Docker is required.
  */
 @SpringBootTest
-@TestPropertySource(
-    properties = {
-        "CLAUDE_CODE_OAUTH_TOKEN=test-token",
-        "VCS_PROVIDER=forgejo",
-        "FORGEJO_URL=http://forgejo.invalid:3000",
-        "SMITHY_FORGEJO_TOKEN=test-smithy-token",
-        "ARCHITECT_FORGEJO_TOKEN=test-architect-token",
-        // Without this the datasource points at /config, which does not exist
-        // outside the container.
-        "DB_PATH=build/tmp/smithy-context-test.db",
-    }
-)
 class ApplicationContextTest {
 
     @Autowired

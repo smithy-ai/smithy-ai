@@ -48,6 +48,10 @@ public interface WorkflowEvent {
         return info() == null ? "" : info().source();
     }
 
+    default EventSource sourceInfo() {
+        return info() == null ? EventSource.unknown() : new EventSource(info().source(), info().sourceProvider());
+    }
+
     interface IssueScoped extends WorkflowEvent {
         IssueContext ctx();
 

@@ -4,44 +4,15 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/orchestrator.yml:/config/orchestrator.yml:ro
+      - ./config/workflows:/config/workflows:ro
+      - orchestrator-data:/data
     environment:
-      # Provider selection
-      - VCS_PROVIDER=${VCS_PROVIDER:-gitlab}
-      # GitLab settings
-      - GITLAB_URL=${GITLAB_URL:-}
-      - GITLAB_EXTERNAL_URL=${GITLAB_EXTERNAL_URL:-}
-      - GITLAB_TOKEN_TYPE=${GITLAB_TOKEN_TYPE:-oauth2}
       - SMITHY_GITLAB_TOKEN=${SMITHY_GITLAB_TOKEN:-}
       - ARCHITECT_GITLAB_TOKEN=${ARCHITECT_GITLAB_TOKEN:-}
       - GITLAB_WEBHOOK_SECRET=${GITLAB_WEBHOOK_SECRET:-}
-      # Forgejo settings
-      - FORGEJO_URL=${FORGEJO_URL:-}
-      - FORGEJO_EXTERNAL_URL=${FORGEJO_EXTERNAL_URL:-}
-      - SMITHY_FORGEJO_TOKEN=${SMITHY_FORGEJO_TOKEN:-}
-      - ARCHITECT_FORGEJO_TOKEN=${ARCHITECT_FORGEJO_TOKEN:-}
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
-      # GitHub settings
-      - GITHUB_URL=${GITHUB_URL:-}
-      - GITHUB_EXTERNAL_URL=${GITHUB_EXTERNAL_URL:-}
-      - SMITHY_GITHUB_TOKEN=${SMITHY_GITHUB_TOKEN:-}
-      - ARCHITECT_GITHUB_TOKEN=${ARCHITECT_GITHUB_TOKEN:-}
-      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-}
-      # Claude & Docker
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
-      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-opus-5}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - DOCKER_NETWORK=${DOCKER_NETWORK:-smithy-net}
-      - TASK_IMAGE=${TASK_IMAGE:-ghcr.io/smithy-ai/claude-task-default:dev}
-      - CACHE_VOLUMES=${CACHE_VOLUMES:-pnpm,npm}
-      # Bot users
-      - SMITHY_BOT_USER=${SMITHY_BOT_USER:-smithy}
-      - ARCHITECT_BOT_USER=${ARCHITECT_BOT_USER:-architect}
-      - SMITHY_BOT_EMAIL=${SMITHY_BOT_EMAIL:-}
-      - ARCHITECT_BOT_EMAIL=${ARCHITECT_BOT_EMAIL:-}
-      # Knowledgebase
-      - KNOWLEDGEBASE_ENABLED=${KNOWLEDGEBASE_ENABLED:-false}
-      - KNOWLEDGEBASE_URL=${KNOWLEDGEBASE_URL:-http://knowledgebase:8000/mcp}
-      # Dashboard auth
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
     networks:
       - smithy-net
@@ -78,6 +49,7 @@ services:
       - smithy-net
 
 volumes:
+  orchestrator-data:
   kb-vectorstore:
   caddy-data:
   caddy-config:

@@ -165,13 +165,13 @@ class DefinitionAndExpressionTest {
         var context = contextFor(issueAssigned(), Map.of("childConnector", ""));
         assertEquals(
             "forgejo",
-            renderer.render("{{ vars.childConnector if vars.childConnector else event.source }}", context)
+            renderer.render("{{ vars.childConnector if vars.childConnector else event.source.id }}", context)
         );
 
         var named = contextFor(issueAssigned(), Map.of("childConnector", "gitlab"));
         assertEquals(
             "gitlab",
-            renderer.render("{{ vars.childConnector if vars.childConnector else event.source }}", named)
+            renderer.render("{{ vars.childConnector if vars.childConnector else event.source.id }}", named)
         );
     }
 
@@ -190,12 +190,13 @@ class DefinitionAndExpressionTest {
         );
         var context = new ActionContext(null, jira, java.util.Map.of(), java.util.Map.of());
 
-        assertEquals("jira", renderer.render("{{ event.source }}", context));
+        assertEquals("jira", renderer.render("{{ event.source.id }}", context));
+        assertEquals("jira", renderer.render("{{ event.source.provider }}", context));
         assertEquals("jira", renderer.render("{{ repo.source }}", context));
         // Which is what a routing rule filters on when two systems produce the
         // same event name.
-        assertTrue(renderer.isTruthy("{{ event.source == 'jira' }}", context));
-        assertFalse(renderer.isTruthy("{{ event.source == 'gitlab' }}", context));
+        assertTrue(renderer.isTruthy("{{ event.source.id == 'jira' }}", context));
+        assertFalse(renderer.isTruthy("{{ event.source.id == 'gitlab' }}", context));
     }
 
     @Test
@@ -209,8 +210,8 @@ class DefinitionAndExpressionTest {
         var context = new ActionContext(null, signal, java.util.Map.of(), java.util.Map.of());
 
         // Filtering a signal must work like filtering anything else.
-        assertEquals("gitlab", renderer.render("{{ event.source }}", context));
-        assertTrue(renderer.isTruthy("{{ event.source == 'gitlab' }}", context));
+        assertEquals("gitlab", renderer.render("{{ event.source.id }}", context));
+        assertTrue(renderer.isTruthy("{{ event.source.id == 'gitlab' }}", context));
         assertEquals("run-1", renderer.render("{{ event.child }}", context), "payload still reads as fields");
     }
 }

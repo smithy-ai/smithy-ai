@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.ClaudeConfig;
+import dev.smithyai.orchestrator.config.ConnectorRegistry;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
@@ -14,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -37,6 +39,26 @@ public class ContainerService {
     private final String claudeApiKey;
     private final String gitAuthUser;
     private final String defaultGitEmail;
+
+    @Autowired
+    public ContainerService(
+        DockerConfig dockerConfig,
+        ClaudeConfig claudeConfig,
+        ConnectorRegistry connectors,
+        DockerCli docker
+    ) {
+        String connector = connectors.defaultVcs();
+        String actor = connectors.defaultActor();
+        this.docker = docker;
+        this.network = dockerConfig.network();
+        this.taskImage = dockerConfig.taskImage();
+        this.vcsUrl = connectors.connector(connector).url();
+        this.vcsToken = connectors.token(connector, actor);
+        this.claudeOauthToken = claudeConfig.oauthToken();
+        this.claudeApiKey = claudeConfig.apiKey();
+        this.gitAuthUser = connectors.gitAuthUser(connector);
+        this.defaultGitEmail = connectors.gitEmail(connector, actor);
+    }
 
     public ContainerService(
         DockerConfig dockerConfig,
@@ -180,7 +202,7 @@ public class ContainerService {
             args.add("ANTHROPIC_API_KEY=" + claudeApiKey);
         }
         args.add("-e");
-        args.add("VCS_URL=" + vcsUrl);
+        args.add("VCS_URL=" + (init.vcsUrl() != null ? init.vcsUrl() : vcsUrl));
         args.add("-e");
         args.add("VCS_TOKEN=" + (init.vcsToken() != null ? init.vcsToken() : vcsToken));
         args.add("-e");
@@ -211,7 +233,7 @@ public class ContainerService {
             }
         }
         args.add("-e");
-        args.add("GIT_AUTH_USER=" + gitAuthUser);
+        args.add("GIT_AUTH_USER=" + (init.gitAuthUser() != null ? init.gitAuthUser() : gitAuthUser));
         args.add("-e");
         args.add("EXTRA_REPOS=" + extraReposJson);
 

@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.CiConfig;
+import dev.smithyai.orchestrator.config.OrchestratorConfig;
+import dev.smithyai.orchestrator.config.RepositoryCatalogConfig;
 import dev.smithyai.orchestrator.config.RepositoryConfigResolver;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
@@ -56,13 +58,7 @@ class FeatureCoordinatorTest {
           extends: feature-coordinator
         vars:
           storyRepos: [acme/product]
-          catalog:
-            - owner: acme
-              repo: api
-              description: The HTTP API
-            - owner: acme
-              repo: web
-              description: The web client
+          repositoryCatalog: acme-product
           botUser: acme-bot
         """;
 
@@ -124,8 +120,13 @@ class FeatureCoordinatorTest {
 
         // One stub answers for every connector in these tests.
         var trackers = new dev.smithyai.orchestrator.service.vcs.IssueTrackers(
-            java.util.Map.of("forgejo", vcs, "gitlab", vcs, "jira", vcs),
+            java.util.Map.of("forgejo", vcs, "forgejo-main", vcs, "gitlab", vcs, "jira", vcs),
             vcs
+        );
+        var vcsClients = new dev.smithyai.orchestrator.service.vcs.VcsClients(
+            Map.of("smithy", Map.of("default", vcs, "forgejo", vcs, "forgejo-main", vcs)),
+            "smithy",
+            "default"
         );
         var renderer = new ExpressionRenderer();
         var stateActions = new StateActions();
@@ -163,30 +164,30 @@ class FeatureCoordinatorTest {
                 // exists — so the real ones are registered alongside the stubs.
                 new AgentRunAction(environments, prompts),
                 new AgentNewSessionAction(environments),
-                new PrConversationAction(vcs.asRegistry()),
+                new PrConversationAction(vcsClients),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                prActions.prCreateAction(vcs.asRegistry()),
-                prActions.prCommentAction(vcs.asRegistry()),
-                prActions.prRequestReviewAction(vcs.asRegistry()),
-                prActions.prReadAction(vcs.asRegistry()),
+                prActions.prCreateAction(vcsClients),
+                prActions.prCommentAction(vcsClients),
+                prActions.prRequestReviewAction(vcsClients),
+                prActions.prReadAction(vcsClients),
                 git.gitPullAction(environments),
                 git.gitPushAction(environments),
                 git.gitStatusAction(environments),
                 git.execAction(environments),
                 git.agentEnsureCommittedAction(environments),
                 git.instanceDestroyAction(environments),
-                review.commentReactAction(vcs.asRegistry()),
-                review.prReplyAction(vcs.asRegistry()),
-                review.prIsAssignedAction(vcs.asRegistry()),
-                review.prSetAssigneesAction(vcs.asRegistry()),
-                review.prFindByHeadAction(vcs.asRegistry()),
-                review.prReviewCommentsAction(vcs.asRegistry()),
-                review.prReviewAction(vcs.asRegistry()),
+                review.commentReactAction(vcsClients),
+                review.prReplyAction(vcsClients),
+                review.prIsAssignedAction(vcsClients),
+                review.prSetAssigneesAction(vcsClients),
+                review.prFindByHeadAction(vcsClients),
+                review.prReviewCommentsAction(vcsClients),
+                review.prReviewAction(vcsClients),
                 review.attachmentsFetchAction(trackers, environments),
-                review.fileDeleteAction(vcs.asRegistry()),
-                review.fileUrlAction(vcs.asRegistry(), vcsProviderConfig()),
-                review.repoCloneUrlAction(vcs.asRegistry()),
-                review.prLinkAction(vcs.asRegistry(), vcsProviderConfig()),
+                review.fileDeleteAction(vcsClients),
+                review.fileUrlAction(vcsClients),
+                review.repoCloneUrlAction(vcsClients),
+                review.prLinkAction(vcsClients),
                 ci.ciRetryGuardAction(store, new CiConfig(false)),
                 ci.ciResetAction(store),
                 issueActions.issueLabelAction(trackers),
@@ -198,13 +199,34 @@ class FeatureCoordinatorTest {
         setExecutor(foreach, executor);
 
         var policy = new WorkflowPolicyConfig(null, null, definitions.toString());
+        var deploymentConfig = new OrchestratorConfig(
+            OrchestratorConfig.API_VERSION,
+            OrchestratorConfig.KIND,
+            null,
+            null,
+            null,
+            null,
+            Map.of(),
+            null,
+            null,
+            Map.of(
+                "acme-product",
+                List.of(
+                    new RepositoryCatalogConfig("forgejo-main", "acme", "api", "The HTTP API"),
+                    new RepositoryCatalogConfig("forgejo-main", "acme", "web", "The web client")
+                )
+            ),
+            null,
+            null
+        );
         workflows = new WorkflowRegistry(
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),
             policy,
             vcs,
             vcs,
-            vcs
+            vcs,
+            deploymentConfig
         );
         workflows.loadAll();
         // Same construction cycle as the executor above: the registry needs the
@@ -398,6 +420,22 @@ class FeatureCoordinatorTest {
     }
 
     @Test
+    void assigningAnExistingTaskToAnotherActorTransfersItsWorkflow() {
+        var asTask = new WorkflowEvent.IssueAssigned(
+            new IssueContext(STORY_REPO, "PROD-1", "Search everywhere", "Users want search", "main", "smithy"),
+            "https://git.invalid/acme/product"
+        );
+        engine.handle(asTask);
+        Run task = store.findByCorrelation(CorrelationKind.ISSUE, "acme/product#PROD-1").orElseThrow();
+        assertEquals("smithy-development", task.workflowName());
+
+        engine.handle(storyAssigned());
+
+        assertEquals(RunStatus.CANCELLED, store.find(task.id()).orElseThrow().status());
+        assertEquals("acme-coordinator", story().workflowName());
+    }
+
+    @Test
     void anIssueRaisedOutsideTheStoryRepositoriesIsNotAStory() {
         // A human assigning an issue directly in a catalog repository is
         // ordinary work. The coordinator claiming it too would plan a feature
@@ -565,7 +603,7 @@ class FeatureCoordinatorTest {
             .issueCreateAction(trackers)
             .execute(
                 new ActionContext(null, storyAssigned("jira"), Map.of(), Map.of()),
-                Map.of("connector", "gitlab", "owner", "acme", "repo", "api", "title", "Search endpoint")
+                Map.of("target", "gitlab", "owner", "acme", "repo", "api", "title", "Search endpoint")
             );
 
         assertEquals(1, gitlab.createdIssues.size(), "created where the work lives");
@@ -615,7 +653,7 @@ class FeatureCoordinatorTest {
         );
         new IssueCommentAction(trackers).execute(
             new ActionContext(null, childDone, Map.of(), Map.of("storySource", "jira")),
-            Map.of("connector", "jira", "owner", "PROJ", "repo", "PROJ", "issue", "PROJ-1", "body", "next wave")
+            Map.of("target", "jira", "owner", "PROJ", "repo", "PROJ", "issue", "PROJ-1", "body", "next wave")
         );
 
         assertEquals(1, jira.issueComments.size(), "the story was told, in the system it lives in");
@@ -650,7 +688,7 @@ class FeatureCoordinatorTest {
         );
         var create = new IssueActions().issueCreateAction(trackers);
         var context = new ActionContext(null, storyAssigned("jira"), Map.of(), Map.of());
-        var input = Map.<String, Object>of("connector", "gitlba", "owner", "acme", "repo", "api", "title", "x");
+        var input = Map.<String, Object>of("target", "gitlba", "owner", "acme", "repo", "api", "title", "x");
 
         // Silently using the fallback would file this in Jira, which is a real
         // issue in someone else's tracker.
@@ -732,7 +770,11 @@ class FeatureCoordinatorTest {
         // The web client depends on the API, so it is created but not started.
         assertEquals(1, assignments.size());
         assertEquals("api", assignments.getFirst().get("repo"));
-        assertEquals("acme-bot", assignments.getFirst().get("assignees"), "the operator's bot, from their catalog");
+        assertEquals(
+            List.of("smithy"),
+            assignments.getFirst().get("actors"),
+            "the logical actor assigned to the child"
+        );
     }
 
     @Test

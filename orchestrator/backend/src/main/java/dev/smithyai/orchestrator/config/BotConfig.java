@@ -41,7 +41,23 @@ public record BotConfig(BotEntry smithy, BotEntry architect, BotEntry coordinato
 
     /** Every actor an inbound event may be addressed to. */
     public java.util.List<String> actors() {
-        return java.util.List.of(resolvedSmithyUser(), resolvedArchitectUser(), resolvedCoordinatorUser());
+        return java.util.List.copyOf(actorUsers().values());
+    }
+
+    public java.util.Map<String, String> actorUsers() {
+        var actors = new java.util.LinkedHashMap<String, String>();
+        if (smithy != null) actors.put(VcsProviderConfig.SMITHY, resolvedSmithyUser());
+        if (architect != null) actors.put(VcsProviderConfig.ARCHITECT, resolvedArchitectUser());
+        if (coordinator != null) actors.put(VcsProviderConfig.COORDINATOR, resolvedCoordinatorUser());
+        return java.util.Map.copyOf(actors);
+    }
+
+    public java.util.List<String> actorEmails() {
+        var emails = new java.util.ArrayList<String>();
+        if (smithy != null) emails.add(resolvedSmithyEmail());
+        if (architect != null) emails.add(resolvedArchitectEmail());
+        if (coordinator != null) emails.add(resolvedCoordinatorEmail());
+        return java.util.List.copyOf(emails);
     }
 
     public String resolvedArchitectEmail() {

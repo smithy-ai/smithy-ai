@@ -1,7 +1,9 @@
 package dev.smithyai.orchestrator.runtime.definition;
 
+import dev.smithyai.orchestrator.config.WorkflowConfig;
 import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
+import dev.smithyai.orchestrator.service.vcs.VcsClients;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -9,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -36,29 +39,45 @@ public class RepositoryWorkflowLoader {
     private static final Duration CACHE_TTL = Duration.ofMinutes(1);
 
     private final VcsClient vcs;
+    private final VcsClients clients;
+    private final WorkflowConfig workflowConfig;
     private final WorkflowDefinitionParser parser;
     private final ConcurrentMap<String, Cached> cache = new ConcurrentHashMap<>();
 
     public RepositoryWorkflowLoader(@Qualifier("smithyVcsClient") VcsClient vcs, WorkflowDefinitionParser parser) {
         this.vcs = vcs;
+        this.clients = null;
+        this.workflowConfig = new WorkflowConfig(null, true, null);
+        this.parser = parser;
+    }
+
+    @Autowired
+    public RepositoryWorkflowLoader(
+        VcsClients clients,
+        WorkflowDefinitionParser parser,
+        WorkflowConfig workflowConfig
+    ) {
+        this.vcs = null;
+        this.clients = clients;
+        this.workflowConfig = workflowConfig;
         this.parser = parser;
     }
 
     public List<LoadedWorkflowDefinition> forRepository(RepoInfo info) {
-        if (info == null) return List.of();
-        String key = info.owner() + "/" + info.repo();
+        if (info == null || !workflowConfig.repositoryWorkflowsEnabled()) return List.of();
+        String key = info.source() + ":" + info.owner() + "/" + info.repo();
         var now = Instant.now();
         var cached = cache.get(key);
         if (cached != null && cached.loadedAt.plus(CACHE_TTL).isAfter(now)) {
             return cached.definitions;
         }
 
-        var loaded = load(info.owner(), info.repo());
+        var loaded = load(client(info), info.owner(), info.repo());
         cache.put(key, new Cached(loaded, now));
         return loaded;
     }
 
-    private List<LoadedWorkflowDefinition> load(String owner, String repo) {
+    private List<LoadedWorkflowDefinition> load(VcsClient vcs, String owner, String repo) {
         List<String> paths;
         try {
             paths = vcs.listRepositoryFiles(owner, repo, PATH, null);
@@ -91,7 +110,13 @@ public class RepositoryWorkflowLoader {
 
     /** Drop what is cached for a repository — its definitions changed. */
     public void forget(String owner, String repo) {
-        cache.remove(owner + "/" + repo);
+        cache.keySet().removeIf(key -> key.endsWith(":" + owner + "/" + repo));
+    }
+
+    private VcsClient client(RepoInfo info) {
+        if (clients == null) return vcs;
+        String source = info.source();
+        return clients.forConnector("", clients.hasConnector(source) ? source : clients.defaultConnector());
     }
 
     private record Cached(List<LoadedWorkflowDefinition> definitions, Instant loadedAt) {}

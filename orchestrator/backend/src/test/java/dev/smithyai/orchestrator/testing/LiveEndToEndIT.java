@@ -331,9 +331,9 @@ class LiveEndToEndIT {
                 review.prReviewAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 review.attachmentsFetchAction(trackers, environments),
                 review.fileDeleteAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
-                review.fileUrlAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs), vcsConfig()),
+                review.fileUrlAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 review.repoCloneUrlAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
-                review.prLinkAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs), vcsConfig()),
+                review.prLinkAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 ci.ciRetryGuardAction(store, new CiConfig(false)),
                 ci.ciResetAction(store)
             )
