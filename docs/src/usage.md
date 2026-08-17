@@ -101,7 +101,9 @@ context:
   repository: platform/engineering-guidelines
 ```
 
-One limitation for now: follow-up comments on the pull request The Architect opens against the context repository are only routed back to their session when the context repository uses the default `<repo>-context` name. Reviews and learning themselves work with any configured name.
+Follow-up comments on the pull request The Architect opens against the context
+repository are correlated directly to its learning run, so explicitly named and
+cross-owner context repositories support the complete review conversation.
 
 The context repository is created automatically by `setup_repo.py` during [demo setup](setup/demo.md), or you can create it manually.
 

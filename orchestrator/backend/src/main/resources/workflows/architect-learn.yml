@@ -69,11 +69,6 @@ state:
                   path: /context-repo
                   branch: "architect/pr-{{ event.prNumber }}-learn"
 
-          - uses: correlate
-            with:
-              kind: pr
-              ref: "{{ repo.owner }}/{{ repo.name }}!{{ event.prNumber }}"
-
           - uses: pr.conversation
             id: conversation
             with:
@@ -127,6 +122,7 @@ state:
 
           # Proposed, not merged: the people who own the guidelines decide.
           - uses: pr.create
+            id: context_pr
             if: "{{ steps.learning.action == 'UPDATE' }}"
             with:
               owner: "{{ steps.context.owner }}"
@@ -140,6 +136,19 @@ state:
 
 
                 {{ steps.learning.description }}
+
+          # Follow-up discussion happens on the proposal, whose repository may
+          # have no naming relationship to the source repository.
+          - uses: correlate
+            if: "{{ steps.learning.action == 'UPDATE' }}"
+            with:
+              kind: pr
+              ref: "{{ steps.context.owner }}/{{ steps.context.repo }}!{{ steps.context_pr.number }}"
+
+          - uses: state.var
+            if: "{{ steps.learning.action == 'UPDATE' }}"
+            with:
+              contextPrNumber: "{{ steps.context_pr.number }}"
 
           - uses: metrics.record
             with:
@@ -158,15 +167,15 @@ state:
 
   learning:
     on:
-      # Someone questioning the proposal on the original pull request.
+      # Someone questioning the proposal on the context repository pull request.
       pr.commented:
         debounce: 30s
         steps:
           - uses: comment.react
             with:
-              owner: "{{ vars.owner }}"
-              repo: "{{ vars.repo }}"
-              number: "{{ vars.prNumber }}"
+              owner: "{{ vars.contextOwner }}"
+              repo: "{{ vars.contextRepo }}"
+              number: "{{ vars.contextPrNumber }}"
               commentId: "{{ event.commentId }}"
 
           - uses: agent.run
@@ -175,7 +184,7 @@ state:
               tools: "{{ vars.tools }}"
               template: architect_learn_comment.md.j2
               vars:
-                pr_number: "{{ vars.prNumber }}"
+                pr_number: "{{ vars.contextPrNumber }}"
                 comments: "{{ event.batch }}"
 
           - uses: exec
@@ -185,9 +194,9 @@ state:
 
           - uses: pr.reply
             with:
-              owner: "{{ vars.owner }}"
-              repo: "{{ vars.repo }}"
-              number: "{{ vars.prNumber }}"
+              owner: "{{ vars.contextOwner }}"
+              repo: "{{ vars.contextRepo }}"
+              number: "{{ vars.contextPrNumber }}"
               body: "{{ steps.answer.reply }}"
 
   done:

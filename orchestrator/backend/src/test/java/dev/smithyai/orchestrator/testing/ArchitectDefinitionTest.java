@@ -17,8 +17,10 @@ import dev.smithyai.orchestrator.runtime.store.*;
 import dev.smithyai.orchestrator.service.claude.PromptRenderer;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -81,7 +83,10 @@ class ArchitectDefinitionTest {
 
     /** The whole engine, wired the way the application wires it. */
     private RunEngine engineFor(FakeDockerCli docker, StubVcsClient vcs, String storeName) {
-        var store = freshStore(storeName);
+        return engineFor(docker, vcs, freshStore(storeName), new EventDebouncer());
+    }
+
+    private RunEngine engineFor(FakeDockerCli docker, StubVcsClient vcs, RunStore store, EventDebouncer debouncer) {
         var containers = new ContainerService(dockerConfig(), claudeConfig(), vcsProviderConfig(), botConfig(), docker);
         var environments = new RunEnvironments(store, containers, new KnowledgebaseConfig(false, null, null));
         // One stub answers for every connector in these tests.
@@ -171,7 +176,7 @@ class ArchitectDefinitionTest {
             store,
             environments,
             new RepositoryWorkflowLoader(vcs, new WorkflowDefinitionParser()),
-            new EventDebouncer()
+            debouncer
         );
     }
 
@@ -260,6 +265,50 @@ class ArchitectDefinitionTest {
         var commands = runDefinitionLearn(new FakeDockerCli()).reviewAnchors();
 
         assertTrue(commands.stream().anyMatch(c -> c.contains("git push")), commands.toString());
+    }
+
+    @Test
+    void followUpOnAnExplicitlyNamedContextRepositoryReturnsToThatProposal() {
+        var docker = new FakeDockerCli()
+            .enqueueClaudeStructured(LEARNING_JSON)
+            .enqueueClaudeText("Updated the proposal.")
+            .onExec("symbolic-ref", new dev.smithyai.orchestrator.service.docker.dto.ExecResult(0, "main", ""));
+        var vcs = new StubVcsClient();
+        vcs.repositoryFiles.put("acme/app:.smithy/config.yml", "context:\n  repository: platform/shared-guidelines\n");
+        var store = freshStore("custom-context-" + System.identityHashCode(docker));
+        var engine = engineFor(docker, vcs, store, new ImmediateDebouncer());
+
+        var started = engine.handle(prMerged()).stream().filter(RunEngine.Outcome::handled).findFirst().orElseThrow();
+        var proposal = new PrContext(
+            new RepoInfo("platform", "shared-guidelines", "https://git.invalid/platform/shared-guidelines"),
+            100,
+            "Guideline proposal",
+            "",
+            false,
+            "architect/pr-3-learn",
+            "main"
+        );
+
+        assertEquals(
+            started.runId(),
+            store.findByCorrelation(CorrelationKind.PR, "platform/shared-guidelines!100").orElseThrow().id()
+        );
+
+        engine.handle(new WorkflowEvent.PrConversationComment(proposal, "alice", "Please clarify this.", 9, ""));
+
+        var reply = vcs.postedPrComments.getLast();
+        assertEquals("platform", reply.owner());
+        assertEquals("shared-guidelines", reply.repo());
+        assertEquals(100, reply.number());
+        assertEquals("Updated the proposal.", reply.body());
+    }
+
+    private static final class ImmediateDebouncer extends EventDebouncer {
+
+        @Override
+        public void submit(String key, Duration window, WorkflowEvent event, Consumer<List<WorkflowEvent>> flush) {
+            flush.accept(List.of(event));
+        }
     }
 
     /** Reuses the Observed shape: summaries are PR titles here, anchors are commands. */
