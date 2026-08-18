@@ -6,8 +6,8 @@ Smithy-AI runs each agent task in a Docker container. You can create custom imag
 
 The task images use a two-layer system:
 
-1. **`claude-task-base`** — Foundation image with Ubuntu 24.04, Git, curl, Node.js 22, Claude Code CLI, Forgejo CLI (tea), and smithy helper scripts
-2. **`claude-task-*` variants** — Built on top of the base, adding project-specific toolchains
+1. **`claude-task-base`**: Foundation image with Ubuntu 24.04, Git, curl, Node.js 22, Claude Code CLI, Forgejo CLI (tea), and smithy helper scripts
+2. **`claude-task-*` variants**: built on top of the base, adding project-specific toolchains
 
 The default image (`claude-task` / `claude-task-default`) adds pnpm, Java 21 with Maven, and Python 3 on top of the base.
 
@@ -44,10 +44,12 @@ docker build -t claude-task-myenv:latest images/claude-task-myenv
 
 ### 3. Configure the orchestrator
 
-Set `TASK_IMAGE` in your `.env` or environment:
+Set `runtime.docker.taskImage` in `orchestrator.yml`:
 
 ```bash
-TASK_IMAGE=claude-task-myenv:latest
+runtime:
+  docker:
+    taskImage: claude-task-myenv:latest
 ```
 
 ## Example: Node.js only
@@ -78,4 +80,3 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /workspace
 CMD ["sleep", "infinity"]
 ```
-

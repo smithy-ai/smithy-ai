@@ -1,0 +1,84 @@
+package dev.smithyai.orchestrator.service.metrics;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.smithyai.orchestrator.config.StorageConfig;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+/**
+ * Append-only outcome log (one JSON object per line) for the workflow
+ * pipeline: plans posted, issues fanned out, MRs opened, CI failures,
+ * review rounds, merges, turn failures. The point is measurement — the
+ * numbers that tell whether a prompt or architecture change actually
+ * improved outcomes before more complexity is added.
+ */
+@Slf4j
+@Component
+public class MetricsRecorder {
+
+    private final Path path;
+    private final ObjectMapper mapper = new ObjectMapper();
+    private volatile boolean writable = true;
+
+    public MetricsRecorder(StorageConfig storage) {
+        this.path = Path.of(storage.resolvedMetrics());
+    }
+
+    /** Best-effort: metrics must never break a workflow. */
+    public synchronized void record(String event, String project, String ref, Map<String, Object> extra) {
+        if (!writable) return;
+        try {
+            var entry = new LinkedHashMap<String, Object>();
+            entry.put("ts", Instant.now().toString());
+            entry.put("event", event);
+            if (project != null) entry.put("project", project);
+            if (ref != null) entry.put("ref", ref);
+            if (extra != null) entry.putAll(extra);
+            Files.writeString(
+                path,
+                mapper.writeValueAsString(entry) + "\n",
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+            );
+        } catch (IOException e) {
+            log.warn("Metrics disabled: cannot write {}", path, e);
+            writable = false;
+        }
+    }
+
+    public void record(String event, String project, String ref) {
+        record(event, project, ref, null);
+    }
+
+    /** Event counts, for the dashboard. */
+    public Map<String, Object> summarize() {
+        var counts = new HashMap<String, Long>();
+        if (Files.exists(path)) {
+            try (var lines = Files.lines(path, StandardCharsets.UTF_8)) {
+                lines.forEach(line -> {
+                    try {
+                        var node = mapper.readTree(line);
+                        counts.merge(node.path("event").asText("unknown"), 1L, Long::sum);
+                    } catch (Exception ignored) {
+                        // skip malformed lines
+                    }
+                });
+            } catch (IOException e) {
+                log.warn("Failed to read metrics from {}", path, e);
+            }
+        }
+        var result = new LinkedHashMap<String, Object>();
+        result.put("counts", counts);
+        return result;
+    }
+}

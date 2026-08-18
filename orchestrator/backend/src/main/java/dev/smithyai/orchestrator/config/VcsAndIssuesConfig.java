@@ -1,130 +1,97 @@
 package dev.smithyai.orchestrator.config;
 
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
+import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
-import dev.smithyai.orchestrator.service.vcs.forgejo.ForgejoClient;
-import dev.smithyai.orchestrator.service.vcs.github.GitHubClient;
-import dev.smithyai.orchestrator.service.vcs.gitlab.GitLabClient;
-import dev.smithyai.orchestrator.web.GitHubEventMapper;
-import dev.smithyai.orchestrator.web.GitLabEventMapper;
+import dev.smithyai.orchestrator.service.vcs.VcsClients;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.lang.Nullable;
 
+@lombok.extern.slf4j.Slf4j
 @Configuration
 public class VcsAndIssuesConfig {
 
     @Bean
     @Qualifier("smithyVcs")
-    public VcsClient smithyVcsClient(VcsProviderConfig vcs) {
-        return createVcsClient(vcs, vcs.resolvedProvider(), false);
+    public VcsClient smithyVcsClient(ConnectorRegistry connectors) {
+        return connectors.vcs(connectors.defaultVcs(), connectors.defaultActor());
     }
 
     @Bean
     @Qualifier("smithyIssueTracker")
-    public IssueTrackerClient smithyIssueTrackerClient(
-        VcsProviderConfig vcs,
-        @Qualifier("smithyVcs") VcsClient smithyVcs
-    ) {
-        String issueProvider = vcs.resolvedIssueProvider();
-        String vcsProvider = vcs.resolvedProvider();
-        if (issueProvider.equals(vcsProvider) && smithyVcs instanceof IssueTrackerClient itc) {
-            return itc;
-        }
-        return createIssueTrackerClient(vcs, issueProvider, false);
+    public IssueTrackerClient smithyIssueTrackerClient(ConnectorRegistry connectors) {
+        return connectors.issues(connectors.defaultIssueTracker(""), connectors.defaultActor());
     }
 
+    /**
+     * The tracker that holds issues belonging to repositories.
+     *
+     * <p>Distinct from {@code smithyIssueTracker}, which may be Jira: a parent
+     * story can live in Jira while the work lives in repositories, and a
+     * coordinator creating a child issue means an issue in the repository, not
+     * a Jira subtask. When one system does both, this is that system.
+     */
     @Bean
-    @Qualifier("architectVcs")
-    public VcsClient architectVcsClient(VcsProviderConfig vcs, @Qualifier("smithyVcs") VcsClient smithyVcs) {
-        if (!vcs.hasArchitect()) {
-            return smithyVcs;
-        }
-        return createVcsClient(vcs, vcs.resolvedProvider(), true);
+    @Qualifier("repoIssueTracker")
+    public IssueTrackerClient repoIssueTrackerClient(ConnectorRegistry connectors) {
+        return connectors.issues(connectors.defaultVcs(), connectors.defaultActor());
     }
 
+    /**
+     * Every tracker this deployment can reach, keyed by the connector it speaks.
+     *
+     * <p>An action targets the connector its event arrived through, so a story
+     * in Jira and a child issue in GitLab are each answered in their own system
+     * without a workflow having to say which is which.
+     */
     @Bean
-    @Qualifier("architectIssueTracker")
-    public IssueTrackerClient architectIssueTrackerClient(
-        VcsProviderConfig vcs,
-        @Qualifier("architectVcs") VcsClient architectVcs,
-        @Qualifier("smithyIssueTracker") IssueTrackerClient smithyIssueTracker
-    ) {
-        if (!vcs.hasArchitect()) {
-            return smithyIssueTracker;
+    public IssueTrackers issueTrackers(ConnectorRegistry connectors) {
+        var byActor = new java.util.LinkedHashMap<String, java.util.Map<String, IssueTrackerClient>>();
+        for (String actor : connectors.actors()) {
+            var byConnector = new java.util.LinkedHashMap<String, IssueTrackerClient>();
+            for (String connector : connectors.connectorIds()) {
+                if (connectors.hasActor(connector, actor)) {
+                    byConnector.put(connector, connectors.issues(connector, actor));
+                }
+            }
+            byActor.put(actor, byConnector);
         }
-        String issueProvider = vcs.resolvedIssueProvider();
-        String vcsProvider = vcs.resolvedProvider();
-        if (issueProvider.equals(vcsProvider) && architectVcs instanceof IssueTrackerClient itc) {
-            return itc;
-        }
-        return createIssueTrackerClient(vcs, issueProvider, true);
+        log.info("Issue trackers: connectors={}, actors={}", connectors.connectorIds(), byActor.keySet());
+        return new IssueTrackers(
+            byActor,
+            connectors.defaultActor(),
+            connectors.defaultIssueTracker(""),
+            connectors::assignee
+        );
     }
 
+    /**
+     * Every identity this deployment can act through on the repository host.
+     *
+     * <p>A workflow declares which actor it is, and the steps that write follow
+     * it: the architect's review is signed by the architect, and the plan a
+     * coordinator posts is not signed by the agent that will implement it.
+     */
     @Bean
-    @Nullable
-    public GitLabEventMapper gitLabEventMapper(
-        VcsProviderConfig vcs,
-        BotConfig botConfig,
-        @Qualifier("smithyVcs") VcsClient smithyVcs
-    ) {
-        if (!"gitlab".equals(vcs.resolvedProvider())) {
-            return null;
+    public VcsClients vcsClients(ConnectorRegistry connectors) {
+        var byActor = new java.util.LinkedHashMap<String, java.util.Map<String, VcsClient>>();
+        for (String actor : connectors.actors()) {
+            var byConnector = new java.util.LinkedHashMap<String, VcsClient>();
+            for (String connector : connectors.vcsConnectorIds()) {
+                if (connectors.hasActor(connector, actor)) {
+                    byConnector.put(connector, connectors.vcs(connector, actor));
+                }
+            }
+            byActor.put(actor, byConnector);
         }
-        return new GitLabEventMapper(botConfig, vcs, smithyVcs);
-    }
-
-    @Bean
-    @Nullable
-    public GitHubEventMapper gitHubEventMapper(
-        VcsProviderConfig vcs,
-        BotConfig botConfig,
-        @Qualifier("smithyVcs") VcsClient smithyVcs
-    ) {
-        if (!"github".equals(vcs.resolvedProvider())) {
-            return null;
-        }
-        return new GitHubEventMapper(botConfig, vcs, smithyVcs);
-    }
-
-    private VcsClient createVcsClient(VcsProviderConfig vcs, String provider, boolean architect) {
-        return switch (provider) {
-            case "gitlab" -> {
-                var gl = vcs.gitlab();
-                String token = architect ? gl.architectToken() : gl.smithyToken();
-                yield new GitLabClient(gl.url(), gl.externalUrl(), token, gl.isOAuth2());
-            }
-            case "github" -> {
-                var gh = vcs.github();
-                String token = architect ? gh.architectToken() : gh.smithyToken();
-                yield new GitHubClient(gh.url(), gh.externalUrl(), token);
-            }
-            default -> {
-                var fg = vcs.forgejo();
-                String token = architect ? fg.architectToken() : fg.smithyToken();
-                yield new ForgejoClient(fg.url(), token);
-            }
-        };
-    }
-
-    private IssueTrackerClient createIssueTrackerClient(VcsProviderConfig vcs, String provider, boolean architect) {
-        return switch (provider) {
-            case "gitlab" -> {
-                var gl = vcs.gitlab();
-                String token = architect ? gl.architectToken() : gl.smithyToken();
-                yield new GitLabClient(gl.url(), gl.externalUrl(), token, gl.isOAuth2());
-            }
-            case "github" -> {
-                var gh = vcs.github();
-                String token = architect ? gh.architectToken() : gh.smithyToken();
-                yield new GitHubClient(gh.url(), gh.externalUrl(), token);
-            }
-            default -> {
-                var fg = vcs.forgejo();
-                String token = architect ? fg.architectToken() : fg.smithyToken();
-                yield new ForgejoClient(fg.url(), token);
-            }
-        };
+        log.info("VCS clients: connectors={}, actors={}", connectors.vcsConnectorIds(), byActor.keySet());
+        return new VcsClients(
+            byActor,
+            connectors.defaultActor(),
+            connectors.defaultVcs(),
+            connectors::username,
+            connector -> connectors.connector(connector).resolvedExternalUrl()
+        );
     }
 }

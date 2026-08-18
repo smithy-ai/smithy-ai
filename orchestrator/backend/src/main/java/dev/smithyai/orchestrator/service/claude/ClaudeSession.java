@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.service.claude;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.KnowledgebaseConfig;
@@ -9,6 +10,7 @@ import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.Getter;
@@ -20,8 +22,19 @@ public class ClaudeSession {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration TIMEOUT = Duration.ofMinutes(30);
     private static final String CLAUDE_BINARY = "/usr/bin/claude";
-    private static final String DEFAULT_MODEL = "opus";
     private static final String PLANS_DIR = "/root/.claude/plans";
+
+    /**
+     * Model used when callers don't pass one explicitly. Set once at startup from
+     * claude.model (CLAUDE_MODEL) by {@link dev.smithyai.orchestrator.config.ConfigLoader}.
+     */
+    private static volatile String defaultModel = "opus";
+
+    public static void configureDefaultModel(String model) {
+        if (model != null && !model.isBlank()) {
+            defaultModel = model;
+        }
+    }
 
     @Getter
     private final String sessionId;
@@ -30,6 +43,7 @@ public class ClaudeSession {
     private final List<String> tools;
     private final KnowledgebaseConfig knowledgebaseConfig;
     private String contextRepoName;
+    private String model;
     private boolean started = false;
 
     public ClaudeSession(ContainerSession container, List<String> tools) {
@@ -61,8 +75,19 @@ public class ClaudeSession {
         this.contextRepoName = contextRepoName;
     }
 
+    /** Run this session's turns on {@code model} instead of the configured default. Blank keeps the default. */
+    public void setModel(String model) {
+        if (model != null && !model.isBlank()) {
+            this.model = model;
+        }
+    }
+
+    private String model() {
+        return model != null ? model : defaultModel;
+    }
+
     public void startPlan(String prompt) {
-        execute(prompt, DEFAULT_MODEL, "plan", false, null);
+        execute(prompt, model(), "plan", false, null);
         started = true;
     }
 
@@ -71,7 +96,7 @@ public class ClaudeSession {
     }
 
     public <T> T send(String prompt, Class<T> resultType) {
-        return send(prompt, resultType, DEFAULT_MODEL);
+        return send(prompt, resultType, model());
     }
 
     public <T> T send(String prompt, Class<T> resultType, String model) {
@@ -97,6 +122,24 @@ public class ClaudeSession {
                 content,
                 e
             );
+        }
+    }
+
+    /**
+     * Ask for a structured answer against a schema built at runtime.
+     *
+     * <p>{@link #send(String, Class)} generates its schema from a Java DTO, which
+     * a YAML workflow cannot name. A definition declares the shape it wants
+     * instead, and gets back the parsed object.
+     */
+    public Map<String, Object> sendStructured(String prompt, String jsonSchema) {
+        boolean resume = started;
+        started = true;
+        String content = execute(prompt, model(), "default", resume, jsonSchema);
+        try {
+            return MAPPER.readValue(content.strip(), new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            throw new ClaudeParseException("Failed to parse Claude output against the declared schema", content, e);
         }
     }
 
@@ -167,8 +210,12 @@ public class ClaudeSession {
             command.add("--mcp-config");
             command.add(knowledgebaseConfig.mcpConfigJson(contextRepoName));
         } else {
-            log.debug("Knowledgebase MCP not added: config={}, active={}, contextRepo={}",
-                knowledgebaseConfig != null, knowledgebaseConfig != null && knowledgebaseConfig.isActive(), contextRepoName);
+            log.debug(
+                "Knowledgebase MCP not added: config={}, active={}, contextRepo={}",
+                knowledgebaseConfig != null,
+                knowledgebaseConfig != null && knowledgebaseConfig.isActive(),
+                contextRepoName
+            );
         }
 
         log.debug("Executing Claude prompt on {} (session={})", container.getContainerName(), sessionId);

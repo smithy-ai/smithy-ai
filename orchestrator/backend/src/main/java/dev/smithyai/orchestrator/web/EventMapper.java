@@ -3,36 +3,58 @@ package dev.smithyai.orchestrator.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
+import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.*;
+import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.PrData;
-import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
+import dev.smithyai.orchestrator.util.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component
 public class EventMapper {
 
     private final BotConfig botConfig;
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
-    private final String smithyEmail;
+    private final java.util.Map<String, String> actorUsers;
+    private final java.util.List<String> actors;
+    private final java.util.List<String> actorEmails;
+    private final String planApprovedLabel;
+    private final String branchPrefix;
+    private final String sourceId;
+    private final String sourceProvider;
 
     public EventMapper(
         BotConfig botConfig,
         VcsProviderConfig vcsConfig,
-        @Qualifier("smithyVcs") VcsClient smithyClient
+        WorkflowPolicyConfig workflowPolicy,
+        VcsClient smithyClient
+    ) {
+        this(botConfig, vcsConfig, workflowPolicy, smithyClient, RepoInfo.FORGEJO);
+    }
+
+    public EventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        WorkflowPolicyConfig workflowPolicy,
+        VcsClient smithyClient,
+        String sourceId
     ) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
-        this.smithyEmail = botConfig.resolvedSmithyEmail();
+        this.actorUsers = botConfig.actorUsers();
+        this.actors = botConfig.actors();
+        this.actorEmails = botConfig.actorEmails();
+        this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
+        this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
+        this.sourceId = sourceId;
+        this.sourceProvider = RepoInfo.FORGEJO;
     }
 
     // ── Issue events ─────────────────────────────
@@ -47,18 +69,25 @@ public class EventMapper {
     }
 
     private WorkflowEvent mapIssueAssigned(JsonNode payload) {
-        if (!isUserAssigned(payload, botUser)) return null;
+        // Any actor this orchestrator answers as, and the event says which — a
+        // feature handed to the coordinator is not a task handed to smithy.
+        String assignee = actorForLogin(payload.path("assignee").path("login").asText(""));
+        if (assignee == null) assignee = assignedActor(payload);
+        if (assignee == null) return null;
         if (!"open".equals(payload.path("issue").path("state").asText(""))) return null;
 
-        var ctx = extractIssue(payload);
+        var ctx = withAssignee(extractIssue(payload), assignee);
         String repoHtmlUrl = payload.get("repository").get("html_url").asText("");
         return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
     }
 
     private WorkflowEvent mapIssueUnassigned(JsonNode payload) {
-        if (isUserAssigned(payload, botUser)) return null;
-
         var ctx = extractIssue(payload);
+        String remaining = assignedActor(payload);
+        if (remaining != null) {
+            String repoHtmlUrl = payload.path("repository").path("html_url").asText("");
+            return new WorkflowEvent.IssueAssigned(withAssignee(ctx, remaining), repoHtmlUrl);
+        }
         return new WorkflowEvent.IssueUnassigned(ctx);
     }
 
@@ -68,14 +97,14 @@ public class EventMapper {
             var issueLabels = payload.path("issue").path("labels");
             if (issueLabels.isArray()) {
                 for (var l : issueLabels) {
-                    if ("Plan Approved".equals(l.path("name").asText(""))) {
-                        labelName = "Plan Approved";
+                    if (planApprovedLabel.equals(l.path("name").asText(""))) {
+                        labelName = planApprovedLabel;
                         break;
                     }
                 }
             }
         }
-        if (!"Plan Approved".equals(labelName)) return null;
+        if (!planApprovedLabel.equals(labelName)) return null;
 
         String approver = payload.path("sender").path("login").asText("");
         var ctx = extractIssue(payload);
@@ -87,7 +116,7 @@ public class EventMapper {
     public WorkflowEvent mapIssueComment(JsonNode payload) {
         if (!"created".equals(payload.path("action").asText(""))) return null;
         String commentUser = payload.path("comment").path("user").path("login").asText("");
-        if (botUser.equals(commentUser)) return null;
+        if (actors.contains(commentUser)) return null;
 
         var issue = payload.get("issue");
 
@@ -102,44 +131,33 @@ public class EventMapper {
         return new WorkflowEvent.IssueComment(ctx, commentBody);
     }
 
+    /**
+     * Emit the comment as a fact. This used to fetch the PR from the API — on
+     * the webhook thread — purely to read the head branch and decide whether the
+     * event was worth emitting. Routing now resolves the owning session from the
+     * PR correlation, so the adapter neither blocks nor needs to know which
+     * branches belong to which flow.
+     */
     private WorkflowEvent mapPrConversationFromIssueComment(JsonNode payload, String commentUser) {
         var info = repoInfo(payload);
-        int prNumber = payload.path("issue").path("number").asInt();
-        String commentBody = payload.path("comment").path("body").asText("");
-
-        // Context repo: route to architect
-        String repoFull = payload.path("repository").path("full_name").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
-            var prc = extractPr(info, payload.path("issue"));
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
-        }
-
-        // Smithy: needs head branch from API to determine if smithy branch
-        try {
-            log.debug("Fetching PR #{} from {}/{}", prNumber, info.owner(), info.repo());
-            PrData pr = smithyClient.getPullRequest(info.owner(), info.repo(), prNumber);
-            String headBranch = pr.headRef();
-
-            if (Naming.isSmithyBranch(headBranch)) {
-                Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-                if (issueId != null) {
-                    var prc = new PrContext(
-                        info,
-                        prNumber,
-                        pr.title(),
-                        pr.body(),
-                        pr.merged(),
-                        headBranch,
-                        pr.baseRef()
-                    );
-                    return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to fetch PR #{} for conversation comment routing", prNumber, e);
-        }
-
-        return null;
+        var issue = payload.path("issue");
+        int prNumber = issue.path("number").asInt();
+        var prc = new PrContext(
+            info,
+            prNumber,
+            issue.path("title").asText(""),
+            issue.path("body").asText(""),
+            false,
+            "",
+            ""
+        );
+        return new WorkflowEvent.PrConversationComment(
+            prc,
+            commentUser,
+            payload.path("comment").path("body").asText(""),
+            payload.path("comment").path("id").asLong(0),
+            ""
+        );
     }
 
     // ── Push events ──────────────────────────────
@@ -147,13 +165,13 @@ public class EventMapper {
     public WorkflowEvent mapPush(JsonNode payload) {
         String ref = payload.path("ref").asText("");
         String branch = ref.replaceFirst("^refs/heads/", "");
-        if (!Naming.isSmithyBranch(branch)) return null;
+        if (!isWorkBranch(branch)) return null;
 
         var commits = payload.get("commits");
         boolean isHuman = false;
         if (commits != null && commits.isArray()) {
             for (var c : commits) {
-                if (!smithyEmail.equals(c.path("committer").path("email").asText(""))) {
+                if (!actorEmails.contains(c.path("committer").path("email").asText(""))) {
                     isHuman = true;
                     break;
                 }
@@ -179,7 +197,7 @@ public class EventMapper {
 
     private WorkflowEvent mapReviewRequested(JsonNode payload) {
         String reviewer = payload.path("requested_reviewer").path("login").asText("");
-        if (!reviewer.equals(botConfig.resolvedArchitectUser())) return null;
+        if (!reviewer.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))) return null;
 
         var info = repoInfo(payload);
         var prc = extractPr(info, payload.path("pull_request"));
@@ -194,8 +212,8 @@ public class EventMapper {
 
         var info = repoInfo(payload);
         String headBranch = pr.path("head").path("ref").asText("");
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         var prc = extractPr(info, pr);
         return new WorkflowEvent.PrFinalized(prc);
@@ -205,15 +223,17 @@ public class EventMapper {
         var pr = payload.path("pull_request");
         boolean merged = pr.path("merged").asBoolean(false);
         var info = repoInfo(payload);
+        String headBranch = pr.path("head").path("ref").asText("");
 
-        // Merged non-context-repo PRs → PrMerged (architect learns from these)
-        if (merged && !info.repo().endsWith("-context")) {
+        // Merged source PRs are what the architect learns from. The architect's
+        // own context PRs only drive learn-state cleanup, and are recognised by
+        // their branch so the context repository can be named anything.
+        if (merged && !Naming.isArchitectBranch(headBranch)) {
             var prc = extractPr(info, pr);
             return new WorkflowEvent.PrMerged(prc);
         }
 
-        // Everything else → PrClosed (architect uses for context-repo cleanup)
-        String headBranch = pr.path("head").path("ref").asText("");
+        // Everything else → PrClosed (the architect uses this for context PR cleanup)
         int prNumber = pr.path("number").asInt();
         return new WorkflowEvent.PrClosed(info, prNumber, merged, headBranch);
     }
@@ -221,10 +241,10 @@ public class EventMapper {
     private WorkflowEvent mapPrUnassigned(JsonNode payload) {
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
-        if (!Naming.isSmithyBranch(headBranch)) return null;
+        if (!isWorkBranch(headBranch)) return null;
 
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         var assignees = pr.path("assignees");
         boolean smithyAssigned = false;
@@ -250,27 +270,27 @@ public class EventMapper {
 
         var comment = payload.path("comment");
         String commentUser = comment.path("user").path("login").asText("");
-        if (botUser.equals(commentUser)) return null;
+        if (actors.contains(commentUser)) return null;
 
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
         var info = repoInfo(payload);
 
-        // Context repo PR comments → route to architect
-        String repoFull = payload.path("repository").path("full_name").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
+        // Comments on the architect's own context PR route back to its learn session.
+        long commentId = payload.path("comment").path("id").asLong(0);
+        if (Naming.isArchitectBranch(headBranch) && !commentUser.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))) {
             var prc = extractPr(info, pr);
             var cd = commentFromPayload(payload);
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body());
+            return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body(), commentId, "");
         }
 
         // Smithy: review comment on smithy branch PR
-        if (Naming.isSmithyBranch(headBranch)) {
-            Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-            if (issueId != null) {
+        if (isWorkBranch(headBranch)) {
+            String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+            if (issueRef != null) {
                 var prc = extractPr(info, pr);
                 var cd = commentFromPayload(payload);
-                return new WorkflowEvent.PrReviewComment(prc, List.of(cd));
+                return new WorkflowEvent.PrReviewComment(prc, List.of(cd), commentId, "");
             }
         }
 
@@ -284,15 +304,15 @@ public class EventMapper {
 
         var review = payload.path("review");
         String reviewUser = review.path("user").path("login").asText(payload.path("sender").path("login").asText(""));
-        if (botUser.equals(reviewUser)) return null;
+        if (actors.contains(reviewUser)) return null;
 
         var pr = payload.path("pull_request");
         String headBranch = pr.path("head").path("ref").asText("");
         var info = repoInfo(payload);
 
-        if (!Naming.isSmithyBranch(headBranch)) return null;
-        Integer issueId = Naming.parseIssueIdFromBranch(headBranch);
-        if (issueId == null) return null;
+        if (!isWorkBranch(headBranch)) return null;
+        String issueRef = Naming.parseIssueRefFromBranch(headBranch);
+        if (issueRef == null) return null;
 
         long reviewId = review.path("id").asLong();
         String reviewBody = review.path("body").asText("");
@@ -311,7 +331,7 @@ public class EventMapper {
         var ciRun = resolved.ciRun();
 
         if ("action_run_failure".equals(eventType)) {
-            if (!Naming.isSmithyBranch(ciRun.headBranch())) {
+            if (!isWorkBranch(ciRun.headBranch())) {
                 log.info("CI failure on non-smithy branch {}, ignoring", ciRun.headBranch());
                 return null;
             }
@@ -327,17 +347,18 @@ public class EventMapper {
     // ── Shared extraction helpers ────────────────
 
     private RepoInfo repoInfo(JsonNode payload) {
-        return Naming.repoInfo(payload, vcsConfig.resolvedUrl());
+        var info = Naming.repoInfo(payload, vcsConfig.resolvedUrl(), sourceId);
+        return new RepoInfo(info.owner(), info.repo(), info.cloneUrl(), sourceId, sourceProvider);
     }
 
     private IssueContext extractIssue(JsonNode payload) {
         var info = repoInfo(payload);
         var issue = payload.get("issue");
-        int number = issue.get("number").asInt();
+        String issueRef = issue.get("number").asText();
         String title = issue.get("title").asText();
         String body = issue.path("body").asText("");
         String baseBranch = Naming.resolveBaseBranch(issue.path("ref").asText(""));
-        return new IssueContext(info, number, title, body, baseBranch);
+        return new IssueContext(info, issueRef, title, body, baseBranch);
     }
 
     private PrContext extractPr(RepoInfo info, JsonNode pr) {
@@ -379,8 +400,30 @@ public class EventMapper {
             prNumber = pr != null ? pr.number() : null;
         }
 
-        var info = new RepoInfo(owner, repoName, "");
+        var info = new RepoInfo(owner, repoName, "", sourceId, sourceProvider);
         return new ResolvedCiRun(info, new CiRunInfo(headBranch, prNumber));
+    }
+
+    /** The first of this orchestrator's actors assigned to the issue, or null. */
+    private String assignedActor(JsonNode payload) {
+        for (var actor : actorUsers.entrySet()) {
+            if (isUserAssigned(payload, actor.getValue())) return actor.getKey();
+        }
+        return null;
+    }
+
+    private String actorForLogin(String login) {
+        return actorUsers
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().equals(login))
+            .map(java.util.Map.Entry::getKey)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private static IssueContext withAssignee(IssueContext ctx, String assignee) {
+        return new IssueContext(ctx.info(), ctx.issueRef(), ctx.title(), ctx.body(), ctx.baseBranch(), assignee);
     }
 
     private static boolean isUserAssigned(JsonNode payload, String login) {
@@ -403,5 +446,14 @@ public class EventMapper {
             comment.path("path").asText(""),
             comment.path("line").asInt(0)
         );
+    }
+
+    /**
+     * Whether a branch belongs to the agent, per the configured prefix. The
+     * adapters used to hardcode "smithy/", which made a provider adapter carry
+     * a particular flow.
+     */
+    private boolean isWorkBranch(String branch) {
+        return branch != null && branch.startsWith(branchPrefix);
     }
 }

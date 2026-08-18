@@ -6,7 +6,7 @@ The `examples/demo/` directory contains a Docker Compose stack that runs a local
 
 - Docker and Docker Compose
 - Python 3
-- A Claude Code OAuth token — run `claude setup-token` to obtain one
+- A Claude Code OAuth token; run `claude setup-token` to obtain one
 
 ## 1. Configure environment
 
@@ -51,5 +51,5 @@ This adds the bot users as collaborators, creates the webhook pointing to the or
 
 ## What's next
 
-- Learn about the [workflow](../usage.md) to start using Smithy
-- See the [configuration reference](../configuration.md) for all available settings
+- [Day to day](../usage.md): what you do with it once it is running
+- [Configuration reference](../configuration.md): every setting

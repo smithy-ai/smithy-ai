@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# post-mr-comment <group/repo> <mr-iid> <body>
+# Posts a note on the MR. Smithy auto-processes MR comments and pushes fixes.
+# HARD HUMAN GATE: run only after the user has approved the exact comment text.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: post-mr-comment <group/repo> <mr-iid> <body>}"
+mr="${2:?missing MR iid}"
+body="${3:?missing comment body}"
+
+api -X POST "projects/$(encode "$project")/merge_requests/$mr/notes" -f "body=$body" |
+    jq -r '"posted note \(.id) on MR !'"$mr"'"'

@@ -5,16 +5,29 @@ import dev.smithyai.orchestrator.service.vcs.dto.CommentEntry;
 import dev.smithyai.orchestrator.service.vcs.dto.IssueData;
 import java.util.List;
 
-public interface IssueTrackerClient {
-    IssueData getIssue(String owner, String repo, int number);
+public interface IssueTrackerClient extends ProviderClient {
+    IssueData getIssue(String owner, String repo, String issueRef);
 
-    List<CommentEntry> getIssueComments(String owner, String repo, int number);
+    List<CommentEntry> getIssueComments(String owner, String repo, String issueRef);
 
-    CommentEntry createIssueComment(String owner, String repo, int number, String body);
+    CommentEntry createIssueComment(String owner, String repo, String issueRef, String body);
 
-    void setIssueAssignees(String owner, String repo, int number, List<String> assignees);
+    /**
+     * Create an issue. Assignment is deliberately separate — on GitLab,
+     * assignee_ids on create silently fail without project membership, so
+     * callers create first and then setIssueAssignees.
+     */
+    default IssueData createIssue(String owner, String repo, String title, String body, List<String> labels) {
+        throw new UnsupportedOperationException("createIssue not supported by " + getClass().getSimpleName());
+    }
 
-    List<AttachmentInfo> getIssueAttachments(String owner, String repo, int number);
+    default void addIssueLabel(String owner, String repo, String issueRef, String label) {
+        throw new UnsupportedOperationException("addIssueLabel not supported by " + getClass().getSimpleName());
+    }
+
+    void setIssueAssignees(String owner, String repo, String issueRef, List<String> assignees);
+
+    List<AttachmentInfo> getIssueAttachments(String owner, String repo, String issueRef);
 
     List<AttachmentInfo> getCommentAttachments(String owner, String repo, long commentId);
 

@@ -2,7 +2,6 @@ package dev.smithyai.orchestrator.config;
 
 import java.security.SecureRandom;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -24,21 +23,24 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(auth ->
-            auth.requestMatchers("/webhooks/**")
-                .permitAll()
-                .requestMatchers("/api/health")
-                .permitAll()
-                .requestMatchers("/api/**")
-                .authenticated()
-                .anyRequest()
-                .permitAll()
-        )
+        http
+            .authorizeHttpRequests(auth ->
+                auth
+                    .requestMatchers("/webhooks/**")
+                    .permitAll()
+                    .requestMatchers("/api/health")
+                    .permitAll()
+                    .requestMatchers("/api/**")
+                    .authenticated()
+                    .anyRequest()
+                    .permitAll()
+            )
             .exceptionHandling(ex ->
                 ex.authenticationEntryPoint((req, res, authEx) -> res.setStatus(HttpStatus.UNAUTHORIZED.value()))
             )
             .formLogin(form ->
-                form.loginProcessingUrl("/api/login")
+                form
+                    .loginProcessingUrl("/api/login")
                     .successHandler((req, res, auth) -> res.setStatus(HttpStatus.OK.value()))
                     .failureHandler((req, res, authEx) -> res.setStatus(HttpStatus.UNAUTHORIZED.value()))
                     .permitAll()
@@ -54,9 +56,12 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService(
-        @Value("${ADMIN_PASSWORD_HASH:}") String passwordHash,
+        AuthConfig authConfig,
+        ConfigLoader configLoader,
         PasswordEncoder encoder
     ) {
+        SecretRef passwordHashRef = authConfig.admin() == null ? null : authConfig.admin().passwordHash();
+        String passwordHash = configLoader.resolveSecret(passwordHashRef, "auth.admin.passwordHash");
         String effectiveHash;
         if (passwordHash == null || passwordHash.isBlank()) {
             String generated = generatePassword(12);

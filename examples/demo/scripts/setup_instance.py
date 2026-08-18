@@ -140,13 +140,6 @@ def main():
     api = ForgejoAPI(forgejo_url, username, password)
     env = EnvFile()
 
-    # Preserve standard config values
-    env.set("FORGEJO_URL", "http://forgejo:3000")
-    env.set("DOCKER_NETWORK", "forgejo-net")
-    env.set("TASK_IMAGE", "ghcr.io/smithy-ai/claude-task-default:dev")
-    env.set("CACHE_VOLUMES", "pnpm,npm")
-    env.set("FORGEJO_EXTERNAL_URL", "http://localhost:3000")
-
     # Step 1: Create bot users
     print("==> Creating bot users...")
     smithy_pass = create_bot_user(api, "smithy", "smithy@localhost", "Agent Smithy")

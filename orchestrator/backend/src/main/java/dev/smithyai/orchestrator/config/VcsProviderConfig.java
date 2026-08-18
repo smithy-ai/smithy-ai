@@ -7,14 +7,16 @@ public record VcsProviderConfig(
     @JsonProperty("issue-provider") String issueProvider,
     ForgejoProviderConfig forgejo,
     GitLabProviderConfig gitlab,
-    GitHubProviderConfig github
+    GitHubProviderConfig github,
+    JiraProviderConfig jira
 ) {
     public record ForgejoProviderConfig(
         String url,
         @JsonProperty("external-url") String externalUrl,
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("smithy-token") String smithyToken,
-        @JsonProperty("architect-token") String architectToken
+        @JsonProperty("architect-token") String architectToken,
+        @JsonProperty("coordinator-token") String coordinatorToken
     ) {}
 
     public record GitLabProviderConfig(
@@ -23,6 +25,7 @@ public record VcsProviderConfig(
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("smithy-token") String smithyToken,
         @JsonProperty("architect-token") String architectToken,
+        @JsonProperty("coordinator-token") String coordinatorToken,
         @JsonProperty("token-type") String tokenType
     ) {
         public boolean isOAuth2() {
@@ -35,8 +38,61 @@ public record VcsProviderConfig(
         @JsonProperty("external-url") String externalUrl,
         @JsonProperty("webhook-secret") String webhookSecret,
         @JsonProperty("smithy-token") String smithyToken,
-        @JsonProperty("architect-token") String architectToken
+        @JsonProperty("architect-token") String architectToken,
+        @JsonProperty("coordinator-token") String coordinatorToken
     ) {}
+
+    /**
+     * Jira is an issue provider only (never a VCS provider). Cloud auth is
+     * Basic email:api-token (email set); Server/DC is a Bearer PAT (email empty).
+     */
+    public record JiraProviderConfig(
+        String url,
+        String email,
+        @JsonProperty("api-token") String apiToken,
+        @JsonProperty("bot-account-id") String botAccountId,
+        @JsonProperty("architect-account-id") String architectAccountId,
+        @JsonProperty("coordinator-account-id") String coordinatorAccountId,
+        @JsonProperty("webhook-secret") String webhookSecret,
+        @JsonProperty("repo-field") String repoField,
+        @JsonProperty("plan-approved-label") String planApprovedLabel,
+        @JsonProperty("plan-approved-status") String planApprovedStatus,
+        @JsonProperty("stories-without-repo") Boolean storiesWithoutRepo
+    ) {
+        /**
+         * Whether a story with no repository field is still handed to the
+         * workflows. Off by default, because a development workflow needs a
+         * repository; a coordinator does not, since it picks them from its
+         * catalog.
+         */
+        public boolean allowsStoriesWithoutRepo() {
+            return storiesWithoutRepo != null && storiesWithoutRepo;
+        }
+
+        /**
+         * Which actor a Jira account belongs to, or null for anyone else.
+         *
+         * <p>Assignment is how a person says what kind of work a story is, and
+         * that only works if the actors are separate accounts here too. A
+         * deployment that configures one account has one actor, and every story
+         * assigned to it is the agent's.
+         */
+        public String actorFor(String accountId) {
+            if (accountId == null || accountId.isBlank()) return null;
+            if (accountId.equals(botAccountId)) return SMITHY;
+            if (accountId.equals(architectAccountId)) return ARCHITECT;
+            if (accountId.equals(coordinatorAccountId)) return COORDINATOR;
+            return null;
+        }
+
+        public boolean isCloud() {
+            return email != null && !email.isBlank();
+        }
+
+        public String resolvedPlanApprovedLabel() {
+            return planApprovedLabel != null && !planApprovedLabel.isBlank() ? planApprovedLabel : "plan-approved";
+        }
+    }
 
     public String resolvedProvider() {
         return provider != null && !provider.isBlank() ? provider : "forgejo";
@@ -75,6 +131,69 @@ public record VcsProviderConfig(
         };
     }
 
+    /** Actor names, as a workflow refers to them. */
+    public static final String SMITHY = "smithy";
+    public static final String ARCHITECT = "architect";
+    public static final String COORDINATOR = "coordinator";
+
+    /**
+     * The token an actor authenticates with.
+     *
+     * <p>Falls back to smithy's where an actor has none configured, so a
+     * deployment that has not split its identities keeps working — at the cost
+     * of everything being attributed to one account, which is what having
+     * separate actors is meant to avoid.
+     */
+    public String tokenFor(String actor) {
+        String token = switch (resolvedProvider()) {
+            case "gitlab" -> gitlab == null
+                ? null
+                : switch (actor) {
+                      case ARCHITECT -> gitlab.architectToken();
+                      case COORDINATOR -> gitlab.coordinatorToken();
+                      default -> gitlab.smithyToken();
+                  };
+            case "github" -> github == null
+                ? null
+                : switch (actor) {
+                      case ARCHITECT -> github.architectToken();
+                      case COORDINATOR -> github.coordinatorToken();
+                      default -> github.smithyToken();
+                  };
+            default -> forgejo == null
+                ? null
+                : switch (actor) {
+                      case ARCHITECT -> forgejo.architectToken();
+                      case COORDINATOR -> forgejo.coordinatorToken();
+                      default -> forgejo.smithyToken();
+                  };
+        };
+        return token != null && !token.isBlank() ? token : smithyToken();
+    }
+
+    /**
+     * Whether this actor has an identity of its own here.
+     *
+     * <p>False means everything it does is attributed to the default account,
+     * which is what a single-account deployment gets.
+     */
+    public boolean hasOwnToken(String actor) {
+        String own = switch (resolvedProvider()) {
+            case "gitlab" -> gitlab == null ? null : tokenOf(actor, gitlab.architectToken(), gitlab.coordinatorToken());
+            case "github" -> github == null ? null : tokenOf(actor, github.architectToken(), github.coordinatorToken());
+            default -> forgejo == null ? null : tokenOf(actor, forgejo.architectToken(), forgejo.coordinatorToken());
+        };
+        return own != null && !own.isBlank();
+    }
+
+    private static String tokenOf(String actor, String architect, String coordinator) {
+        return switch (actor) {
+            case ARCHITECT -> architect;
+            case COORDINATOR -> coordinator;
+            default -> null;
+        };
+    }
+
     public String smithyToken() {
         return switch (resolvedProvider()) {
             case "gitlab" -> gitlab != null ? gitlab.smithyToken() : null;
@@ -107,9 +226,27 @@ public record VcsProviderConfig(
     public void validate() {
         validateProvider(resolvedProvider(), "vcs.provider");
         String issueP = resolvedIssueProvider();
-        if (!issueP.equals(resolvedProvider())) {
-            validateProvider(issueP, "vcs.issue-provider");
+        if ("jira".equals(resolvedProvider())) {
+            throw new IllegalStateException("vcs.provider cannot be 'jira' — Jira is an issue provider only");
         }
+        if (!issueP.equals(resolvedProvider())) {
+            if ("jira".equals(issueP)) {
+                validateJira();
+            } else {
+                validateProvider(issueP, "vcs.issue-provider");
+            }
+        }
+    }
+
+    private void validateJira() {
+        if (jira == null) {
+            throw new IllegalStateException(
+                "vcs.issue-provider is 'jira' but vcs.jira section is missing in orchestrator.yml"
+            );
+        }
+        requireNonBlank(jira.url(), "vcs.jira.url");
+        requireNonBlank(jira.apiToken(), "vcs.jira.api-token");
+        requireNonBlank(jira.botAccountId(), "vcs.jira.bot-account-id");
     }
 
     private void validateProvider(String providerName, String configKey) {

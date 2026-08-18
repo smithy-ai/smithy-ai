@@ -1,66 +1,198 @@
 # Configuration Reference
 
-Smithy-AI is configured through environment variables. These map to settings in `orchestrator.yml`. All variables can be set in your `.env` file or passed directly as environment variables to the orchestrator container.
+The orchestrator is configured by one YAML file. It loads the path in
+`ORCHESTRATOR_CONFIG`, then `/config/orchestrator.yml`, then the classpath example.
+The environment is used only when a `SecretRef` names an environment variable.
 
-## Docker settings
+```yaml
+apiVersion: smithy.ai/v1alpha1
+kind: OrchestratorConfig
 
-| Variable | Default | Description |
-|---|---|---|
-| `DOCKER_COMMAND` | `docker` | Docker CLI command |
-| `DOCKER_NETWORK` | `smithy-net` | Docker network that task containers attach to |
-| `TASK_IMAGE` | `claude-task:latest` | Docker image used for task containers |
-| `CACHE_VOLUMES` | `pnpm,npm` | Comma-separated cache volume types: `pnpm`, `npm`, `maven`, `gradle` |
+storage:
+  database: /data/smithy.db
+  metrics: /data/metrics.jsonl
 
-## Claude settings
+runtime:
+  docker:
+    command: docker
+    network: smithy-net
+    taskImage: ghcr.io/smithy-ai/claude-task-default:dev
+    caches: [pnpm, npm, maven, gradle]
 
-| Variable | Default | Description |
-|---|---|---|
-| `CLAUDE_CODE_OAUTH_TOKEN` | — | OAuth token from `claude setup-token` **(required)** |
+agent:
+  claude:
+    model: claude-opus-5
+    oauthToken: {env: CLAUDE_CODE_OAUTH_TOKEN}
+    apiKey: {env: ANTHROPIC_API_KEY}
 
-## VCS provider
+auth:
+  admin:
+    passwordHash: {env: ADMIN_PASSWORD_HASH}
 
-| Variable | Default | Description |
-|---|---|---|
-| `VCS_PROVIDER` | `forgejo` | Git provider: `forgejo`, `gitlab`, or `github` |
-| `ISSUE_PROVIDER` | — | Override issue provider (defaults to `VCS_PROVIDER` value) |
+connectors:
+  forgejo-main:
+    provider: forgejo
+    url: http://forgejo:3000
+    externalUrl: https://git.example.com
+    webhookSecret: {env: FORGEJO_WEBHOOK_SECRET}
+    actors:
+      smithy:
+        username: smithy-bot
+        token: {env: SMITHY_FORGEJO_TOKEN}
+        git:
+          name: Smithy
+          email: smithy@example.com
+      architect:
+        username: architect-bot
+        token: {file: /run/secrets/architect_forgejo_token}
+        git:
+          name: Architect
+          email: architect@example.com
 
-## Forgejo settings
+defaults:
+  vcs: forgejo-main
+  issueTracker: event.source
+  actor: smithy
 
-| Variable | Default | Description |
-|---|---|---|
-| `FORGEJO_URL` | `http://forgejo:3000` | Internal Forgejo URL (reachable from orchestrator) |
-| `FORGEJO_EXTERNAL_URL` | `http://localhost:3000` | Browser-reachable Forgejo URL |
-| `WEBHOOK_SECRET` | — | HMAC secret for verifying Forgejo webhook signatures |
-| `SMITHY_FORGEJO_TOKEN` | — | API token for the smithy bot user |
-| `ARCHITECT_FORGEJO_TOKEN` | — | API token for the architect bot user |
+workflows:
+  definitionsDir: /config/workflows
+  repositoryWorkflows: true
+  defaults:
+    branchPrefix: smithy/
+    planApprovedLabel: Plan Approved
 
-## GitHub settings
+ci: {autofix: false}
+knowledgebase:
+  enabled: false
+  url: http://knowledgebase:8000/mcp
+  toolName: searchKnowledge
+```
 
-| Variable | Default | Description |
-|---|---|---|
-| `GITHUB_URL` | — | GitHub instance URL. Leave empty for github.com; set for GitHub Enterprise (e.g. `https://github.example.com`) |
-| `GITHUB_EXTERNAL_URL` | — | Browser-reachable URL (defaults to `GITHUB_URL` or `https://github.com`) |
-| `GITHUB_WEBHOOK_SECRET` | — | HMAC secret for verifying GitHub webhook signatures |
-| `SMITHY_GITHUB_TOKEN` | — | Personal access token for the smithy bot user |
-| `ARCHITECT_GITHUB_TOKEN` | — | Personal access token for the architect bot user |
+Unknown fields and invalid connector references fail startup. A deployment should
+mount the file read-only and mount writable storage separately:
 
-## GitLab settings
+```yaml
+volumes:
+  - ./config/orchestrator.yml:/config/orchestrator.yml:ro
+  - ./config/workflows:/config/workflows:ro
+  - orchestrator-data:/data
+```
 
-| Variable | Default | Description |
-|---|---|---|
-| `GITLAB_URL` | — | Internal GitLab URL (reachable from orchestrator) |
-| `GITLAB_EXTERNAL_URL` | — | Browser-reachable GitLab URL |
-| `GITLAB_TOKEN_TYPE` | `oauth2` | Token type: `oauth2` for group/project access tokens, `private-token` for personal or impersonation tokens |
-| `GITLAB_WEBHOOK_SECRET` | — | Secret for verifying GitLab webhook signatures |
-| `SMITHY_GITLAB_TOKEN` | — | Access token for the smithy bot user |
-| `ARCHITECT_GITLAB_TOKEN` | — | Access token for the architect bot user |
+## Secrets
 
-## Bot settings
+Every credential accepts exactly one secret source:
 
-| Variable | Default | Description |
-|---|---|---|
-| `SMITHY_BOT_USER` | `smithy` | Username of the smithy bot |
-| `SMITHY_BOT_EMAIL` | `smithy@localhost` | Email address of the smithy bot (used for git commits and push detection) |
-| `ARCHITECT_BOT_USER` | `architect` | Username of the architect bot |
-| `ARCHITECT_BOT_EMAIL` | `architect@localhost` | Email address of the architect bot (used for git commits) |
+```yaml
+token: {env: SMITHY_GITHUB_TOKEN}
+token: {file: /run/secrets/smithy_github_token}
+token: {literal: local-development-only}
+```
 
+Environment and file references keep values out of the deployment file. Literal
+values are intended only for local development. Resolved values are never included
+in configuration diagnostics.
+
+## Connectors and actors
+
+A connector ID such as `github-main` is the stable routing identity. `provider`
+selects the implementation (`forgejo`, `gitlab`, `github`, or `jira`). Webhooks use
+the connector ID:
+
+```text
+https://smithy.example.com/webhooks/github-main
+```
+
+Actor identities are connector-specific and never inherit another actor's
+credentials. Every workflow actor must be configured on each connector it acts
+through; a missing identity fails the action instead of posting as the default
+actor.
+
+Actors are logical identities scoped to a connector. Workflows refer to `smithy`,
+`architect`, or another logical name; the connector resolves it to a username,
+Jira account ID, credentials, and git identity. An actor omitted from a connector
+uses the default actor's credentials for outbound actions and is not recognized as
+an inbound assignee on that connector.
+
+GitLab connectors may set `tokenType: oauth2` (the default) or
+`tokenType: private-token`.
+
+## Jira with a VCS connector
+
+Jira is an issue connector, never a VCS connector. A split deployment defines both:
+
+```yaml
+connectors:
+  gitlab-main:
+    provider: gitlab
+    url: https://gitlab.example.com
+    webhookSecret: {env: GITLAB_WEBHOOK_SECRET}
+    actors:
+      smithy:
+        username: smithy-bot
+        token: {env: SMITHY_GITLAB_TOKEN}
+        git: {name: Smithy, email: smithy@example.com}
+
+  jira-product:
+    provider: jira
+    url: https://company.atlassian.net
+    webhookSecret: {env: JIRA_WEBHOOK_SECRET}
+    actors:
+      smithy:
+        accountId: abc123
+        email: smithy@example.com
+        apiToken: {env: SMITHY_JIRA_API_TOKEN}
+    issueMapping:
+      repositoryField: customfield_12345
+      allowStoriesWithoutRepository: true
+      planApprovedLabel: plan-approved
+      planApprovedStatus: Ready for Smithy
+
+defaults:
+  vcs: gitlab-main
+  issueTracker: event.source
+  actor: smithy
+```
+
+Issue actions answer the connector that produced the event. Repository actions use
+that source when it is a VCS connector and otherwise use `defaults.vcs`.
+
+## Repository catalogs
+
+Reusable coordinator catalogs belong in deployment configuration:
+
+```yaml
+repositoryCatalogs:
+  acme-product:
+    - {source: gitlab-main, owner: acme, repo: api, description: HTTP API}
+    - {source: gitlab-main, owner: acme, repo: web, description: Web client}
+```
+
+Workflow customization remains in `/config/workflows`, not in the main config. A
+small workflow file can extend the built-in coordinator and import a catalog:
+
+```yaml
+apiVersion: smithy.ai/v1alpha1
+kind: Workflow
+metadata:
+  name: acme-coordinator
+  extends: feature-coordinator
+vars:
+  repositoryCatalog: acme-product
+  storyRepos: [PRODUCT/PRODUCT]
+```
+
+The registry resolves `repositoryCatalog` into the workflow's `vars.catalog` and
+rejects unknown catalog names.
+
+## Repository-local configuration
+
+Repository behavior stays with the repository. `.smithy/config.yml` currently
+supports the context repository:
+
+```yaml
+context:
+  repository: shared-guidelines
+```
+
+Repository-owned workflows live under `.smithy/workflows/*.yml` and can be disabled
+deployment-wide with `workflows.repositoryWorkflows: false`.

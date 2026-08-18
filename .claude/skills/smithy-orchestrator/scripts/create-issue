@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# create-issue <group/repo> <title> <body> [label ...]
+# Creates the issue, then assigns the smithy bot (assignment is the webhook
+# trigger that starts smithy's refinement). Prints: <iid> <web_url>
+#
+# The bot is resolved BEFORE the issue is created (abort early, no orphan
+# unassigned tickets) and the assignment is verified afterwards: GitLab's
+# REST API silently drops assignees who are not project members, so a
+# successful HTTP status alone proves nothing.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: create-issue <group/repo> <title> <body> [label ...]}"
+title="${2:?missing title}"
+body="${3:?missing body}"
+shift 3
+labels="$(IFS=,; printf '%s' "$*")"
+
+proj_enc="$(encode "$project")"
+
+# Preflight 1: the bot account must exist
+uid="$(api "users?username=$(encode "$SMITHY_BOT")" | jq -r '.[0].id // empty')"
+if [[ -z "$uid" ]]; then
+    echo "error: smithy bot '$SMITHY_BOT' (from repos.yml) not found on $GITLAB_HOST — no issue created" >&2
+    exit 1
+fi
+
+# Preflight 2: the bot must be a member of the project (direct or inherited),
+# otherwise GitLab silently ignores the assignment
+member="$(api "projects/$proj_enc/members/all/$uid" 2>/dev/null | jq -r '.id // empty' || true)"
+if [[ -z "$member" ]]; then
+    echo "error: '$SMITHY_BOT' is not a member of $project — invite it first, e.g.:" >&2
+    echo "  glab api --hostname $GITLAB_HOST -X POST projects/$proj_enc/members -F user_id=$uid -F access_level=30" >&2
+    echo "no issue created" >&2
+    exit 1
+fi
+
+args=(-X POST "projects/$proj_enc/issues" -f "title=$title" -f "description=$body")
+[[ -n "$labels" ]] && args+=(-f "labels=$labels")
+issue="$(api "${args[@]}")"
+
+iid="$(jq -r '.iid' <<<"$issue")"
+url="$(jq -r '.web_url' <<<"$issue")"
+
+# Assign via the CLI (GraphQL): the REST PUT assignee_ids form param is
+# silently dropped on some GitLab versions
+glab issue update "$iid" -R "$GITLAB_HOST/$project" --assignee "$SMITHY_BOT" >/dev/null
+
+# Verify the assignment actually took effect
+assigned="$(api "projects/$proj_enc/issues/$iid" | jq -r '.assignees[].username' | grep -Fx "$SMITHY_BOT" || true)"
+if [[ -z "$assigned" ]]; then
+    echo "error: issue #$iid created but assignment to '$SMITHY_BOT' did not stick: $url" >&2
+    exit 1
+fi
+
+echo "$iid $url"

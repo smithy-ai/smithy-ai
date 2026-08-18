@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# approve-plan <group/repo> <issue-number>
+# Adds the "Plan Approved" label — this unlocks smithy's implementation phase.
+# HARD HUMAN GATE: run only when the user has explicitly approved the plan.
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+project="${1:?usage: approve-plan <group/repo> <issue-number>}"
+issue="${2:?missing issue number}"
+
+api -X PUT "projects/$(encode "$project")/issues/$issue" -f 'add_labels=Plan Approved' |
+    jq -r '"approved: #\(.iid) \(.web_url) labels=\(.labels|join(","))"'

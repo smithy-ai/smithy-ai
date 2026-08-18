@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.service.vcs.gitlab;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import dev.smithyai.orchestrator.runtime.actions.Capability;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.*;
@@ -20,6 +21,16 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class GitLabClient implements VcsClient, IssueTrackerClient {
+
+    /**
+     * GitLab is the most complete provider here: it implements every optional
+     * operation, including creating and labelling issues, which is what a
+     * coordinator needs to fan work out.
+     */
+    @Override
+    public java.util.Set<Capability> capabilities() {
+        return java.util.EnumSet.allOf(Capability.class);
+    }
 
     private final String baseUrl;
     private final String externalUrl;
@@ -47,8 +58,8 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     // ── IssueTrackerClient ───────────────────────────────────
 
     @Override
-    public IssueData getIssue(String owner, String repo, int number) {
-        var node = get("/projects/%s/issues/%d", projectId(owner, repo), number);
+    public IssueData getIssue(String owner, String repo, String issueRef) {
+        var node = get("/projects/%s/issues/%s", projectId(owner, repo), issueRef);
         List<String> assignees = new ArrayList<>();
         if (node.has("assignees") && node.get("assignees").isArray()) {
             for (var a : node.get("assignees")) {
@@ -62,7 +73,7 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
             }
         }
         return new IssueData(
-            node.path("iid").asInt(),
+            node.path("iid").asText(""),
             node.path("title").asText(""),
             node.path("description").asText(""),
             node.path("state").asText("opened"),
@@ -73,8 +84,8 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
-    public List<CommentEntry> getIssueComments(String owner, String repo, int number) {
-        var nodes = getList("/projects/%s/issues/%d/notes?sort=asc", projectId(owner, repo), number);
+    public List<CommentEntry> getIssueComments(String owner, String repo, String issueRef) {
+        var nodes = getList("/projects/%s/issues/%s/notes?sort=asc", projectId(owner, repo), issueRef);
         var result = new ArrayList<CommentEntry>();
         for (var n : nodes) {
             if (n.path("system").asBoolean(false)) continue; // Skip system notes
@@ -91,8 +102,8 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
-    public CommentEntry createIssueComment(String owner, String repo, int number, String body) {
-        var node = post("/projects/%s/issues/%d/notes", Map.of("body", body), projectId(owner, repo), number);
+    public CommentEntry createIssueComment(String owner, String repo, String issueRef, String body) {
+        var node = post("/projects/%s/issues/%s/notes", Map.of("body", body), projectId(owner, repo), issueRef);
         return new CommentEntry(
             node.path("id").asLong(),
             node.path("author").path("username").asText(""),
@@ -102,13 +113,38 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
-    public void setIssueAssignees(String owner, String repo, int number, List<String> assignees) {
-        List<Integer> ids = resolveUserIds(assignees);
-        put("/projects/%s/issues/%d", Map.of("assignee_ids", ids), projectId(owner, repo), number);
+    public IssueData createIssue(String owner, String repo, String title, String body, List<String> labels) {
+        var payload = new HashMap<String, Object>();
+        payload.put("title", title);
+        payload.put("description", body);
+        if (labels != null && !labels.isEmpty()) {
+            payload.put("labels", String.join(",", labels));
+        }
+        var node = post("/projects/%s/issues", payload, projectId(owner, repo));
+        return new IssueData(
+            node.path("iid").asText(""),
+            node.path("title").asText(""),
+            node.path("description").asText(""),
+            node.path("state").asText("opened"),
+            List.of(),
+            "",
+            labels != null ? labels : List.of()
+        );
     }
 
     @Override
-    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, int number) {
+    public void addIssueLabel(String owner, String repo, String issueRef, String label) {
+        put("/projects/%s/issues/%s", Map.of("add_labels", label), projectId(owner, repo), issueRef);
+    }
+
+    @Override
+    public void setIssueAssignees(String owner, String repo, String issueRef, List<String> assignees) {
+        List<Integer> ids = resolveUserIds(assignees);
+        put("/projects/%s/issues/%s", Map.of("assignee_ids", ids), projectId(owner, repo), issueRef);
+    }
+
+    @Override
+    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, String issueRef) {
         // GitLab doesn't have a dedicated attachments API for issues.
         // Attachments are embedded as markdown links in issue description/comments.
         // Return empty — attachment support is non-critical for GitLab.
@@ -123,7 +159,11 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public byte[] downloadAttachment(String url) {
         try {
-            var request = HttpRequest.newBuilder().uri(URI.create(url)).header(authHeaderName, authHeaderValue).GET().build();
+            var request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header(authHeaderName, authHeaderValue)
+                .GET()
+                .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() >= 400) {
                 throw new RuntimeException("GitLab attachment download failed: " + response.statusCode());
@@ -132,6 +172,22 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException("GitLab attachment download failed", e);
         }
+    }
+
+    @Override
+    public void deleteFile(String owner, String repo, String branch, String path, String message) {
+        post(
+            "/projects/%s/repository/commits",
+            Map.of(
+                "branch",
+                branch,
+                "commit_message",
+                message,
+                "actions",
+                List.of(Map.of("action", "delete", "file_path", path))
+            ),
+            projectId(owner, repo)
+        );
     }
 
     // ── VcsClient: Pull/Merge Requests ───────────────────────
@@ -175,6 +231,28 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     @Override
     public void createPrComment(String owner, String repo, int prNumber, String body) {
         post("/projects/%s/merge_requests/%d/notes", Map.of("body", body), projectId(owner, repo), prNumber);
+    }
+
+    @Override
+    public void replyToPrDiscussion(String owner, String repo, int prNumber, String discussionId, String body) {
+        post(
+            "/projects/%s/merge_requests/%d/discussions/%s/notes",
+            Map.of("body", body),
+            projectId(owner, repo),
+            prNumber,
+            discussionId
+        );
+    }
+
+    @Override
+    public void reactToPrComment(String owner, String repo, int prNumber, long commentId, String reaction) {
+        post(
+            "/projects/%s/merge_requests/%d/notes/%d/award_emoji",
+            Map.of("name", reaction),
+            projectId(owner, repo),
+            prNumber,
+            commentId
+        );
     }
 
     @Override
@@ -393,10 +471,80 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
         return baseUrl;
     }
 
+    @Override
+    public String getRawFile(String owner, String repo, String branch, String path) {
+        String encodedPath = URLEncoder.encode(path, StandardCharsets.UTF_8);
+        String url =
+            baseUrl +
+            "/api/v4/projects/%s/repository/files/%s/raw?ref=%s".formatted(
+                projectId(owner, repo),
+                encodedPath,
+                URLEncoder.encode(branch, StandardCharsets.UTF_8)
+            );
+        try {
+            var request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header(authHeaderName, authHeaderValue)
+                .GET()
+                .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 404) {
+                return null;
+            }
+            if (response.statusCode() >= 400) {
+                throw new RuntimeException(
+                    "GitLab API error %d reading %s@%s".formatted(response.statusCode(), path, branch)
+                );
+            }
+            return response.body();
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("GitLab API request failed: raw file " + path, e);
+        }
+    }
+
+    @Override
+    public Optional<String> readRepositoryFile(String owner, String repo, String path, String ref) {
+        String resolvedRef = resolveRef(owner, repo, ref);
+        if (resolvedRef.isBlank()) return Optional.empty();
+        return Optional.ofNullable(getRawFile(owner, repo, resolvedRef, path));
+    }
+
+    @Override
+    public List<String> listRepositoryFiles(String owner, String repo, String path, String ref) {
+        String pid = projectId(owner, repo);
+        String resolvedRef = resolveRef(owner, repo, ref);
+        if (resolvedRef.isBlank()) return List.of();
+
+        var files = new ArrayList<String>();
+        for (var node : getList(
+            "/projects/%s/repository/tree?path=%s&ref=%s",
+            pid,
+            urlEncode(path),
+            urlEncode(resolvedRef)
+        )) {
+            // "blob" is GitLab's term for a file entry; "tree" is a directory.
+            if ("blob".equals(node.path("type").asText(""))) {
+                String filePath = node.path("path").asText("");
+                if (!filePath.isBlank()) files.add(filePath);
+            }
+        }
+        return files;
+    }
+
     // ── HTTP helpers ─────────────────────────────────────────
 
+    /** The given ref, or the project's default branch when it is null or blank. */
+    private String resolveRef(String owner, String repo, String ref) {
+        if (ref != null && !ref.isBlank()) return ref;
+        return get("/projects/%s", projectId(owner, repo)).path("default_branch").asText("");
+    }
+
     private String projectId(String owner, String repo) {
-        return URLEncoder.encode(owner + "/" + repo, StandardCharsets.UTF_8);
+        return urlEncode(owner + "/" + repo);
+    }
+
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private JsonNode get(String pathTemplate, Object... args) {

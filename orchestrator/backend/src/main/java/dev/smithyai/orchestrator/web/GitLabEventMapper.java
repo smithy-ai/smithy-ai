@@ -3,11 +3,13 @@ package dev.smithyai.orchestrator.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
+import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.*;
+import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.PrData;
-import dev.smithyai.orchestrator.workflow.shared.utils.Naming;
+import dev.smithyai.orchestrator.util.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,14 +20,39 @@ public class GitLabEventMapper {
     private final VcsProviderConfig vcsConfig;
     private final VcsClient smithyClient;
     private final String botUser;
-    private final String smithyEmail;
+    private final java.util.Map<String, String> actorUsers;
+    private final java.util.List<String> actors;
+    private final java.util.List<String> actorEmails;
+    private final String planApprovedLabel;
+    private final String branchPrefix;
+    private final String sourceId;
 
-    public GitLabEventMapper(BotConfig botConfig, VcsProviderConfig vcsConfig, VcsClient smithyClient) {
+    public GitLabEventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        WorkflowPolicyConfig workflowPolicy,
+        VcsClient smithyClient
+    ) {
+        this(botConfig, vcsConfig, workflowPolicy, smithyClient, RepoInfo.GITLAB);
+    }
+
+    public GitLabEventMapper(
+        BotConfig botConfig,
+        VcsProviderConfig vcsConfig,
+        WorkflowPolicyConfig workflowPolicy,
+        VcsClient smithyClient,
+        String sourceId
+    ) {
         this.botConfig = botConfig;
         this.vcsConfig = vcsConfig;
         this.smithyClient = smithyClient;
         this.botUser = botConfig.resolvedSmithyUser();
-        this.smithyEmail = botConfig.resolvedSmithyEmail();
+        this.actorUsers = botConfig.actorUsers();
+        this.actors = botConfig.actors();
+        this.actorEmails = botConfig.actorEmails();
+        this.planApprovedLabel = workflowPolicy.resolvedPlanApprovedLabel();
+        this.branchPrefix = workflowPolicy.resolvedBranchPrefix();
+        this.sourceId = sourceId;
         log.info(
             "GitLabEventMapper initialized: smithyBot='{}', architectBot='{}'",
             botUser,
@@ -62,13 +89,16 @@ public class GitLabEventMapper {
 
     private WorkflowEvent mapIssueOpen(JsonNode payload, JsonNode attrs) {
         var assignees = payload.path("assignees");
-        if (!isUserInArray(assignees, botUser)) {
-            log.debug("Issue 'open' skipped: bot '{}' not in assignees {}", botUser, usernamesIn(assignees));
+        // Any actor this orchestrator answers as, and the event says which: a
+        // feature handed to the coordinator is not a task handed to smithy.
+        String assignee = assignedActor(assignees);
+        if (assignee == null) {
+            log.debug("Issue 'open' skipped: no actor of {} in assignees {}", actors, usernamesIn(assignees));
             return null;
         }
 
         var info = repoInfo(payload);
-        var ctx = extractIssueFromAttrs(info, attrs);
+        var ctx = withAssignee(extractIssueFromAttrs(info, attrs), assignee);
         String repoHtmlUrl = payload.path("project").path("web_url").asText("");
         return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
     }
@@ -94,33 +124,45 @@ public class GitLabEventMapper {
         var ctx = extractIssueFromAttrs(info, attrs);
 
         var currentAssignees = payload.path("assignees");
-        boolean currentlyAssigned = isUserInArray(currentAssignees, botUser);
+        String currentActor = assignedActor(currentAssignees);
 
         var previousAssignees = changes.path("assignees").path("previous");
-        boolean previouslyAssigned = isUserInArray(previousAssignees, botUser);
+        String previousActor = assignedActor(previousAssignees);
 
         String state = attrs.path("state").asText("");
         log.debug(
-            "Issue assignee change: bot='{}', current={}, previous={}, state='{}'",
-            botUser,
+            "Issue assignee change: actors={}, current={}, previous={}, state='{}'",
+            actors,
             usernamesIn(currentAssignees),
             usernamesIn(previousAssignees),
             state
         );
 
-        if (currentlyAssigned && !previouslyAssigned) {
+        if (currentActor != null && !currentActor.equals(previousActor)) {
             if (!"opened".equals(state)) {
                 log.debug("Issue assignee change skipped: state is '{}', expected 'opened'", state);
                 return null;
             }
             String repoHtmlUrl = payload.path("project").path("web_url").asText("");
-            return new WorkflowEvent.IssueAssigned(ctx, repoHtmlUrl);
-        } else if (!currentlyAssigned && previouslyAssigned) {
+            return new WorkflowEvent.IssueAssigned(withAssignee(ctx, currentActor), repoHtmlUrl);
+        } else if (currentActor == null && previousActor != null) {
             return new WorkflowEvent.IssueUnassigned(ctx);
         }
 
-        log.debug("Issue assignee change skipped: no assignment transition for bot '{}'", botUser);
+        log.debug("Issue assignee change skipped: no assignment transition for any of {}", actors);
         return null;
+    }
+
+    /** Which of this deployment's actors the issue is handed to, if any. */
+    private String assignedActor(JsonNode assignees) {
+        for (var actor : actorUsers.entrySet()) {
+            if (isUserInArray(assignees, actor.getValue())) return actor.getKey();
+        }
+        return null;
+    }
+
+    private static IssueContext withAssignee(IssueContext ctx, String assignee) {
+        return new IssueContext(ctx.info(), ctx.issueRef(), ctx.title(), ctx.body(), ctx.baseBranch(), assignee);
     }
 
     private WorkflowEvent mapIssueLabelChange(JsonNode payload, JsonNode attrs) {
@@ -128,17 +170,14 @@ public class GitLabEventMapper {
         boolean hasPlanApproved = false;
         if (labels.isArray()) {
             for (var l : labels) {
-                if ("Plan Approved".equals(l.path("title").asText(""))) {
+                if (planApprovedLabel.equals(l.path("title").asText(""))) {
                     hasPlanApproved = true;
                     break;
                 }
             }
         }
         if (!hasPlanApproved) {
-            log.debug(
-                "Issue label change skipped: 'Plan Approved' label not present (labels={})",
-                labelTitles(labels)
-            );
+            log.debug("Issue label change skipped: 'Plan Approved' label not present (labels={})", labelTitles(labels));
             return null;
         }
 
@@ -157,7 +196,7 @@ public class GitLabEventMapper {
             .path("author")
             .path("username")
             .asText(payload.path("user").path("username").asText(""));
-        if (botUser.equals(commentUser)) return null;
+        if (actors.contains(commentUser)) return null;
 
         return switch (noteableType) {
             case "Issue" -> mapIssueNote(payload, attrs, commentUser);
@@ -181,6 +220,7 @@ public class GitLabEventMapper {
 
         String commentBody = attrs.path("note").asText("");
         String type = attrs.path("type").asText("");
+        long noteId = attrs.path("id").asLong(0);
 
         // DiffNote → review comment
         if ("DiffNote".equals(type)) {
@@ -188,18 +228,34 @@ public class GitLabEventMapper {
             String path = position.path("new_path").asText("");
             int line = position.path("new_line").asInt(0);
             var cd = new CommentData(commentUser, commentBody, path, line);
-            return new WorkflowEvent.PrReviewComment(prc, List.of(cd));
+            return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, attrs.path("discussion_id").asText(""));
         }
 
-        // Regular note → conversation comment
-        String repoFull = payload.path("project").path("path_with_namespace").asText("");
-        if (repoFull.endsWith("-context") && !commentUser.equals(botConfig.resolvedArchitectUser())) {
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+        // Regular note → conversation comment. Comments on the architect's own
+        // context MR route back to its learn session; keying on the branch
+        // rather than a "<repo>-context" name lets that repo be named anything.
+        if (
+            Naming.isArchitectBranch(prc.headBranch()) &&
+            !commentUser.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))
+        ) {
+            return new WorkflowEvent.PrConversationComment(
+                prc,
+                commentUser,
+                commentBody,
+                noteId,
+                attrs.path("discussion_id").asText("")
+            );
         }
 
         String headBranch = mr.path("source_branch").asText("");
-        if (Naming.isSmithyBranch(headBranch)) {
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, commentBody);
+        if (isWorkBranch(headBranch)) {
+            return new WorkflowEvent.PrConversationComment(
+                prc,
+                commentUser,
+                commentBody,
+                noteId,
+                attrs.path("discussion_id").asText("")
+            );
         }
 
         return null;
@@ -210,14 +266,14 @@ public class GitLabEventMapper {
     private WorkflowEvent mapPushHook(JsonNode payload) {
         String ref = payload.path("ref").asText("");
         String branch = ref.replaceFirst("^refs/heads/", "");
-        if (!Naming.isSmithyBranch(branch)) return null;
+        if (!isWorkBranch(branch)) return null;
 
         var commits = payload.path("commits");
         boolean isHuman = false;
         if (commits.isArray()) {
             for (var c : commits) {
                 String email = c.path("author").path("email").asText("");
-                if (!smithyEmail.equals(email)) {
+                if (!actorEmails.contains(email)) {
                     isHuman = true;
                     break;
                 }
@@ -253,7 +309,12 @@ public class GitLabEventMapper {
             var currentReviewers = payload.path("reviewers");
             if (currentReviewers.isArray()) {
                 for (var r : currentReviewers) {
-                    if (botConfig.resolvedArchitectUser().equals(r.path("username").asText(""))) {
+                    if (
+                        java.util.Objects.equals(
+                            actorUsers.get(VcsProviderConfig.ARCHITECT),
+                            r.path("username").asText("")
+                        )
+                    ) {
                         var prc = extractPrFromMr(info, attrs);
                         return new WorkflowEvent.ReviewRequested(prc);
                     }
@@ -274,7 +335,7 @@ public class GitLabEventMapper {
         // Unassigned — only fire if bot was previously assigned
         if (changes.has("assignees")) {
             String headBranch = attrs.path("source_branch").asText("");
-            if (Naming.isSmithyBranch(headBranch)) {
+            if (isWorkBranch(headBranch)) {
                 var previousAssignees = changes.path("assignees").path("previous");
                 boolean previouslyAssigned = isUserInArray(previousAssignees, botUser);
                 var currentAssignees = attrs.path("assignees");
@@ -297,22 +358,24 @@ public class GitLabEventMapper {
 
     private WorkflowEvent mapMrMerge(JsonNode payload, JsonNode attrs) {
         var info = repoInfo(payload);
-        if (!info.repo().endsWith("-context")) {
+        String headBranch = attrs.path("source_branch").asText("");
+        // Merged source MRs are what the architect learns from; its own context
+        // MRs only drive cleanup and are recognised by branch, not repo name.
+        if (!Naming.isArchitectBranch(headBranch)) {
             var prc = extractPrFromMr(info, attrs);
             return new WorkflowEvent.PrMerged(prc);
         }
-        String headBranch = attrs.path("source_branch").asText("");
         int mrNumber = attrs.path("iid").asInt();
         return new WorkflowEvent.PrClosed(info, mrNumber, true, headBranch);
     }
 
     private WorkflowEvent mapMrApproved(JsonNode payload, JsonNode attrs) {
         String reviewer = payload.path("user").path("username").asText("");
-        if (botUser.equals(reviewer)) return null;
+        if (actors.contains(reviewer)) return null;
 
         var info = repoInfo(payload);
         String headBranch = attrs.path("source_branch").asText("");
-        if (!Naming.isSmithyBranch(headBranch)) return null;
+        if (!isWorkBranch(headBranch)) return null;
 
         var prc = extractPrFromMr(info, attrs);
         return new WorkflowEvent.ReviewSubmitted(prc, 0, "", reviewer);
@@ -353,7 +416,7 @@ public class GitLabEventMapper {
         var ciRun = new CiRunInfo(headBranch, prNumber);
 
         if ("failed".equals(status)) {
-            if (!Naming.isSmithyBranch(headBranch)) {
+            if (!isWorkBranch(headBranch)) {
                 log.info("CI failure on non-smithy branch {}, ignoring", headBranch);
                 return null;
             }
@@ -388,16 +451,16 @@ public class GitLabEventMapper {
                 log.warn("Failed to rewrite GitLab URL: {}", gitUrl);
             }
         }
-        return new RepoInfo(parts[0], parts[1], gitUrl);
+        return new RepoInfo(parts[0], parts[1], gitUrl, sourceId, RepoInfo.GITLAB);
     }
 
     private IssueContext extractIssueFromAttrs(RepoInfo info, JsonNode attrs) {
-        int number = attrs.path("iid").asInt(attrs.path("number").asInt());
+        String issueRef = attrs.path("iid").asText(attrs.path("number").asText(""));
         String title = attrs.path("title").asText("");
         String body = attrs.path("description").asText("");
         // GitLab doesn't have a direct "ref" field on issues — default to main
         String baseBranch = Naming.resolveBaseBranch("");
-        return new IssueContext(info, number, title, body, baseBranch);
+        return new IssueContext(info, issueRef, title, body, baseBranch);
     }
 
     private PrContext extractPrFromMr(RepoInfo info, JsonNode mr) {
@@ -432,5 +495,14 @@ public class GitLabEventMapper {
         var out = new java.util.ArrayList<String>();
         for (var item : array) out.add(item.path("title").asText(""));
         return out;
+    }
+
+    /**
+     * Whether a branch belongs to the agent, per the configured prefix. The
+     * adapters used to hardcode "smithy/", which made a provider adapter carry
+     * a particular flow.
+     */
+    private boolean isWorkBranch(String branch) {
+        return branch != null && branch.startsWith(branchPrefix);
     }
 }

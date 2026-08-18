@@ -1,0 +1,203 @@
+# Turns what a merged pull request argued about into a guideline change.
+#
+# The value is in the conversation, not the diff: the diff shows what was
+# decided, the review thread shows why, and that is what a guideline captures.
+#
+# It proposes rather than commits: the change lands as a pull request on the
+# guidelines repository, for the people who own it to accept or reject.
+
+apiVersion: smithy.ai/v1alpha1
+kind: Workflow
+metadata:
+  name: architect-learn
+  version: "1"
+
+vars:
+  # Its own account: the guideline change is proposed by the architect, and the
+  # commits on it are authored by the architect.
+  actor: architect
+  tools: [Read, Glob, Grep, Bash, Edit, Write]
+  gitUsername: "The Architect"
+
+routing:
+  # Only a merged pull request teaches anything. An abandoned one taught the
+  # team something, but not something to write down as a rule.
+  - event: pr.merged
+    action: create
+    key: "learn:{{ repo.fullName }}!{{ event.prNumber }}"
+
+  - event: pr.commented
+    action: dispatch
+    by: pr
+
+state:
+  initial: new
+  terminal: done
+
+  new:
+    on:
+      pr.merged:
+        to: learning
+        steps:
+          - uses: repo.context
+            id: context
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+
+          - uses: state.var
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              prNumber: "{{ event.prNumber }}"
+              learnBranch: "architect/pr-{{ event.prNumber }}-learn"
+              contextOwner: "{{ steps.context.owner }}"
+              contextRepo: "{{ steps.context.repo }}"
+
+          # The merged branch, with the guidelines repository cloned beside it on
+          # a fresh branch — the agent edits the guidelines in place and the
+          # branch is what becomes the proposal.
+          - uses: container.init
+            with:
+              name: "architect.{{ repo.owner }}.{{ repo.name }}.learn-{{ event.prNumber }}"
+              cloneUrl: "{{ repo.cloneUrl }}"
+              branch: "{{ event.headBranch }}"
+              sourceBranch: "{{ event.baseBranch }}"
+              gitUsername: "{{ vars.gitUsername }}"
+              extraRepos:
+                - cloneUrl: "{{ steps.context.cloneUrl }}"
+                  path: /context-repo
+                  branch: "architect/pr-{{ event.prNumber }}-learn"
+
+          - uses: pr.conversation
+            id: conversation
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              number: "{{ event.prNumber }}"
+
+          - uses: agent.runStructured
+            id: learning
+            with:
+              tools: "{{ vars.tools }}"
+              template: architect_learn.md.j2
+              contextRepo: "{{ steps.context.repo }}"
+              vars:
+                owner: "{{ repo.owner }}"
+                repo: "{{ repo.name }}"
+                context_owner: "{{ steps.context.owner }}"
+                context_repo: "{{ steps.context.repo }}"
+                pr_number: "{{ event.prNumber }}"
+                pr_title: "{{ event.prTitle }}"
+                base_branch: "{{ event.baseBranch }}"
+                conversation: "{{ steps.conversation.entries }}"
+              # NONE is the expected answer most of the time. A reviewer who
+              # gets a guideline proposal after every merge stops reading them.
+              output:
+                action: string
+                title: string
+                description: string
+
+          - uses: exec
+            id: pushed
+            if: "{{ steps.learning.action == 'UPDATE' }}"
+            with:
+              shell: "cd /context-repo && git push -u origin HEAD"
+
+          - uses: exec
+            id: contextBase
+            if: "{{ steps.learning.action == 'UPDATE' }}"
+            with:
+              shell: >-
+                cd /context-repo &&
+                git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||'
+
+          - uses: pr.link
+            id: source
+            if: "{{ steps.learning.action == 'UPDATE' }}"
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              number: "{{ event.prNumber }}"
+
+          # Proposed, not merged: the people who own the guidelines decide.
+          - uses: pr.create
+            id: context_pr
+            if: "{{ steps.learning.action == 'UPDATE' }}"
+            with:
+              owner: "{{ steps.context.owner }}"
+              repo: "{{ steps.context.repo }}"
+              title: "{{ steps.learning.title }}"
+              head: "architect/pr-{{ event.prNumber }}-learn"
+              base: "{{ steps.contextBase.stdout }}"
+              body: >-
+                Learned from [{{ repo.fullName }}#{{ event.prNumber }}]({{ steps.source.url }}):
+                {{ event.prTitle }}
+
+
+                {{ steps.learning.description }}
+
+          # Follow-up discussion happens on the proposal, whose repository may
+          # have no naming relationship to the source repository.
+          - uses: correlate
+            if: "{{ steps.learning.action == 'UPDATE' }}"
+            with:
+              kind: pr
+              ref: "{{ steps.context.owner }}/{{ steps.context.repo }}!{{ steps.context_pr.number }}"
+
+          - uses: state.var
+            if: "{{ steps.learning.action == 'UPDATE' }}"
+            with:
+              contextPrNumber: "{{ steps.context_pr.number }}"
+
+          - uses: metrics.record
+            with:
+              name: guideline_learned
+              action: "{{ steps.learning.action }}"
+
+          # Nothing to propose: let the container go rather than hold one open
+          # waiting for a conversation that will not happen.
+          - uses: instance.destroy
+            if: "{{ steps.learning.action != 'UPDATE' }}"
+
+          - uses: state.set
+            if: "{{ steps.learning.action != 'UPDATE' }}"
+            with:
+              state: done
+
+  learning:
+    on:
+      # Someone questioning the proposal on the context repository pull request.
+      pr.commented:
+        debounce: 30s
+        steps:
+          - uses: comment.react
+            with:
+              owner: "{{ vars.contextOwner }}"
+              repo: "{{ vars.contextRepo }}"
+              number: "{{ vars.contextPrNumber }}"
+              commentId: "{{ event.commentId }}"
+
+          - uses: agent.run
+            id: answer
+            with:
+              tools: "{{ vars.tools }}"
+              template: architect_learn_comment.md.j2
+              vars:
+                pr_number: "{{ vars.contextPrNumber }}"
+                comments: "{{ event.batch }}"
+
+          - uses: exec
+            with:
+              shell: "cd /context-repo && git push"
+              failOnError: false
+
+          - uses: pr.reply
+            with:
+              owner: "{{ vars.contextOwner }}"
+              repo: "{{ vars.contextRepo }}"
+              number: "{{ vars.contextPrNumber }}"
+              body: "{{ steps.answer.reply }}"
+
+  done:
+    on: {}

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.ClaudeConfig;
+import dev.smithyai.orchestrator.config.ConnectorRegistry;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
@@ -14,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -37,6 +39,26 @@ public class ContainerService {
     private final String claudeApiKey;
     private final String gitAuthUser;
     private final String defaultGitEmail;
+
+    @Autowired
+    public ContainerService(
+        DockerConfig dockerConfig,
+        ClaudeConfig claudeConfig,
+        ConnectorRegistry connectors,
+        DockerCli docker
+    ) {
+        String connector = connectors.defaultVcs();
+        String actor = connectors.defaultActor();
+        this.docker = docker;
+        this.network = dockerConfig.network();
+        this.taskImage = dockerConfig.taskImage();
+        this.vcsUrl = connectors.connector(connector).url();
+        this.vcsToken = connectors.token(connector, actor);
+        this.claudeOauthToken = claudeConfig.oauthToken();
+        this.claudeApiKey = claudeConfig.apiKey();
+        this.gitAuthUser = connectors.gitAuthUser(connector);
+        this.defaultGitEmail = connectors.gitEmail(connector, actor);
+    }
 
     public ContainerService(
         DockerConfig dockerConfig,
@@ -62,6 +84,14 @@ public class ContainerService {
         return new ContainerSession(name, this);
     }
 
+    /**
+     * Create a session pre-seeded with state already read during recovery, so
+     * callers of getState() don't need the container to be running.
+     */
+    public ContainerSession createSession(String name, ContainerState seedState) {
+        return new ContainerSession(name, this, seedState);
+    }
+
     public boolean containerExists(String containerName) {
         var result = docker.run(List.of("inspect", containerName));
         return result.exitCode() == 0;
@@ -79,6 +109,38 @@ public class ContainerService {
             .map(String::strip)
             .filter(s -> !s.isBlank())
             .toList();
+    }
+
+    public List<String> listAllManagedContainers() {
+        var result = docker.run(List.of("ps", "-a", "--filter", "label=smithy.managed=true", "--format", "{{.Names}}"));
+        if (result.exitCode() != 0) {
+            log.warn("Failed to list managed containers: {}", result.stderr());
+            return List.of();
+        }
+        return result
+            .stdout()
+            .lines()
+            .map(String::strip)
+            .filter(s -> !s.isBlank())
+            .toList();
+    }
+
+    public boolean ensureRunning(String containerName) {
+        var inspectResult = docker.run(List.of("inspect", "--format", "{{.State.Running}}", containerName));
+        if (inspectResult.exitCode() != 0) {
+            log.warn("Failed to inspect container {}: {}", containerName, inspectResult.stderr());
+            return false;
+        }
+        if ("true".equals(inspectResult.stdout().strip())) {
+            return true;
+        }
+        log.info("Container {} is stopped, starting it", containerName);
+        var startResult = docker.run(List.of("start", containerName));
+        if (startResult.exitCode() != 0) {
+            log.warn("Failed to start container {}: {}", containerName, startResult.stderr());
+            return false;
+        }
+        return true;
     }
 
     public boolean isManagedContainer(String containerName) {
@@ -109,13 +171,15 @@ public class ContainerService {
         args.add(name);
         args.add("--network");
         args.add(network);
+        args.add("--restart");
+        args.add("unless-stopped");
 
         // Labels
         args.add("--label");
         args.add("smithy.managed=true");
-        if (init.workflowType() != null) {
+        if (init.workflow() != null) {
             args.add("--label");
-            args.add("smithy.workflow=" + init.workflowType().value());
+            args.add("smithy.workflow=" + init.workflow());
         }
 
         // Volumes
@@ -138,7 +202,7 @@ public class ContainerService {
             args.add("ANTHROPIC_API_KEY=" + claudeApiKey);
         }
         args.add("-e");
-        args.add("VCS_URL=" + vcsUrl);
+        args.add("VCS_URL=" + (init.vcsUrl() != null ? init.vcsUrl() : vcsUrl));
         args.add("-e");
         args.add("VCS_TOKEN=" + (init.vcsToken() != null ? init.vcsToken() : vcsToken));
         args.add("-e");
@@ -162,11 +226,14 @@ public class ContainerService {
                     .toList();
                 extraReposJson = MAPPER.writeValueAsString(repoLists);
             } catch (Exception e) {
-                log.warn("Failed to serialize extra repos", e);
+                // Continuing would build a container missing a repository the
+                // workflow asked for, and the agent would then plan against
+                // code it cannot see.
+                throw new IllegalStateException("Cannot serialize extra repos for container " + name, e);
             }
         }
         args.add("-e");
-        args.add("GIT_AUTH_USER=" + gitAuthUser);
+        args.add("GIT_AUTH_USER=" + (init.gitAuthUser() != null ? init.gitAuthUser() : gitAuthUser));
         args.add("-e");
         args.add("EXTRA_REPOS=" + extraReposJson);
 
@@ -250,7 +317,9 @@ public class ContainerService {
                 containerName,
                 "sh",
                 "-c",
-                "cat \"$(find /root/.claude/projects -name '" + sessionId + ".jsonl' 2>/dev/null | head -1)\" 2>/dev/null"
+                "cat \"$(find /root/.claude/projects -name '" +
+                    sessionId +
+                    ".jsonl' 2>/dev/null | head -1)\" 2>/dev/null"
             )
         );
         return result.stdout();

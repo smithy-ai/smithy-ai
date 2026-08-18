@@ -1,0 +1,20 @@
+# smithy-orchestrator repo manifest
+# Copy to repos.yml (gitignored) and edit. This file is the orchestrator's
+# planning universe: only repos listed here get issues.
+
+# GitLab host the glab CLI is authenticated against (glab auth login --hostname <host>)
+gitlab_host: gitlab.example.com
+
+# Username of the smithy bot account — assigning an issue to it starts the agent
+smithy_bot: smithy
+
+repos:
+  - project: group/service-a
+    description: >-
+      What this component does, the key contracts it owns (APIs, queues,
+      config keys), and anything the orchestrator should know when routing
+      work to it.
+    specs: docs/architecture.md   # optional: file(s) to read when planning
+
+  - project: group/service-b
+    description: Frontend consuming service-a's REST API.

@@ -8,3 +8,6 @@ spring:
       enabled: true
   main:
     banner-mode: off
+
+  flyway:
+    locations: classpath:db/migration

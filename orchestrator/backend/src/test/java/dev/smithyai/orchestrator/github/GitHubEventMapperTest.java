@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.BotConfig;
 import dev.smithyai.orchestrator.config.VcsProviderConfig;
+import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.web.GitHubEventMapper;
 import org.junit.jupiter.api.Test;
@@ -32,14 +33,106 @@ class GitHubEventMapperTest {
         assertEquals("reviewer", review.reviewer());
     }
 
+    @Test
+    void planApprovalLabelIsConfigurableRatherThanHardcoded() throws Exception {
+        String payload = """
+            {
+              "action": "labeled",
+              "label": {"name": "ship-it"},
+              "sender": {"login": "alice"},
+              "repository": {"full_name": "acme/app", "owner": {"login": "acme"}, "name": "app",
+                             "html_url": "https://github.com/acme/app", "clone_url": "https://github.com/acme/app.git"},
+              "issue": {"number": 7, "title": "A thing", "body": "", "state": "open"}
+            }
+            """;
+
+        // The default label does not match this payload.
+        assertNull(mapper().map("issues", mapper.readTree(payload)));
+
+        // Configured to "ship-it", the same payload is an approval.
+        var configured = new GitHubEventMapper(
+            botConfig(),
+            vcsConfig(),
+            new WorkflowPolicyConfig("ship-it", null, null),
+            null
+        );
+        var event = configured.map("issues", mapper.readTree(payload));
+        assertInstanceOf(WorkflowEvent.PlanApproved.class, event);
+        assertEquals("alice", ((WorkflowEvent.PlanApproved) event).approver());
+    }
+
+    @Test
+    void anAssignedIssueSaysWhichActorItWasHandedTo() throws Exception {
+        // Which actor an issue is assigned to is how a person says what kind of
+        // work it is, and it is what a workflow filters on to claim it.
+        var toAgent = mapper().map("issues", mapper.readTree(assignedTo("smithy-bot")));
+        var agent = assertInstanceOf(WorkflowEvent.IssueAssigned.class, toAgent);
+        assertEquals("smithy", agent.ctx().assignee());
+        assertEquals("github-main", agent.ctx().info().source());
+        assertEquals("github", agent.ctx().info().sourceProvider());
+
+        var toCoordinator = mapper().map("issues", mapper.readTree(assignedTo("coordinator-bot")));
+        var coordinator = assertInstanceOf(WorkflowEvent.IssueAssigned.class, toCoordinator);
+        assertEquals("coordinator", coordinator.ctx().assignee());
+
+        assertNull(mapper().map("issues", mapper.readTree(assignedTo("someone-else"))), "and nobody else's issue");
+    }
+
+    @Test
+    void anIssueTakenOffEveryActorIsAnUnassignment() throws Exception {
+        String payload = assignedTo("someone-else").replace("\"action\": \"assigned\"", "\"action\": \"unassigned\"");
+
+        assertInstanceOf(WorkflowEvent.IssueUnassigned.class, mapper().map("issues", mapper.readTree(payload)));
+    }
+
+    private static String assignedTo(String login) {
+        return """
+        {
+          "action": "assigned",
+          "repository": {"full_name": "acme/app", "owner": {"login": "acme"}, "name": "app",
+                         "html_url": "https://github.com/acme/app", "clone_url": "https://github.com/acme/app.git"},
+          "issue": {"number": 7, "title": "A thing", "body": "", "state": "open",
+                    "assignees": [{"login": "%s"}]}
+        }
+        """.formatted(login);
+    }
+
+    private static BotConfig botConfig() {
+        return new BotConfig(
+            new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),
+            new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+            new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
+        );
+    }
+
+    private static VcsProviderConfig vcsConfig() {
+        var github = new VcsProviderConfig.GitHubProviderConfig(
+            "",
+            "",
+            "secret",
+            "smithy-token",
+            "architect-token",
+            "coordinator-token"
+        );
+        return new VcsProviderConfig("github", null, null, null, github, null);
+    }
+
     private GitHubEventMapper mapper() {
         var botConfig = new BotConfig(
             new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),
-            new BotConfig.BotEntry("architect-bot", "architect@example.com")
+            new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+            new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
         );
-        var github = new VcsProviderConfig.GitHubProviderConfig("", "", "secret", "smithy-token", "architect-token");
-        var vcsConfig = new VcsProviderConfig("github", null, null, null, github);
-        return new GitHubEventMapper(botConfig, vcsConfig, null);
+        var github = new VcsProviderConfig.GitHubProviderConfig(
+            "",
+            "",
+            "secret",
+            "smithy-token",
+            "architect-token",
+            "coordinator-token"
+        );
+        var vcsConfig = new VcsProviderConfig("github", null, null, null, github, null);
+        return new GitHubEventMapper(botConfig, vcsConfig, WorkflowPolicyConfig.defaults(), null, "github-main");
     }
 
     private String reviewCommentPayload() {

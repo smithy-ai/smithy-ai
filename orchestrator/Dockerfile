@@ -25,7 +25,9 @@ COPY orchestrator/backend/src/ backend/src/
 RUN ./gradlew :backend:bootJar --no-daemon -x test -x spotlessCheck
 
 FROM eclipse-temurin:25-jre
-RUN apt-get update && apt-get install -y --no-install-recommends docker.io && rm -rf /var/lib/apt/lists/*
+# Only the docker CLI is needed (the engine is reached via the mounted socket);
+# copying the static binary avoids apt, which fails on hosts without port-80 egress.
+COPY --from=docker:28-cli /usr/local/bin/docker /usr/local/bin/docker
 WORKDIR /app
 COPY --from=build /build/backend/build/libs/*.jar app.jar
 COPY orchestrator/backend/src/main/resources/orchestrator.yml /config/orchestrator.yml

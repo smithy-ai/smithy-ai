@@ -1,20 +1,48 @@
 package dev.smithyai.orchestrator.service.vcs.forgejo;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.forgejoclient.ApiClient;
 import dev.smithyai.forgejoclient.ApiException;
 import dev.smithyai.forgejoclient.api.IssueApi;
 import dev.smithyai.forgejoclient.api.RepositoryApi;
 import dev.smithyai.forgejoclient.model.*;
+import dev.smithyai.forgejoclient.model.CreateIssueOption;
+import dev.smithyai.forgejoclient.model.IssueLabelsOption;
+import dev.smithyai.orchestrator.runtime.actions.Capability;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackerClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.*;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
 public class ForgejoClient implements VcsClient, IssueTrackerClient {
+
+    /**
+     * Forgejo reads repository files but has no reaction, discussion-reply or
+     * file-delete API here.
+     */
+    @Override
+    public java.util.Set<Capability> capabilities() {
+        return java.util.EnumSet.of(
+            Capability.PR_CREATE,
+            Capability.PR_COMMENT,
+            Capability.PR_REVIEW_INLINE,
+            Capability.PR_REQUEST_REVIEW,
+            Capability.ISSUE_COMMENT,
+            Capability.ISSUE_ASSIGN,
+            Capability.ISSUE_CREATE,
+            Capability.ISSUE_LABEL,
+            Capability.FILE_READ
+        );
+    }
 
     private final String baseUrl;
     private final IssueApi issueApi;
@@ -64,35 +92,62 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     // ── IssueTrackerClient ───────────────────────────────────
 
     @Override
-    public IssueData getIssue(String owner, String repo, int number) {
-        Issue issue = api(() -> issueApi.issueGetIssue(owner, repo, (long) number));
+    public IssueData createIssue(String owner, String repo, String title, String body, List<String> labels) {
+        var option = new CreateIssueOption().title(title).body(body == null ? "" : body);
+        Issue created = api(() -> issueApi.issueCreateIssue(owner, repo, option));
+        // Labels go on afterwards: CreateIssueOption types them as numeric ids,
+        // and a workflow names them.
+        if (labels != null && !labels.isEmpty()) {
+            labels.forEach(label -> addIssueLabel(owner, repo, String.valueOf(created.getNumber()), label));
+            return getIssue(owner, repo, String.valueOf(created.getNumber()));
+        }
+        return toIssueData(created);
+    }
+
+    @Override
+    public void addIssueLabel(String owner, String repo, String issueRef, String label) {
+        long number = Long.parseLong(issueRef);
+        // Forgejo takes either a label id or its name here, and a workflow only
+        // knows the name.
+        var option = new IssueLabelsOption().labels(List.of(label));
+        api(() -> issueApi.issueAddLabel(owner, repo, number, option));
+    }
+
+    @Override
+    public IssueData getIssue(String owner, String repo, String issueRef) {
+        long number = Long.parseLong(issueRef);
+        Issue issue = api(() -> issueApi.issueGetIssue(owner, repo, number));
         return toIssueData(issue);
     }
 
     @Override
-    public List<CommentEntry> getIssueComments(String owner, String repo, int number) {
-        List<Comment> comments = api(() -> issueApi.issueGetComments(owner, repo, (long) number, null, null));
+    public List<CommentEntry> getIssueComments(String owner, String repo, String issueRef) {
+        long number = Long.parseLong(issueRef);
+        List<Comment> comments = api(() -> issueApi.issueGetComments(owner, repo, number, null, null));
         return comments.stream().map(this::toCommentEntry).toList();
     }
 
     @Override
-    public CommentEntry createIssueComment(String owner, String repo, int number, String body) {
+    public CommentEntry createIssueComment(String owner, String repo, String issueRef, String body) {
+        long number = Long.parseLong(issueRef);
         Comment comment = api(() ->
-            issueApi.issueCreateComment(owner, repo, (long) number, new CreateIssueCommentOption().body(body))
+            issueApi.issueCreateComment(owner, repo, number, new CreateIssueCommentOption().body(body))
         );
         return toCommentEntry(comment);
     }
 
     @Override
-    public void setIssueAssignees(String owner, String repo, int issueNumber, List<String> assignees) {
+    public void setIssueAssignees(String owner, String repo, String issueRef, List<String> assignees) {
+        long number = Long.parseLong(issueRef);
         var opt = new EditIssueOption();
         opt.setAssignees(assignees);
-        apiVoid(() -> issueApi.issueEditIssue(owner, repo, (long) issueNumber, opt));
+        apiVoid(() -> issueApi.issueEditIssue(owner, repo, number, opt));
     }
 
     @Override
-    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, int number) {
-        List<Attachment> attachments = api(() -> issueApi.issueListIssueAttachments(owner, repo, (long) number));
+    public List<AttachmentInfo> getIssueAttachments(String owner, String repo, String issueRef) {
+        long number = Long.parseLong(issueRef);
+        List<Attachment> attachments = api(() -> issueApi.issueListIssueAttachments(owner, repo, number));
         return attachments.stream().map(this::toAttachmentInfo).toList();
     }
 
@@ -163,7 +218,7 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
 
     @Override
     public List<CommentEntry> getPrComments(String owner, String repo, int prNumber) {
-        return getIssueComments(owner, repo, prNumber);
+        return getIssueComments(owner, repo, String.valueOf(prNumber));
     }
 
     // ── VcsClient: Reviews ───────────────────────────────────
@@ -233,7 +288,7 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
     @Override
     public void setPrAssignees(String owner, String repo, int prNumber, List<String> assignees) {
         // In Forgejo, PR assignees are set via the issue API
-        setIssueAssignees(owner, repo, prNumber, assignees);
+        setIssueAssignees(owner, repo, String.valueOf(prNumber), assignees);
     }
 
     @Override
@@ -267,7 +322,108 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
         }
     }
 
+    @Override
+    public Optional<String> readRepositoryFile(String owner, String repo, String path, String ref) {
+        try {
+            // Same reason as listRepositoryFiles: the generated client percent-
+            // encodes the separators inside a path, and Forgejo answers 400 to
+            // `.smithy%2Fconfig.yml`. Every path this reads is multi-segment, so
+            // that failure was total — and silent, because callers treat an
+            // unreadable per-repository config as "there isn't one".
+            String url = "%s/api/v1/repos/%s/%s/contents/%s?ref=%s".formatted(
+                baseUrl,
+                encode(owner),
+                encode(repo),
+                encodePath(path),
+                encode(resolveRef(owner, repo, ref))
+            );
+            JsonNode node = readJson(url);
+            if (node == null || node.isMissingNode()) return Optional.empty();
+            var contents = new dev.smithyai.forgejoclient.model.ContentsResponse();
+            contents.setContent(node.path("content").isMissingNode() ? null : node.path("content").asText());
+            contents.setEncoding(node.path("encoding").asText("base64"));
+            String content = contents.getContent();
+            if (content == null) return Optional.empty();
+            if ("base64".equalsIgnoreCase(contents.getEncoding())) {
+                // Forgejo wraps base64 payloads, so strip whitespace before decoding.
+                String normalized = content.replaceAll("\\s+", "");
+                return Optional.of(new String(Base64.getDecoder().decode(normalized), StandardCharsets.UTF_8));
+            }
+            return Optional.of(content);
+        } catch (ForgejoApiException e) {
+            if (e.isNotFound()) return Optional.empty();
+            throw e;
+        }
+    }
+
+    @Override
+    public List<String> listRepositoryFiles(String owner, String repo, String path, String ref) {
+        // The generated repoGetContentsList only lists the repository root, and
+        // repoGetContents types a directory listing as a single ContentsResponse,
+        // so go to the contents endpoint directly for an arbitrary directory.
+        try {
+            String url = "%s/api/v1/repos/%s/%s/contents/%s?ref=%s".formatted(
+                baseUrl,
+                encode(owner),
+                encode(repo),
+                encodePath(path),
+                encode(resolveRef(owner, repo, ref))
+            );
+            JsonNode node = readJson(url);
+            if (node == null || !node.isArray()) return List.of();
+
+            var files = new ArrayList<String>();
+            for (JsonNode item : node) {
+                if ("file".equals(item.path("type").asText(""))) {
+                    String itemPath = item.path("path").asText("");
+                    if (!itemPath.isBlank()) files.add(itemPath);
+                }
+            }
+            return files;
+        } catch (HttpClientErrorException.NotFound e) {
+            return List.of();
+        } catch (ForgejoApiException e) {
+            if (e.isNotFound()) return List.of();
+            throw e;
+        }
+    }
+
+    private static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    /** Percent-encode each path segment, leaving the separators intact. */
+    private static String encodePath(String path) {
+        return Arrays.stream(path.split("/")).map(ForgejoClient::encode).collect(Collectors.joining("/"));
+    }
+
+    /** The given ref, or the repository's default branch when it is null or blank. */
+    private String resolveRef(String owner, String repo, String ref) {
+        if (ref != null && !ref.isBlank()) return ref;
+        return api(() -> repoApi.repoGet(owner, repo)).getDefaultBranch();
+    }
+
     // ── VcsClient: URL helpers ───────────────────────────────
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    /**
+     * Fetch and parse JSON from a raw URL.
+     *
+     * <p>Asked for as text rather than as a tree: Spring Boot 4 ships Jackson 3,
+     * whose message converter cannot construct the Jackson 2 node type the rest
+     * of this class works with, and the failure is a conversion error rather
+     * than anything that names the real problem.
+     */
+    private JsonNode readJson(String url) {
+        String body = rest.get().uri(URI.create(url)).retrieve().body(String.class);
+        if (body == null || body.isBlank()) return null;
+        try {
+            return JSON.readTree(body);
+        } catch (Exception e) {
+            throw new ForgejoApiException(502, "Unreadable JSON from " + url, e);
+        }
+    }
 
     @Override
     public String fileBrowseUrl(String repoHtmlUrl, String branch, String path) {
@@ -297,7 +453,7 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
         List<String> labelNames =
             issue.getLabels() != null ? issue.getLabels().stream().map(Label::getName).toList() : List.of();
         return new IssueData(
-            issue.getNumber().intValue(),
+            String.valueOf(issue.getNumber()),
             issue.getTitle(),
             issue.getBody(),
             issue.getState() != null ? issue.getState() : "open",

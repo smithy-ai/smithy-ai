@@ -20,6 +20,12 @@ dependencies {
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    implementation("org.xerial:sqlite-jdbc")
+    implementation("org.flywaydb:flyway-core")
+    // Spring Boot 4 moved integration auto-config out of spring-boot-autoconfigure
+    // into per-technology modules; without this Flyway silently never runs.
+    implementation("org.springframework.boot:spring-boot-flyway")
     implementation("com.hubspot.jinjava:jinjava:2.8.3")
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")

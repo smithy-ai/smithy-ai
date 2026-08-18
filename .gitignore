@@ -14,9 +14,19 @@ build/
 
 # Node
 node_modules/
+*.tsbuildinfo
 
-# Environment
+# Environment. Every variant of it: a filled-in .env under another name is
+# still full of tokens, and .env.example is the only one meant to be committed.
 .env
+.env.*
+!.env.example
+
+# Local provider instances stood up for manual testing
+local-gitlab/
+
+# smithy-orchestrator skill: local repo manifest
+.claude/skills/smithy-orchestrator/repos.yml
 
 # IDE
 .idea/
@@ -30,3 +40,8 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# SQLite run store (local runs)
+*.db
+*.db-wal
+*.db-shm

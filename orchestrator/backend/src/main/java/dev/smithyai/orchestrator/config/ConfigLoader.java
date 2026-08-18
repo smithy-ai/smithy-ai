@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.config;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import dev.smithyai.orchestrator.service.claude.ClaudeSession;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -16,47 +17,102 @@ import org.springframework.core.env.Environment;
 @Configuration
 public class ConfigLoader {
 
-    private final SmithyConfig config;
+    private final OrchestratorConfig config;
+    private final Environment environment;
 
     public ConfigLoader(Environment env) {
+        this.environment = env;
         String raw = loadRawYaml(env);
-        String resolved = env.resolveRequiredPlaceholders(raw);
         try {
-            var mapper = YAMLMapper.builder().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
-            this.config = mapper.readValue(resolved, SmithyConfig.class);
-            config.vcs().validate();
-            config.claude().validate();
-            log.info("Loaded orchestrator config (provider={})", config.vcs().resolvedProvider());
+            var mapper = YAMLMapper.builder().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
+            this.config = mapper.readValue(raw, OrchestratorConfig.class);
+            OrchestratorConfigValidator.validate(config, env);
+            ClaudeConfig claude = resolvedClaudeConfig();
+            claude.validate();
+            ClaudeSession.configureDefaultModel(claude.resolvedModel());
+            log.info(
+                "Loaded orchestrator config (connectors={}, defaultVcs={}, model={})",
+                config.connectors().keySet(),
+                config.defaults().vcs(),
+                claude.resolvedModel()
+            );
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to parse orchestrator config", e);
         }
     }
 
     @Bean
+    public OrchestratorConfig orchestratorConfig() {
+        return config;
+    }
+
+    @Bean
+    public StorageConfig storageConfig() {
+        return config.storage() == null ? StorageConfig.defaults() : config.storage();
+    }
+
+    @Bean
+    public AuthConfig authConfig() {
+        return config.auth() == null ? AuthConfig.defaults() : config.auth();
+    }
+
+    @Bean
     public DockerConfig dockerConfig() {
-        return config.docker();
+        var docker = config.runtime() == null ? null : config.runtime().docker();
+        return new DockerConfig(
+            value(docker == null ? null : docker.command(), "docker"),
+            value(docker == null ? null : docker.network(), "smithy-net"),
+            value(docker == null ? null : docker.taskImage(), "claude-task-default:latest"),
+            docker == null ? "" : String.join(",", docker.caches())
+        );
     }
 
     @Bean
     public ClaudeConfig claudeConfig() {
-        return config.claude();
+        return resolvedClaudeConfig();
     }
 
-    @Bean
-    public VcsProviderConfig vcsProviderConfig() {
-        return config.vcs();
-    }
-
-    @Bean
-    public BotConfig botConfig() {
-        return config.bots();
+    private ClaudeConfig resolvedClaudeConfig() {
+        var claude = config.agent().claude();
+        return new ClaudeConfig(
+            resolveSecret(claude.oauthToken(), "agent.claude.oauthToken"),
+            resolveSecret(claude.apiKey(), "agent.claude.apiKey"),
+            claude.model()
+        );
     }
 
     @Bean
     public KnowledgebaseConfig knowledgebaseConfig() {
-        return config.knowledgebase() != null
-            ? config.knowledgebase()
-            : new KnowledgebaseConfig(false, null, null);
+        return config.knowledgebase() != null ? config.knowledgebase() : new KnowledgebaseConfig(false, null, null);
+    }
+
+    @Bean
+    public CiConfig ciConfig() {
+        return config.ci() != null ? config.ci() : new CiConfig(null);
+    }
+
+    @Bean
+    public WorkflowPolicyConfig workflowPolicyConfig() {
+        var workflows = config.workflows();
+        var defaults = workflows == null ? null : workflows.defaults();
+        return new WorkflowPolicyConfig(
+            defaults == null ? null : defaults.planApprovedLabel(),
+            defaults == null ? null : defaults.branchPrefix(),
+            workflows == null ? null : workflows.definitionsDir()
+        );
+    }
+
+    @Bean
+    public WorkflowConfig workflowConfig() {
+        return config.workflows() != null ? config.workflows() : new WorkflowConfig(null, true, null);
+    }
+
+    public String resolveSecret(SecretRef secret, String field) {
+        return secret == null ? "" : secret.resolve(environment, field);
+    }
+
+    private static String value(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private static String loadRawYaml(Environment env) {
@@ -64,13 +120,14 @@ public class ConfigLoader {
         String configPath = env.getProperty("ORCHESTRATOR_CONFIG", env.getProperty("config", (String) null));
         if (configPath != null) {
             Path path = Path.of(configPath);
-            if (Files.isReadable(path)) {
-                log.info("Loading orchestrator config from: {}", path);
-                try {
-                    return Files.readString(path);
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Failed to read config: " + path, e);
-                }
+            if (!Files.isReadable(path)) {
+                throw new IllegalStateException("Configured orchestrator config is not readable: " + path);
+            }
+            log.info("Loading orchestrator config from: {}", path);
+            try {
+                return Files.readString(path);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read config: " + path, e);
             }
         }
 

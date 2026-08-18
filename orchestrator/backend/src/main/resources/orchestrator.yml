@@ -1,48 +1,61 @@
-docker:
-  command: ${DOCKER_COMMAND:docker}
-  network: ${DOCKER_NETWORK:forgejo-net}
-  task-image: ${TASK_IMAGE:claude-task-default:latest}
-  cache-volumes: ${CACHE_VOLUMES:pnpm,npm}
+apiVersion: smithy.ai/v1alpha1
+kind: OrchestratorConfig
 
-claude:
-  oauth-token: ${CLAUDE_CODE_OAUTH_TOKEN:}
-  api-key: ${ANTHROPIC_API_KEY:}
+storage:
+  database: /config/smithy.db
+  metrics: /config/metrics.jsonl
 
-vcs:
-  provider: ${VCS_PROVIDER:forgejo}
-  issue-provider: ${ISSUE_PROVIDER:}
+runtime:
+  docker:
+    command: docker
+    network: forgejo-net
+    taskImage: claude-task-default:latest
+    caches: [pnpm, npm]
 
-  forgejo:
-    url: ${FORGEJO_URL:http://forgejo:3000}
-    external-url: ${FORGEJO_EXTERNAL_URL:http://localhost:3000}
-    webhook-secret: ${WEBHOOK_SECRET:}
-    smithy-token: ${SMITHY_FORGEJO_TOKEN:}
-    architect-token: ${ARCHITECT_FORGEJO_TOKEN:}
+agent:
+  claude:
+    model: claude-opus-5
+    oauthToken:
+      env: CLAUDE_CODE_OAUTH_TOKEN
+    apiKey:
+      env: ANTHROPIC_API_KEY
 
-  gitlab:
-    url: ${GITLAB_URL:}
-    external-url: ${GITLAB_EXTERNAL_URL:}
-    webhook-secret: ${GITLAB_WEBHOOK_SECRET:}
-    smithy-token: ${SMITHY_GITLAB_TOKEN:}
-    architect-token: ${ARCHITECT_GITLAB_TOKEN:}
-    token-type: ${GITLAB_TOKEN_TYPE:}
+auth:
+  admin:
+    passwordHash:
+      env: ADMIN_PASSWORD_HASH
 
-  github:
-    url: ${GITHUB_URL:}
-    external-url: ${GITHUB_EXTERNAL_URL:}
-    webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
-    smithy-token: ${SMITHY_GITHUB_TOKEN:}
-    architect-token: ${ARCHITECT_GITHUB_TOKEN:}
+connectors:
+  forgejo-main:
+    provider: forgejo
+    url: http://forgejo:3000
+    externalUrl: http://localhost:3000
+    webhookSecret:
+      env: WEBHOOK_SECRET
+    actors:
+      smithy:
+        username: smithy
+        token:
+          env: SMITHY_FORGEJO_TOKEN
+        git:
+          name: Smithy
+          email: smithy@localhost
+defaults:
+  vcs: forgejo-main
+  issueTracker: event.source
+  actor: smithy
+
+workflows:
+  definitionsDir: /config/workflows
+  repositoryWorkflows: true
+  defaults:
+    branchPrefix: smithy/
+    planApprovedLabel: Plan Approved
+
+ci:
+  autofix: false
 
 knowledgebase:
-  enabled: ${KNOWLEDGEBASE_ENABLED:false}
-  url: ${KNOWLEDGEBASE_URL:http://knowledgebase:8000/mcp}
-  tool-name: ${KNOWLEDGEBASE_TOOL_NAME:searchKnowledge}
-
-bots:
-  smithy:
-    user: ${SMITHY_BOT_USER:smithy}
-    email: ${SMITHY_BOT_EMAIL:}
-  architect:
-    user: ${ARCHITECT_BOT_USER:architect}
-    email: ${ARCHITECT_BOT_EMAIL:}
+  enabled: false
+  url: http://knowledgebase:8000/mcp
+  toolName: searchKnowledge
