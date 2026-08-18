@@ -156,8 +156,8 @@ well, so an agent working in the container pushes as that identity.
 | Action | Required | Optional | Outputs |
 |---|---|---|---|
 | `container.init` | `name`, `cloneUrl` | `branch` (empty = remote default), `sourceBranch`, `stage`, `gitEmail`, `gitUsername`, `vcsToken`, `extraRepos[]` (`cloneUrl`, `path`, `branch`) | `name`, `created` |
-| `agent.run` | `prompt` or `template` | `mode` (`plan`), `tools[]`, `vars{}`, `contextRepo` | `reply`; in plan mode `planFile`, `hasPlan` |
-| `agent.runStructured` | `output{}`, and `prompt` or `template` | `tools[]`, `vars{}`, `contextRepo` | the declared fields |
+| `agent.run` | `prompt` or `template` | `mode` (`plan`), `tools[]`, `vars{}`, `contextRepo`, `model` | `reply`; in plan mode `planFile`, `hasPlan` |
+| `agent.runStructured` | `output{}`, and `prompt` or `template` | `tools[]`, `vars{}`, `contextRepo`, `model` | the declared fields |
 | `agent.ensureCommitted` | none | `tools[]` | `committed` |
 | `agent.newSession` | none | none | `reset` |
 | `exec` | `command[]` or `shell` | `env{}`, `failOnError` (default true) | `exitCode`, `ok`, `stdout`, `stderr` |
@@ -166,6 +166,10 @@ well, so an agent working in the container pushes as that identity.
 `agent.run` in plan mode starts a fresh conversation; otherwise it resumes the
 run's existing one. `agent.newSession` forces the next turn to start over,
 useful when planning and building want different tools and no shared history.
+
+`model:` runs that one turn on a different Claude model than the configured
+`agent.claude.model` — a triage turn can run on a smaller model than the build
+turn it feeds. An empty value means the configured model.
 
 #### Declaring a structured answer
 

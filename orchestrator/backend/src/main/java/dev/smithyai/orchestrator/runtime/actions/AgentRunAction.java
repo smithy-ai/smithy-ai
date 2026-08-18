@@ -30,9 +30,7 @@ public class AgentRunAction extends AbstractAgentAction {
     public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
         boolean planning = "plan".equals(optional(input, "mode", "default"));
         // Planning starts a conversation; everything else continues one.
-        var agent = planning
-            ? environments.newAgent(context.run(), listInput(input, "tools"))
-            : agentFor(context, input);
+        var agent = planning ? newAgentFor(context, input) : agentFor(context, input);
         String prompt = promptFrom(input);
 
         // Before the turn, not only after: a turn can run for half an hour and

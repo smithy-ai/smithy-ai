@@ -43,6 +43,7 @@ public class ClaudeSession {
     private final List<String> tools;
     private final KnowledgebaseConfig knowledgebaseConfig;
     private String contextRepoName;
+    private String model;
     private boolean started = false;
 
     public ClaudeSession(ContainerSession container, List<String> tools) {
@@ -74,8 +75,19 @@ public class ClaudeSession {
         this.contextRepoName = contextRepoName;
     }
 
+    /** Run this session's turns on {@code model} instead of the configured default. Blank keeps the default. */
+    public void setModel(String model) {
+        if (model != null && !model.isBlank()) {
+            this.model = model;
+        }
+    }
+
+    private String model() {
+        return model != null ? model : defaultModel;
+    }
+
     public void startPlan(String prompt) {
-        execute(prompt, defaultModel, "plan", false, null);
+        execute(prompt, model(), "plan", false, null);
         started = true;
     }
 
@@ -84,7 +96,7 @@ public class ClaudeSession {
     }
 
     public <T> T send(String prompt, Class<T> resultType) {
-        return send(prompt, resultType, defaultModel);
+        return send(prompt, resultType, model());
     }
 
     public <T> T send(String prompt, Class<T> resultType, String model) {
@@ -123,7 +135,7 @@ public class ClaudeSession {
     public Map<String, Object> sendStructured(String prompt, String jsonSchema) {
         boolean resume = started;
         started = true;
-        String content = execute(prompt, defaultModel, "default", resume, jsonSchema);
+        String content = execute(prompt, model(), "default", resume, jsonSchema);
         try {
             return MAPPER.readValue(content.strip(), new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {

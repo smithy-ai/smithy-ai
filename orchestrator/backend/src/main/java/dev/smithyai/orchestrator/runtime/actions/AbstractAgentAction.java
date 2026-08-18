@@ -56,9 +56,18 @@ public abstract class AbstractAgentAction implements WorkflowAction {
     }
 
     protected ClaudeSession agentFor(ActionContext context, Map<String, Object> input) {
-        var agent = environments.agent(context.run(), listInput(input, "tools"));
+        return configured(environments.agent(context.run(), listInput(input, "tools")), input);
+    }
+
+    /** A conversation that starts fresh, for turns that must not resume one. */
+    protected ClaudeSession newAgentFor(ActionContext context, Map<String, Object> input) {
+        return configured(environments.newAgent(context.run(), listInput(input, "tools")), input);
+    }
+
+    private ClaudeSession configured(ClaudeSession agent, Map<String, Object> input) {
         String contextRepo = optional(input, "contextRepo", null);
         if (contextRepo != null) agent.setContextRepoName(contextRepo);
+        agent.setModel(optional(input, "model", null));
         return agent;
     }
 
