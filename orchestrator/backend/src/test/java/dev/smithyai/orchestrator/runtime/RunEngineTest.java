@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.IssueContext;
+import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.actions.*;
@@ -60,6 +61,9 @@ class RunEngineTest {
           - event: [pr.merged, issue.unassigned]
             action: destroy
             key: "{{ repo.fullName }}#{{ event.issueRef }}"
+          - event: pr.commented
+            action: dispatch
+            by: pr
         state:
           initial: planning
           terminal: done
@@ -80,6 +84,11 @@ class RunEngineTest {
                   - uses: metrics.record
                     with:
                       name: plan_approved
+              pr.commented:
+                steps:
+                  - uses: state.var
+                    with:
+                      lastPrComment: "{{ event.commentBody }}"
           executing:
             on:
               issue.commented:
@@ -343,6 +352,37 @@ class RunEngineTest {
 
         assertFalse(again.handled());
         assertEquals(RunStatus.COMPLETED, store.find(started.runId()).orElseThrow().status());
+    }
+
+    @Test
+    void aCommentOnSomeoneElsesPrFromTheSameBranchDoesNotReachTheRun() {
+        var started = engine.handle(assigned()).getFirst();
+        // What the run registers when it opens its own pull request.
+        store.correlate(CorrelationKind.PR, RunRecorder.prRef("acme", "platform", 41), started.runId());
+        store.correlate(CorrelationKind.BRANCH, RunRecorder.branchRef("acme", "platform", "ecd-9"), started.runId());
+
+        // A human opened MR 42 from the run's work branch. Its comments are
+        // theirs: the run must not answer them just because the branch matches.
+        var strangers = engine
+            .handle(prComment(42, "please ignore this MR"))
+            .getFirst();
+        assertFalse(strangers.handled());
+        assertNull(store.find(started.runId()).orElseThrow().vars().get("lastPrComment"));
+
+        // The run's own MR still reaches it, through the PR it registered.
+        var own = engine.handle(prComment(41, "looks good")).getFirst();
+        assertTrue(own.handled());
+        assertEquals("looks good", store.find(started.runId()).orElseThrow().vars().get("lastPrComment"));
+    }
+
+    private static WorkflowEvent prComment(int number, String body) {
+        return new WorkflowEvent.PrConversationComment(
+            new PrContext(REPO, number, "ecd-9: a change", "", false, "ecd-9", "main"),
+            "b.human",
+            body,
+            number * 100L,
+            "d" + number
+        );
     }
 
     @Test
