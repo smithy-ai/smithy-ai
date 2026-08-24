@@ -22,7 +22,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class ExpressionRenderer {
 
-    private final Jinjava jinjava = new Jinjava(JinjavaConfig.newBuilder().build());
+    // Nested interpretation off: a substituted value is user content — a Jira
+    // story whose body carries `{{monospace}}` markup must not be evaluated as
+    // a template of ours.
+    private final Jinjava jinjava = new Jinjava(JinjavaConfig.newBuilder().withNestedInterpretationEnabled(false).build());
 
     {
         // Two text helpers the built-in flows need and that no amount of
