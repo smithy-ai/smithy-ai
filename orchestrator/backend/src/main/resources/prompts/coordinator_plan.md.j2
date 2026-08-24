@@ -64,6 +64,10 @@ Issue-body rules (each agent sees ONLY its own repository):
 3. Express ordering as dependsOn: a list of ZERO-BASED indexes into your issues array. An issue is
    only handed to an agent once every issue it depends on is finished.
 4. Prefer a reasonable assumption stated in the summary over blocking on an open question.
+5. Keep everything proportional to the story: a small story with clear instructions gets a
+   one-or-two-sentence summary and short issue bodies. Detail is for stories that genuinely span
+   components or carry real design decisions — padding a simple story makes the plan harder to
+   review, not safer.
 
 Return the plan as structured output: a summary of 2–4 sentences on the approach and how the pieces
 fit together, and the issues themselves (source, owner, repo, title, body, dependsOn).
