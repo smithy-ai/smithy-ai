@@ -136,6 +136,21 @@ class RepositoryWorkflowTest {
     }
 
     @Test
+    void aTrackerScopeWithNoRepositoryBehindItIsNeverLookedUp() {
+        // A Jira story without a repository field is scoped as PROJECT/PROJECT
+        // with no clone URL. There is nothing to list for it.
+        var neverCalled = new StubVcsClient() {
+            @Override
+            public List<String> listRepositoryFiles(String owner, String repo, String path, String ref) {
+                throw new AssertionError("a scope with no repository behind it must not be listed");
+            }
+        };
+        var loader = new RepositoryWorkflowLoader(neverCalled, new WorkflowDefinitionParser());
+
+        assertEquals(List.of(), loader.forRepository(new RepoInfo("YSIS", "YSIS", null, "jira")));
+    }
+
+    @Test
     void aRepositoryWithNoWorkflowsOfItsOwnIsUnaffected() {
         assertTrue(engine.handle(assigned()).isEmpty());
         assertTrue(store.findRecent(10).isEmpty());

@@ -65,6 +65,10 @@ public class RepositoryWorkflowLoader {
 
     public List<LoadedWorkflowDefinition> forRepository(RepoInfo info) {
         if (info == null || !workflowConfig.repositoryWorkflowsEnabled()) return List.of();
+        // A tracker-only scope — a Jira project standing in for a repository —
+        // has no repository behind it to list. Asking a VCS about it is a
+        // guaranteed 404, once per event per cache window.
+        if (info.cloneUrl() == null) return List.of();
         String key = info.source() + ":" + info.owner() + "/" + info.repo();
         var now = Instant.now();
         var cached = cache.get(key);
