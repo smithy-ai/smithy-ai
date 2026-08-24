@@ -20,7 +20,10 @@ public class PromptRenderer {
 
     public PromptRenderer(ResourceLoader resourceLoader) {
         this.resourceLoader = resourceLoader;
-        this.jinjava = new Jinjava(JinjavaConfig.newBuilder().build());
+        // Nested interpretation off: issue titles and bodies land in template
+        // variables, and `{{...}}` inside them (Jira monospace markup, code
+        // snippets) must stay text rather than be evaluated.
+        this.jinjava = new Jinjava(JinjavaConfig.newBuilder().withNestedInterpretationEnabled(false).build());
     }
 
     public String render(String templateName, Map<String, Object> variables) {

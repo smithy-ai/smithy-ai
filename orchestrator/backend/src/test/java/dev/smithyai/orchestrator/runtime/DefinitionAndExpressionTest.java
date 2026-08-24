@@ -144,6 +144,27 @@ class DefinitionAndExpressionTest {
     }
 
     @Test
+    void issueContentIsSubstitutedAsTextNotEvaluatedAsATemplate() {
+        // Jira renders {{text}} as monospace, so story bodies routinely carry
+        // it. A substituted value is user content: it must come through
+        // verbatim, not be parsed as an expression of ours.
+        var event = new WorkflowEvent.IssueAssigned(
+            new IssueContext(REPO, "7", "A feature", "Go to {{Add to Wait List > Step 2}} and press save", "main"),
+            "https://git.invalid/acme/app"
+        );
+        var context = contextFor(event, Map.of());
+
+        assertEquals(
+            "Go to {{Add to Wait List > Step 2}} and press save",
+            renderer.render("{{ event.issueBody }}", context)
+        );
+        assertEquals(
+            "Working on: Go to {{Add to Wait List > Step 2}} and press save",
+            renderer.render("Working on: {{ event.issueBody }}", context)
+        );
+    }
+
+    @Test
     void rendersNestedStructuresRecursively() {
         var inputs = Map.<String, Object>of(
             "context",

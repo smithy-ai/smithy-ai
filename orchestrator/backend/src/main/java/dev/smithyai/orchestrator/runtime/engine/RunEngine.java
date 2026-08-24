@@ -252,13 +252,20 @@ public class RunEngine implements SignalDelivery {
         };
     }
 
-    /** The branch a push or CI event is about. */
+    /**
+     * The branch a push or CI event is about.
+     *
+     * <p>Deliberately not PR-scoped events: those name their pull request, and
+     * that is the only handle that may find a run for them. Matching them by
+     * branch made a run adopt someone else's merge request from the same
+     * branch — a human's MR opened from the agent's work branch got the agent
+     * answering its comments and pushing to it, with no assignment anywhere.
+     */
     private static Optional<String> branchOf(WorkflowEvent event) {
         return switch (event) {
             case WorkflowEvent.HumanPush push -> Optional.ofNullable(push.branch());
             case WorkflowEvent.CiFailure ci -> Optional.ofNullable(ci.ciRun().headBranch());
             case WorkflowEvent.CiRecovery ci -> Optional.ofNullable(ci.ciRun().headBranch());
-            case WorkflowEvent.PrScoped pr -> Optional.ofNullable(pr.prc().headBranch());
             default -> Optional.empty();
         };
     }
