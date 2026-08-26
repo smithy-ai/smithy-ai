@@ -4,6 +4,11 @@ You are implementing issue {{ issue_ref }}: {{ issue_title }}
 
 Read the development plan at `{{ plan_file_path }}` and implement it.
 
+{% if context_repo %}
+## Project guidelines
+
+This repository's guidelines are cloned at `/context-repo` (from `{{ context_repo }}`). Follow them. For UI work, build with the components and patterns documented there — matching look and feel means reusing the design system, not approximating it with custom markup or styles.
+{% endif %}
 {% if attachments %}
 
 ## Attachments

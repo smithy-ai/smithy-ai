@@ -40,6 +40,10 @@ public class RepoContextAction implements WorkflowAction {
     @Override
     public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
         var contextRepo = repositoryConfig.contextRepository(required(input, "owner"), required(input, "repo"));
+        // Whether it actually exists, so a workflow that consults guidelines
+        // opportunistically can skip the clone instead of failing on the many
+        // repositories that have no context repo at all.
+        boolean exists = exists(contextRepo.owner(), contextRepo.repo());
         return Map.of(
             "owner",
             contextRepo.owner(),
@@ -48,7 +52,20 @@ public class RepoContextAction implements WorkflowAction {
             "fullName",
             contextRepo.fullName(),
             "cloneUrl",
-            vcs.cloneUrl(contextRepo.owner(), contextRepo.repo())
+            vcs.cloneUrl(contextRepo.owner(), contextRepo.repo()),
+            "exists",
+            exists
         );
+    }
+
+    private boolean exists(String owner, String repo) {
+        try {
+            return vcs.repoExists(owner, repo);
+        } catch (RuntimeException e) {
+            // Guidelines are an aid, not a dependency: a provider hiccup here
+            // must not stop the work itself.
+            log.warn("Could not check whether context repo {}/{} exists; treating it as absent", owner, repo, e);
+            return false;
+        }
     }
 }
