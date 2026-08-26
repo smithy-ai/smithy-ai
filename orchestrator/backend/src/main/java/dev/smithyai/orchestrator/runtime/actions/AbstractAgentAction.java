@@ -65,8 +65,10 @@ public abstract class AbstractAgentAction implements WorkflowAction {
     }
 
     private ClaudeSession configured(ClaudeSession agent, Map<String, Object> input) {
+        // Blank counts as absent: a template that renders "" for a repository
+        // with no context repo must not switch the knowledgebase on for it.
         String contextRepo = optional(input, "contextRepo", null);
-        if (contextRepo != null) agent.setContextRepoName(contextRepo);
+        if (contextRepo != null && !contextRepo.isBlank()) agent.setContextRepoName(contextRepo);
         agent.setModel(optional(input, "model", null));
         return agent;
     }

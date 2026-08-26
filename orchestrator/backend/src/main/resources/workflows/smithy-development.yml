@@ -65,6 +65,17 @@ state:
       issue.assigned:
         to: refine
         steps:
+          # Where this repository keeps its guidelines — a design system, an
+          # architecture handbook. Read from the repository's own
+          # .smithy/config.yml, defaulting to "<repo>-context". Cloned beside
+          # the work when it exists; most repositories have none, and an
+          # empty clone URL below makes container.init skip it silently.
+          - uses: repo.context
+            id: context
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+
           - uses: container.init
             id: workspace
             with:
@@ -73,6 +84,9 @@ state:
               branch: "{{ vars.branchPrefix }}{{ event.issueRef }}-{{ event.issueTitle | slug }}"
               sourceBranch: "{{ event.baseBranch }}"
               stage: refine
+              extraRepos:
+                - cloneUrl: "{{ steps.context.cloneUrl if steps.context.exists else '' }}"
+                  path: /context-repo
 
           # smithy-init records the branch it forked from, resolving the
           # remote's default when the event did not name one — which for an
@@ -90,6 +104,8 @@ state:
               owner: "{{ repo.owner }}"
               repo: "{{ repo.name }}"
               baseBranch: "{{ steps.base.stdout }}"
+              # Blank when there is none, so later turns can test for it.
+              contextRepo: "{{ steps.context.repo if steps.context.exists else '' }}"
 
           # Designs carry requirements the issue text omits, and the agent
           # cannot follow a link out of its container.
@@ -107,12 +123,14 @@ state:
               mode: plan
               tools: "{{ vars.refineTools }}"
               template: refinement.md.j2
+              contextRepo: "{{ steps.context.repo if steps.context.exists else '' }}"
               vars:
                 issue_ref: "{{ event.issueRef }}"
                 issue_title: "{{ event.issueTitle }}"
                 issue_body: "{{ event.issueBody }}"
                 plan_file_path: "{{ vars.planDir }}/{{ event.issueRef }}.md"
                 attachments: "{{ steps.attachments.paths }}"
+                context_repo: "{{ steps.context.repo if steps.context.exists else '' }}"
 
           # An empty plan is a dead end, not a crash: say so and wait for more
           # context rather than leaving the issue silent.
@@ -203,6 +221,7 @@ state:
             with:
               tools: "{{ vars.refineTools }}"
               template: refinement_comment.md.j2
+              contextRepo: "{{ vars.contextRepo }}"
               vars:
                 issue_ref: "{{ vars.issueRef }}"
                 comment_body: "{{ event.commentBody }}"
@@ -307,11 +326,13 @@ state:
             with:
               tools: "{{ vars.buildTools }}"
               template: building.md.j2
+              contextRepo: "{{ vars.contextRepo }}"
               vars:
                 issue_ref: "{{ vars.issueRef }}"
                 issue_title: "{{ event.issueTitle }}"
                 plan_file_path: "{{ vars.planPath }}"
                 attachments: "{{ steps.attachments.paths }}"
+                context_repo: "{{ vars.contextRepo }}"
 
           - uses: agent.ensureCommitted
             with:
