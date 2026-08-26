@@ -4,56 +4,53 @@ import remarkGfm from "remark-gfm";
 import type {
   SessionMessage,
   AssistantMessage,
-  UserMessage,
   ToolResultContent,
 } from "../lib/sessionTypes";
+import { userText } from "../lib/groupTurns";
+import { formatWhen } from "../lib/time";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCall } from "./ToolCall";
 
 interface MessageBubbleProps {
   message: SessionMessage;
   toolResults: Map<string, ToolResultContent>;
+  /**
+   * False for a step that continues the same speaker's run, so a turn of forty
+   * tool calls reads as one block instead of forty repeated name/time lines.
+   */
+  showHeader?: boolean;
 }
 
-function getUserText(msg: UserMessage): string {
-  if (typeof msg.message.content === "string") {
-    return msg.message.content;
-  }
-  return msg.message.content
-    .filter((b): b is { type: "text"; text: string } => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
-}
-
-function formatTime(ts: string): string {
-  const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-export function MessageBubble({ message, toolResults }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  toolResults,
+  showHeader = true,
+}: MessageBubbleProps) {
   if (message.type === "system") return null;
 
   if (message.type === "user") {
-    const text = getUserText(message);
+    const text = userText(message);
     if (!text.trim()) return null;
 
     return (
-      <Box py={6} px={16}>
-        <Box
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            marginBottom: 1,
-          }}
-        >
-          <Text size="xs" fw={700} style={{ color: "#6ea1f7" }}>
-            You
-          </Text>
-          <Text size="xs" style={{ color: "#4a5568" }}>
-            {formatTime(message.timestamp)}
-          </Text>
-        </Box>
+      <Box py={showHeader ? 6 : 1} px={16}>
+        {showHeader && (
+          <Box
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              marginBottom: 1,
+            }}
+          >
+            <Text size="xs" fw={700} style={{ color: "#6ea1f7" }}>
+              You
+            </Text>
+            <Text size="xs" style={{ color: "#4a5568" }}>
+              {formatWhen(message.timestamp)}
+            </Text>
+          </Box>
+        )}
         <Text
           size="sm"
           style={{ whiteSpace: "pre-wrap", lineHeight: 1.45, color: "#d4dae3" }}
@@ -67,22 +64,24 @@ export function MessageBubble({ message, toolResults }: MessageBubbleProps) {
   const assistant = message as AssistantMessage;
   const content = assistant.message.content;
   return (
-    <Box py={6} px={16}>
-      <Box
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginBottom: 1,
-        }}
-      >
-        <Text size="xs" fw={700} style={{ color: "#e8965a" }}>
-          Claude
-        </Text>
-        <Text size="xs" style={{ color: "#4a5568" }}>
-          {formatTime(message.timestamp)}
-        </Text>
-      </Box>
+    <Box py={showHeader ? 6 : 1} px={16}>
+      {showHeader && (
+        <Box
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            marginBottom: 1,
+          }}
+        >
+          <Text size="xs" fw={700} style={{ color: "#e8965a" }}>
+            Claude
+          </Text>
+          <Text size="xs" style={{ color: "#4a5568" }}>
+            {formatWhen(message.timestamp)}
+          </Text>
+        </Box>
+      )}
       {content.map((block, i) => {
         if (block.type === "thinking") {
           return <ThinkingBlock key={i} content={block.thinking} />;
