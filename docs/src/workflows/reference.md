@@ -247,10 +247,17 @@ provider username from the list. A failure to request the review is reported in
 | `file.url` | `owner`, `repo`, `branch`, `path` | none | `url` |
 | `file.delete` | `owner`, `repo`, `branch`, `path` | `message` | `deleted` |
 | `repo.cloneUrl` | `owner`, `repo` | none | `cloneUrl`, `fullName` |
-| `repo.context` | `owner`, `repo` | none | `owner`, `repo`, `fullName`, `cloneUrl` |
+| `repo.context` | `owner`, `repo` | none | `owner`, `repo`, `fullName`, `cloneUrl`, `exists` |
 
 `repo.context` reads where a repository keeps its guidelines from its own
-`.smithy/config.yml`.
+`.smithy/config.yml` (`context.repository`, default `<repo>-context`).
+`exists` says whether that repository is actually there, so a workflow that
+consults guidelines opportunistically can pass an empty clone URL to
+`container.init` — which skips the entry — instead of failing the clone. The
+built-in `smithy-development` does exactly that: when the context repository
+exists it is cloned at `/context-repo`, and the planning and building prompts
+tell the agent to follow it — for UI work, to build with the design-system
+components documented there.
 
 ### Run state
 
