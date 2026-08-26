@@ -57,7 +57,7 @@ state:                             # required unless `extends` is set
 
 | Name | Contents |
 |---|---|
-| `run` | `id`, `workflow`, `state` |
+| `run` | `id`, `workflow`, `state`, `parent` (the spawning run's id, empty for a standalone run — guard a `signal.emit` with `run.parent != ''`) |
 | `vars` | The workflow's `vars`, plus everything `state.var` has written. `vars.source` is set to the connector the run started from, unless the definition declares its own |
 | `steps` | `steps.<id>.<field>`: outputs of earlier steps in this transition |
 | `event` | See [events](#events) |
@@ -129,7 +129,10 @@ on it is how a feature for the coordinator is told from a task for the agent.
 Emitted by `signal.emit`, by the engine when a child run reaches a terminal state
 (`signal:child-done`, payload includes `child`, `workflow`, `status` and the
 child's vars), and by the dashboard when a gate is approved
-(`signal:gate-approved`, payload includes `key`).
+(`signal:gate-approved`, payload includes `key`). The built-in
+`smithy-development` also signals its parent, if it has one, when its merge
+request opens (`signal:pr-opened`, payload includes `owner`, `repo`, `issueRef`,
+`prNumber`, `url`) — the feature coordinator relays that link onto the story.
 
 ### Batching
 
@@ -211,6 +214,7 @@ on.
 | `issue.label` | `owner`, `repo`, `issue`, `label` or `labels[]` | none | `labels` |
 | `issue.comment` | `owner`, `repo`, `issue`, `body` | none | `commentId` |
 | `issue.read` | `owner`, `repo`, `issue` | none | `issueRef`, `title`, `body`, `state`, `assignees`, `labels`, `baseBranch` |
+| `issue.link` | `owner`, `repo`, `issue` | none | `url` |
 | `attachments.fetch` | `owner`, `repo`, `issue` | none | `paths`, `count` |
 
 ### Pull requests

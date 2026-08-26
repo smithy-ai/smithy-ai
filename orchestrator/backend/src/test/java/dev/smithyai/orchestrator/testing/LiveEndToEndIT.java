@@ -333,6 +333,7 @@ class LiveEndToEndIT {
                 review.fileUrlAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 review.repoCloneUrlAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 review.prLinkAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
+                review.issueLinkAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 ci.ciRetryGuardAction(store, new CiConfig(false)),
                 ci.ciResetAction(store)
             )

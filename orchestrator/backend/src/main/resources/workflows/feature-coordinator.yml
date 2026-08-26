@@ -145,6 +145,16 @@ actions:
               ref: "{{ item.owner }}/{{ item.repo }}#{{ steps.child_issue.issueRef }}"
               run: "{{ steps.child.runId }}"
 
+          # A browsable link for the summary comment below. The story may live
+          # in another system, where "owner/repo#4" resolves to nothing.
+          - uses: issue.link
+            id: child_link
+            with:
+              target: "{{ item.source if item.source else vars.childSource }}"
+              owner: "{{ item.owner }}"
+              repo: "{{ item.repo }}"
+              issue: "{{ steps.child_issue.issueRef }}"
+
       # Only the children whose dependencies are already satisfied start —
       # the rest wait for the wave they belong to.
       - uses: run.wave
@@ -161,6 +171,27 @@ actions:
               repo: "{{ item.repo }}"
               issue: "{{ item.issueRef }}"
               actors: ["{{ vars.childActor }}"]
+
+      # Approval otherwise looks like silence from the story: the issues appear
+      # in other repositories, the plans on those issues, the merge requests on
+      # those plans — none of it visible from where the feature was asked for.
+      - uses: issue.comment
+        with:
+          target: "{{ vars.storySource }}"
+          owner: "{{ vars.storyOwner }}"
+          repo: "{{ vars.storyRepo }}"
+          issue: "{{ vars.storyRef }}"
+          body: |-
+            Plan approved. I created {{ steps.fanout.count }} child issue(s):
+            {% for r in steps.fanout.results %}
+            - {{ vars.plan[loop.index0].owner }}/{{ vars.plan[loop.index0].repo }}: [{{ r.child_issue.title }}]({{ r.child_link.url }})
+            {%- endfor %}
+
+            {% if steps.wave.released | length > 0 -%}
+            Started now: {% for c in steps.wave.released %}{{ c.owner }}/{{ c.repo }}#{{ c.issueRef }}{% if not loop.last %}, {% endif %}{% endfor %}. The others start automatically once the issues they depend on are delivered.
+            {%- endif %}
+
+            **What's needed from you:** on each child issue the agent posts a development plan for that repository. Review it there and approve it the way this plan was approved; the merge request opens after that, and I'll post its link here.
 
       - uses: metrics.record
         with:
@@ -273,6 +304,22 @@ state:
 
   executing:
     on:
+      # A child opened its merge request. Relayed onto the story because that
+      # is where progress is followed, and a reader there has no reason to be
+      # watching another repository's notifications.
+      "signal:pr-opened":
+        steps:
+          - uses: issue.comment
+            with:
+              target: "{{ vars.storySource }}"
+              owner: "{{ vars.storyOwner }}"
+              repo: "{{ vars.storyRepo }}"
+              issue: "{{ vars.storyRef }}"
+              body: >-
+                {{ event.owner }}/{{ event.repo }}#{{ event.issueRef }} has an open
+                merge request: {{ event.url }} — review and merge it to move this
+                feature forward.
+
       # A child announcing it finished, straight from its run rather than via a
       # comment on the story that this workflow would have to recognise.
       "signal:child-done":
@@ -299,7 +346,11 @@ state:
               owner: "{{ vars.storyOwner }}"
               repo: "{{ vars.storyRepo }}"
               issue: "{{ vars.storyRef }}"
-              body: "A child finished. Next wave assigned."
+              body: >-
+                {{ event.owner }}/{{ event.repo }}#{{ event.issueRef }} is delivered.
+                Next up, assigned to {{ vars.childActor }}:
+                {% for c in steps.wave.released %}{{ c.owner }}/{{ c.repo }}#{{ c.issueRef }}{% if not loop.last %}, {% endif %}{% endfor %}
+                — a development plan will be posted on each for review.
 
           - uses: issue.comment
             if: "{{ steps.wave.complete }}"

@@ -251,6 +251,7 @@ class FeatureCoordinatorTest {
                 review.fileUrlAction(vcsClients),
                 review.repoCloneUrlAction(vcsClients),
                 review.prLinkAction(vcsClients),
+                review.issueLinkAction(vcsClients),
                 ci.ciRetryGuardAction(store, new CiConfig(false)),
                 ci.ciResetAction(store),
                 issueActions.issueLabelAction(trackers),
@@ -585,6 +586,53 @@ class FeatureCoordinatorTest {
         );
         assertEquals(2, store.findChildren(story().id()).size());
         assertEquals("executing", story().state());
+    }
+
+    @Test
+    void approvalTellsTheStoryWhatWasCreatedAndWhatComesNext() {
+        engine.handle(storyAssigned());
+        engine.handle(storyApproved());
+
+        // The child issues live in other repositories; without this comment,
+        // approval looks like silence from where the feature was asked for.
+        String summary = vcs.issueComments.getLast();
+        for (var created : vcs.createdIssues) {
+            assertTrue(
+                summary.contains("%s/%s/issues/%s".formatted(created.owner(), created.repo(), created.issueRef())),
+                "no link to " + created.owner() + "/" + created.repo() + " in: " + summary
+            );
+        }
+        assertTrue(summary.contains("What's needed from you"), summary);
+    }
+
+    @Test
+    void aChildsMergeRequestLinkIsRelayedOntoTheStory() {
+        engine.handle(storyAssigned());
+        engine.handle(storyApproved());
+
+        var child = store.findChildren(story().id()).getFirst();
+        var signal = new SignalEmitAction(store, this::deliverSignal);
+        signal.execute(
+            new ActionContext(store.find(child.id()).orElseThrow(), storyApproved(), Map.of(), child.vars()),
+            Map.of(
+                "signal",
+                "pr-opened",
+                "owner",
+                "acme",
+                "repo",
+                "api",
+                "issueRef",
+                "1",
+                "prNumber",
+                100,
+                "url",
+                "https://git.invalid/acme/api/pulls/100"
+            )
+        );
+
+        String relayed = vcs.issueComments.getLast();
+        assertTrue(relayed.contains("https://git.invalid/acme/api/pulls/100"), relayed);
+        assertTrue(relayed.contains("acme/api#1"), relayed);
     }
 
     @Test

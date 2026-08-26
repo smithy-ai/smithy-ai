@@ -462,6 +462,37 @@ public class ReviewActions {
         };
     }
 
+    /** A link to an issue that works outside the network the orchestrator is on. */
+    @Bean
+    public WorkflowAction issueLinkAction(VcsClients clients) {
+        return new WorkflowAction() {
+            @Override
+            public String type() {
+                return "issue.link";
+            }
+
+            @Override
+            public boolean idempotent() {
+                return true;
+            }
+
+            @Override
+            public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
+                String target = Vcs.target(this, context, input, clients);
+                return Map.of(
+                    "url",
+                    vcs.issueUrl(
+                        clients.externalUrl(target),
+                        required(input, "owner"),
+                        required(input, "repo"),
+                        required(input, "issue")
+                    )
+                );
+            }
+        };
+    }
+
     /**
      * A browsable link to a file on a branch.
      *
