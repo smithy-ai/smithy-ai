@@ -243,6 +243,11 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public String issueUrl(String externalBaseUrl, String owner, String repo, String issueRef) {
+        return "%s/%s/%s/issues/%s".formatted(externalBaseUrl, owner, repo, issueRef);
+    }
+
+    @Override
     public String cloneUrl(String owner, String repo) {
         return "https://git.invalid/%s/%s.git".formatted(owner, repo);
     }

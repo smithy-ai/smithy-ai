@@ -159,7 +159,18 @@ public class ExpressionRenderer {
     private Map<String, Object> runView(ActionContext context) {
         var run = context.run();
         if (run == null) return Map.of();
-        return Map.of("id", run.id(), "workflow", run.workflowName(), "state", run.state());
+        // `parent` is empty rather than absent for a standalone run, so a
+        // definition can guard a signal.emit with `run.parent != ''`.
+        return Map.of(
+            "id",
+            run.id(),
+            "workflow",
+            run.workflowName(),
+            "state",
+            run.state(),
+            "parent",
+            nullToEmpty(run.parentRunId())
+        );
     }
 
     private Map<String, Object> eventView(WorkflowEvent event) {

@@ -264,6 +264,11 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public String issueUrl(String externalBaseUrl, String owner, String repo, String issueRef) {
+        return externalBaseUrl + "/" + owner + "/" + repo + "/issues/" + issueRef;
+    }
+
+    @Override
     public String cloneUrl(String owner, String repo) {
         return webUrl + "/" + owner + "/" + repo + ".git";
     }

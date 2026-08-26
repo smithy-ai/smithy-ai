@@ -263,6 +263,13 @@ state:
               name: pr_opened
               pr: "{{ steps.pr.number }}"
 
+          - uses: pr.link
+            id: prLink
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ steps.pr.number }}"
+
           # Approving a plan should have visible feedback where the approval
           # happened, not only on a pull request nobody has been told about.
           - uses: issue.comment
@@ -270,7 +277,20 @@ state:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
               issue: "{{ vars.issueRef }}"
-              body: "Plan approved. Implementation started, follow progress on the draft pull request."
+              body: "Plan approved. Implementation started, follow progress on the draft pull request: {{ steps.prLink.url }}"
+
+          # Tell the coordinator, if there is one, where the work can be
+          # followed — it relays the link onto the story, whose readers never
+          # see this repository's notifications.
+          - uses: signal.emit
+            if: "{{ run.parent != '' }}"
+            with:
+              signal: pr-opened
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              issueRef: "{{ vars.issueRef }}"
+              prNumber: "{{ steps.pr.number }}"
+              url: "{{ steps.prLink.url }}"
 
           - uses: attachments.fetch
             id: attachments

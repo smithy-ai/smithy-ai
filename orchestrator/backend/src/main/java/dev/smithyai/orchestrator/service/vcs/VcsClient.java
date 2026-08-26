@@ -103,6 +103,8 @@ public interface VcsClient extends ProviderClient {
 
     String prUrl(String externalBaseUrl, String owner, String repo, int number);
 
+    String issueUrl(String externalBaseUrl, String owner, String repo, String issueRef);
+
     String cloneUrl(String owner, String repo);
 
     String baseUrl();

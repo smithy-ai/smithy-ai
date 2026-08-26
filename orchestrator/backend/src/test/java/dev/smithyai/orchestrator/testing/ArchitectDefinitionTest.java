@@ -154,6 +154,7 @@ class ArchitectDefinitionTest {
                 review.fileUrlAction(vcs.asRegistry()),
                 review.repoCloneUrlAction(vcs.asRegistry()),
                 review.prLinkAction(vcs.asRegistry()),
+                review.issueLinkAction(vcs.asRegistry()),
                 new CiActions().ciRetryGuardAction(store, new CiConfig(false)),
                 new CiActions().ciResetAction(store)
             )
