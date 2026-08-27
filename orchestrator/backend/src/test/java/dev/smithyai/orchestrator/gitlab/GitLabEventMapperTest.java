@@ -47,6 +47,37 @@ class GitLabEventMapperTest {
         assertEquals("coordinator", assertInstanceOf(WorkflowEvent.IssueAssigned.class, event).ctx().assignee());
     }
 
+    @Test
+    void aDiffNoteOnAHumansMergeRequestIsNotForTheAgent() throws Exception {
+        // A human MR from a human branch: review conversation among humans.
+        // Forwarding it let a correlated run answer and push on a merge
+        // request the bot was never assigned to.
+        assertNull(mapper().map("Note Hook", json.readTree(diffNote("FVS-1608"))));
+
+        // The agent's own MR still gets its review comments.
+        var own = mapper().map("Note Hook", json.readTree(diffNote("smithy/7-a-thing")));
+        var review = assertInstanceOf(WorkflowEvent.PrReviewComment.class, own);
+        assertEquals(41, review.prc().number());
+        assertEquals("please fix", review.comments().getFirst().body());
+    }
+
+    private static String diffNote(String sourceBranch) {
+        return """
+        {
+          "object_kind": "note",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "user": {"username": "b.human"},
+          "object_attributes": {"id": 99, "note": "please fix", "type": "DiffNote", "noteable_type": "MergeRequest",
+                                "discussion_id": "d1",
+                                "position": {"new_path": "src/App.java", "new_line": 12},
+                                "author": {"username": "b.human"}},
+          "merge_request": {"iid": 41, "title": "A change", "description": "", "state": "opened",
+                            "source_branch": "%s", "target_branch": "main"}
+        }
+        """.formatted(sourceBranch);
+    }
+
     private static String opened(String username) {
         return """
         {
