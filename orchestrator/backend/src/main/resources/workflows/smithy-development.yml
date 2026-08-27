@@ -400,8 +400,20 @@ state:
 
       pr.review_submitted:
         steps:
+          # Same rule as pr.commented: the agent only works reviews on a pull
+          # request it is assigned to. A review on anyone else's MR is between
+          # humans, however the event found its way here.
+          - uses: pr.isAssigned
+            id: mine
+            with:
+              owner: "{{ vars.owner }}"
+              repo: "{{ vars.repo }}"
+              number: "{{ vars.prNumber }}"
+              assignedActor: "{{ vars.taskActor }}"
+
           - uses: pr.reviewComments
             id: review
+            if: "{{ steps.mine.assigned }}"
             with:
               owner: "{{ vars.owner }}"
               repo: "{{ vars.repo }}"
@@ -411,7 +423,7 @@ state:
               body: "{{ event.reviewBody }}"
 
           - uses: agent.run
-            if: "{{ steps.review.count > 0 }}"
+            if: "{{ steps.mine.assigned and steps.review.count > 0 }}"
             with:
               tools: "{{ vars.buildTools }}"
               template: review_comment.md.j2
@@ -421,12 +433,12 @@ state:
                 comments: "{{ steps.review.comments }}"
 
           - uses: agent.ensureCommitted
-            if: "{{ steps.review.count > 0 }}"
+            if: "{{ steps.mine.assigned and steps.review.count > 0 }}"
             with:
               tools: "{{ vars.buildTools }}"
 
           - uses: git.push
-            if: "{{ steps.review.count > 0 }}"
+            if: "{{ steps.mine.assigned and steps.review.count > 0 }}"
             with:
               tools: "{{ vars.buildTools }}"
 

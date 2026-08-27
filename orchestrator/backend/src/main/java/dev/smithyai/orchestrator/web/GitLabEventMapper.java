@@ -222,8 +222,21 @@ public class GitLabEventMapper {
         String type = attrs.path("type").asText("");
         long noteId = attrs.path("id").asLong(0);
 
-        // DiffNote → review comment
+        // DiffNote → review comment. Gated like conversation notes below: a
+        // diff comment on a human's merge request is review conversation among
+        // humans, not something addressed to an agent. Forwarding those gave
+        // any run that happened to correlate a licence to answer and push on
+        // merge requests the bot was never assigned to.
         if ("DiffNote".equals(type)) {
+            if (!isWorkBranch(prc.headBranch()) && !Naming.isArchitectBranch(prc.headBranch())) {
+                log.debug(
+                    "Ignoring diff note on {}!{}: branch '{}' is not an agent work branch",
+                    info.repo(),
+                    prc.number(),
+                    prc.headBranch()
+                );
+                return null;
+            }
             var position = attrs.path("position");
             String path = position.path("new_path").asText("");
             int line = position.path("new_line").asInt(0);
