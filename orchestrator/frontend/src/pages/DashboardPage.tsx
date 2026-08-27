@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   AppShell,
@@ -31,13 +32,39 @@ export function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  const [activeTab, setActiveTab] = useState<string | null>("instances");
-  const [logSource, setLogSource] = useState(ORCHESTRATOR_LOG_SOURCE);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { resource } = useParams();
+
+  const activeTab = location.pathname.split("/")[1] || "instances";
+
+  // The URL drives these while you are on their tab, but the value outlives
+  // the visit: both panels stay mounted across tab switches (Mantine keeps
+  // them), and dropping the selection would release an active takeover and
+  // redirect the log poll behind your back.
   const [sessionSource, setSessionSource] = useState<string | null>(null);
+  const [logSource, setLogSource] = useState(ORCHESTRATOR_LOG_SOURCE);
+  useEffect(() => {
+    if (!resource) return;
+    if (activeTab === "session") setSessionSource(resource);
+    if (activeTab === "logs") setLogSource(resource);
+  }, [activeTab, resource]);
+
+  function changeTab(value: string | null) {
+    if (!value) return;
+    if (value === "session") {
+      navigate(
+        sessionSource ? `/session/${encodeURIComponent(sessionSource)}` : "/session",
+      );
+    } else if (value === "logs") {
+      navigate(`/logs/${encodeURIComponent(logSource)}`);
+    } else {
+      navigate(`/${value}`);
+    }
+  }
 
   function viewSessionFor(containerName: string) {
-    setSessionSource(containerName);
-    setActiveTab("session");
+    navigate(`/session/${encodeURIComponent(containerName)}`);
   }
 
   function formatTime(iso: string) {
@@ -67,7 +94,7 @@ export function DashboardPage() {
 
       <AppShell.Main>
         <Container size="lg">
-          <Tabs value={activeTab} onChange={setActiveTab}>
+          <Tabs value={activeTab} onChange={changeTab}>
             <Tabs.List mb="md">
               <Tabs.Tab value="instances">Instances</Tabs.Tab>
               <Tabs.Tab value="runs">Runs</Tabs.Tab>
@@ -163,7 +190,9 @@ export function DashboardPage() {
               <SessionPanel
                 instances={instances}
                 selected={sessionSource}
-                onSelectedChange={setSessionSource}
+                onSelectedChange={(value) =>
+                  navigate(`/session/${encodeURIComponent(value)}`)
+                }
               />
             </Tabs.Panel>
 
@@ -171,7 +200,9 @@ export function DashboardPage() {
               <LogsPanel
                 instances={instances}
                 selected={logSource}
-                onSelectedChange={setLogSource}
+                onSelectedChange={(value) =>
+                  navigate(`/logs/${encodeURIComponent(value)}`)
+                }
               />
             </Tabs.Panel>
           </Tabs>

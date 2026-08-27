@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { sessionFixture } from "./dev/sessionFixture";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), sessionFixture()],
   build: {
     outDir: "build/dist",
   },

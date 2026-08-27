@@ -21,8 +21,9 @@ import {
   Instance,
 } from "../api/client";
 import { parseSession } from "../lib/parseSession";
+import { groupTurns } from "../lib/groupTurns";
 import type { ToolResultContent } from "../lib/sessionTypes";
-import { MessageBubble } from "../components/MessageBubble";
+import { TurnItem } from "../components/TurnItem";
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 
@@ -40,6 +41,8 @@ export function SessionPanel({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [takeoverError, setTakeoverError] = useState<string | null>(null);
+  // Every turn starts collapsed; the list is an index you open into.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const controlledRef = useRef<string | null>(null);
 
   const {
@@ -89,6 +92,7 @@ export function SessionPanel({
     if (controlledRef.current && controlledRef.current !== selected) {
       setTakenOver(false);
     }
+    setExpanded(new Set());
   }, [selected]);
 
   async function handleTakeOver() {
@@ -120,33 +124,24 @@ export function SessionPanel({
     }
   }
 
-  const { messages, toolResults } = useMemo(() => {
-    if (!raw) return { messages: [], toolResults: new Map<string, ToolResultContent>() };
-    const parsed = parseSession(raw);
-    const results = new Map<string, ToolResultContent>();
-    for (const msg of parsed) {
-      if (msg.type === "user" && Array.isArray(msg.message.content)) {
-        for (const block of msg.message.content) {
-          if (block.type === "tool_result") {
-            results.set(block.tool_use_id, block);
-          }
-        }
-      }
-    }
-    const displayable = parsed.filter((m) => {
-      if (m.type === "system") return false;
-      if (m.type === "user") {
-        const content = m.message.content;
-        if (Array.isArray(content)) {
-          const hasText = content.some((b) => b.type === "text" && b.text?.trim());
-          if (!hasText) return false;
-        }
-        if (typeof content === "string" && !content.trim()) return false;
-      }
-      return true;
+  const { turns, toolResults } = useMemo(
+    () =>
+      raw
+        ? groupTurns(parseSession(raw))
+        : { turns: [], toolResults: new Map<string, ToolResultContent>() },
+    [raw],
+  );
+
+  const latestTurnId = turns.length > 0 ? turns[turns.length - 1].id : null;
+
+  function toggleTurn(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
-    return { messages: displayable, toolResults: results };
-  }, [raw]);
+  }
 
   const options = (instances ?? []).map((inst) => ({
     value: inst.containerName,
@@ -200,19 +195,29 @@ export function SessionPanel({
         <Text c="red">Failed to load session.</Text>
       ) : (
         <>
-          {messages.length === 0 ? (
+          {turns.length === 0 ? (
             <Text c="dimmed">
               No session transcript available yet. This requires the instance's container to
               be running and a Claude session to have started.
             </Text>
           ) : (
-            <ScrollArea h={takenOver ? 480 : 600} bg="dark.8" p="sm">
+            <ScrollArea.Autosize mah={takenOver ? 480 : 600} bg="dark.8">
               <Box>
-                {messages.map((msg) => (
-                  <MessageBubble key={msg.uuid} message={msg} toolResults={toolResults} />
-                ))}
+                {turns
+                  .slice()
+                  .reverse()
+                  .map((turn) => (
+                    <TurnItem
+                      key={turn.id}
+                      turn={turn}
+                      toolResults={toolResults}
+                      opened={expanded.has(turn.id)}
+                      isLatest={turn.id === latestTurnId}
+                      onToggle={() => toggleTurn(turn.id)}
+                    />
+                  ))}
               </Box>
-            </ScrollArea>
+            </ScrollArea.Autosize>
           )}
 
           {takenOver && (

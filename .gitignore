@@ -1,12 +1,4 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-*.egg
-dist/
-.venv/
-venv/
+# Python __pycache__/ *.py[cod] *$py.class *.egg-info/ *.egg dist/ .venv/ venv/
 
 # Java / Gradle
 .gradle/
@@ -45,3 +37,7 @@ Thumbs.db
 *.db
 *.db-wal
 *.db-shm
+
+# Dashboard dev fixtures: real Claude Code transcripts, dropped in locally to
+# develop the Session tab. The README beside them is committed; they are not.
+orchestrator/frontend/dev/fixtures/*.jsonl
