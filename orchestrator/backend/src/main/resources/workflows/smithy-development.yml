@@ -199,9 +199,21 @@ state:
               repo: "{{ vars.repo }}"
               issue: "{{ vars.issueRef }}"
 
+          # Read tools plus writes scoped to the plan directory: the template
+          # asks the agent to update the plan file, so the tool it is told to
+          # use must actually be allowed — a headless turn cannot approve the
+          # prompt an off-allowlist Write triggers. Code stays read-only until
+          # the plan is approved.
           - uses: agent.run
             with:
-              tools: "{{ vars.refineTools }}"
+              tools:
+                - Read
+                - Glob
+                - Grep
+                - Bash
+                - WebFetch
+                - "Edit({{ vars.planDir }}/**)"
+                - "Write({{ vars.planDir }}/**)"
               template: refinement_comment.md.j2
               vars:
                 issue_ref: "{{ vars.issueRef }}"

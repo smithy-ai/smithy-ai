@@ -33,7 +33,11 @@ public class ContainerSession {
     // ── Container init ──────────────────────────────────────
 
     public void initContainer(ContainerConfig config, String initialStage) {
-        cachedState = ContainerState.init(config.workflow(), initialStage);
+        // Extra repos live outside the workspace, so every agent turn must name
+        // them (--add-dir) or their files are unreadable. Recorded in the state
+        // rather than re-derived, so turns after a restart still know them.
+        var extraDirs = config.extraRepos().stream().map(ContainerConfig.ExtraRepo::path).toList();
+        cachedState = ContainerState.init(config.workflow(), initialStage).withExtraDirs(extraDirs);
         service.create(containerName, config);
         service.writeState(containerName, cachedState);
     }

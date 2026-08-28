@@ -25,7 +25,11 @@ public class ContainerService {
     private static final String STATE_PATH = "/tmp/smithy-state.json";
     static final ObjectMapper MAPPER = new ObjectMapper()
         .registerModule(new JavaTimeModule())
-        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+        // State files may be written by a newer orchestrator than the one
+        // reading them (rollback, adopted container); an unknown field is not
+        // a reason to strand the run.
+        .disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     private static final int INIT_TIMEOUT_SECONDS = 300;
     private static final int INIT_POLL_INTERVAL_MS = 1000;

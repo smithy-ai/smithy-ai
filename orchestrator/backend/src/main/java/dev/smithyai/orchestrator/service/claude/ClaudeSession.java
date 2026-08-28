@@ -44,6 +44,7 @@ public class ClaudeSession {
     private final KnowledgebaseConfig knowledgebaseConfig;
     private String contextRepoName;
     private String model;
+    private List<String> addDirs = List.of();
     private boolean started = false;
 
     public ClaudeSession(ContainerSession container, List<String> tools) {
@@ -80,6 +81,16 @@ public class ClaudeSession {
         if (model != null && !model.isBlank()) {
             this.model = model;
         }
+    }
+
+    /**
+     * Directories outside the workspace the agent may read and edit —
+     * a context repo, extra checkouts. Claude scopes file access to its
+     * working directory; anything beyond it must be named per turn or every
+     * access is a permission prompt, which headless runs auto-deny.
+     */
+    public void setAddDirs(List<String> dirs) {
+        this.addDirs = dirs == null ? List.of() : List.copyOf(dirs);
     }
 
     private String model() {
@@ -198,6 +209,11 @@ public class ClaudeSession {
         if (tools != null && !tools.isEmpty()) {
             command.add("--allowedTools");
             command.add(String.join(",", tools));
+        }
+
+        for (String dir : addDirs) {
+            command.add("--add-dir");
+            command.add(dir);
         }
 
         if (outputSchema != null) {

@@ -77,6 +77,12 @@ if [ -n "$EXTRA_REPOS" ] && [ "$EXTRA_REPOS" != "null" ]; then
   done
 fi
 
+# Scratch area inside the workspace: the agent's file access is scoped to
+# /workspace, so reference clones and downloads belong here, excluded from git.
+mkdir -p /workspace/.smithy/tmp
+grep -qxF ".smithy/tmp/" /workspace/.git/info/exclude 2>/dev/null \
+  || echo ".smithy/tmp/" >> /workspace/.git/info/exclude
+
 mkdir -p /tmp/smithy-labels
 touch /tmp/smithy-init-done
 echo "[smithy] Initialization complete"

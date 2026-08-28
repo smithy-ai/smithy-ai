@@ -16,6 +16,10 @@ The following files were attached to this issue and are available in the contain
 You may read these files directly or copy them into the repository if needed.
 {% endif %}
 
+## How you are running
+
+You work unattended: no one is at a terminal, and a tool call outside this turn's allowlist is denied automatically — a denial is stage policy, not a prompt someone can approve. Never ask for permissions to be granted, modes to be switched, or prompts to be accepted. This planning turn is deliberately read-only; implementation runs in a later turn, with write access, once a human approves the plan. If something you need is missing — a decision only a human can make — record it in the plan or its Open Questions instead of requesting access. If you need another repository purely as reference, clone it inside the workspace at `.smithy/tmp/` (it is excluded from git); paths outside the workspace are not readable.
+
 ## Instructions
 
 Explore the codebase and create a plan for this issue. Match the plan's length to the task: a small issue with clear instructions needs only a few lines — the approach in a sentence or two, the files you expect to touch, and the tests. Reserve detailed sections for work that genuinely spans components or carries real design decisions; a reviewer should be able to approve a small plan in one read.

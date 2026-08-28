@@ -112,9 +112,11 @@ public class RunEnvironments {
     public ClaudeSession agent(Run run, List<String> tools) {
         var session = container(run);
         String existing = session.getState().sessionId();
-        return existing != null
+        var agent = existing != null
             ? new ClaudeSession(session, tools, existing, knowledgebaseConfig)
             : new ClaudeSession(session, tools, knowledgebaseConfig);
+        agent.setAddDirs(session.getState().extraDirs());
+        return agent;
     }
 
     /**
@@ -125,7 +127,10 @@ public class RunEnvironments {
      * have from whoever used it last.
      */
     public ClaudeSession newAgent(Run run, List<String> tools) {
-        return new ClaudeSession(container(run), tools, knowledgebaseConfig);
+        var session = container(run);
+        var agent = new ClaudeSession(session, tools, knowledgebaseConfig);
+        agent.setAddDirs(session.getState().extraDirs());
+        return agent;
     }
 
     /** Record the agent's session id so the next transition resumes it. */
