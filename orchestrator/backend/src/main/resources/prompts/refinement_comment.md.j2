@@ -16,6 +16,15 @@ The following files were attached to this issue and are available in the contain
 You may read these files directly or copy them into the repository if needed.
 {% endif %}
 
+## How you are running
+
+You work unattended: a tool call outside this turn's allowlist is denied automatically,
+and nobody can approve the prompt — never ask for permissions or mode switches. In this
+turn you may read the repository and modify only the plan file; code changes happen in a
+later turn, once the plan is approved. If the feedback asks you to implement something
+now, fold the request into the plan and say in the plan that implementation starts on
+approval.
+
 ## Instructions
 
 Read the current plan at `{{ plan_file_path }}`, apply this feedback, and write the
