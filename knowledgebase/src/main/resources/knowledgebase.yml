@@ -13,6 +13,13 @@ chunk-size: ${CHUNK_SIZE:1000}
 webhook:
   secret: ${WEBHOOK_SECRET:}
 
+ai-provider: ${AI_PROVIDER:ollama}
+
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://ollama:11434}
+  embedding-model: ${EMBEDDING_MODEL:nomic-embed-text}
+  chat-model: ${CHAT_MODEL:llama3.2}
+
 openai:
   api-key: ${OPENAI_API_KEY:}
   embedding-model: ${EMBEDDING_MODEL:text-embedding-3-small}
