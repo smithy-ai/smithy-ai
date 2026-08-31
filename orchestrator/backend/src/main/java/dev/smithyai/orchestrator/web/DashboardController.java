@@ -312,7 +312,9 @@ public class DashboardController {
             return ResponseEntity.status(409).body("No active takeover for this run");
         }
         try {
-            return ResponseEntity.ok(takeover.send(run.get(), request.text(), List.of()));
+            // null, not List.of(): an empty list is "no tools allowed", which
+            // leaves the agent unable to do anything the person asked for.
+            return ResponseEntity.ok(takeover.send(run.get(), request.text(), null));
         } catch (AgentBusyException e) {
             // 409 rather than 500: nothing is broken, the session is occupied.
             return ResponseEntity.status(409).body(e.getMessage());

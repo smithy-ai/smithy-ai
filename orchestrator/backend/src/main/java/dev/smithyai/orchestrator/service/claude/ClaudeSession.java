@@ -269,6 +269,16 @@ public class ClaudeSession {
         if (tools != null && !tools.isEmpty()) {
             command.add("--allowedTools");
             command.add(String.join(",", tools));
+        } else {
+            // Worth saying out loud: with no allowlist a headless turn on default
+            // permissions refuses every tool call before running it, so the agent
+            // reports that it cannot read a file or push a branch and looks broken
+            // rather than unprivileged.
+            log.warn(
+                "No tools allowed for the turn on {} (session={}); every tool call will be refused",
+                container.getContainerName(),
+                sessionId
+            );
         }
 
         for (String dir : addDirs) {

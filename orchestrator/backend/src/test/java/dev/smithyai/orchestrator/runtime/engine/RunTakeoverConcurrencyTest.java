@@ -20,6 +20,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /**
  * A human message must not land on a session that is already mid-turn.
@@ -141,7 +142,43 @@ class RunTakeoverConcurrencyTest {
         verify(agent).setTurnTimeout(Duration.ofMinutes(5));
     }
 
+    @Test
+    void aTakeoverTurnGetsARealToolListRatherThanNone() {
+        var container = mock(ContainerSession.class);
+        var agent = mock(ClaudeSession.class);
+        when(environments.container(any())).thenReturn(container);
+        when(environments.agent(any(), any())).thenReturn(agent);
+        when(agent.send(anyString())).thenReturn("done");
+
+        // What the dashboard sends: it does not decide the tools.
+        takeover.send(RUN, "push the branch", null);
+
+        // An empty list makes ClaudeSession omit --allowedTools, and a headless
+        // turn on default permissions then refuses every tool call before running
+        // it — the agent cannot read a file, let alone push a branch.
+        var tools = ArgumentCaptor.forClass(List.class);
+        verify(environments).agent(any(), tools.capture());
+        assertFalse(tools.getValue().isEmpty(), "the turn was given no tools");
+        assertTrue(tools.getValue().contains("Bash"), "Bash missing: " + tools.getValue());
+        assertTrue(tools.getValue().contains("Read"), "Read missing: " + tools.getValue());
+    }
+
+    @Test
+    void anExplicitToolListStillWins() {
+        var container = mock(ContainerSession.class);
+        var agent = mock(ClaudeSession.class);
+        when(environments.container(any())).thenReturn(container);
+        when(environments.agent(any(), any())).thenReturn(agent);
+        when(agent.send(anyString())).thenReturn("done");
+
+        takeover.send(RUN, "read only please", List.of("Read"));
+
+        var tools = ArgumentCaptor.forClass(List.class);
+        verify(environments).agent(any(), tools.capture());
+        assertEquals(List.of("Read"), tools.getValue());
+    }
+
     private static ClaudeAgentConfig agentConfig(String takeoverTimeout) {
-        return new ClaudeAgentConfig("claude-opus-5", null, null, null, takeoverTimeout);
+        return new ClaudeAgentConfig("claude-opus-5", null, null, null, takeoverTimeout, null);
     }
 }

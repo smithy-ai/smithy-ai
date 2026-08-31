@@ -1,16 +1,41 @@
 package dev.smithyai.orchestrator.config;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 
 public record AgentConfig(ClaudeAgentConfig claude) {
+    private static final List<String> DEFAULT_TAKEOVER_TOOLS = List.of(
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Edit",
+        "Write",
+        "WebFetch"
+    );
+
     public record ClaudeAgentConfig(
         String model,
         SecretRef oauthToken,
         SecretRef apiKey,
         String turnTimeout,
-        String takeoverTimeout
+        String takeoverTimeout,
+        List<String> takeoverTools
     ) {
+        /**
+         * Tools a human-driven turn may use.
+         *
+         * <p>Not the stage's list: a definition scopes tools per step to constrain
+         * the agent when it is working on its own — read-only while planning, write
+         * while building — and that does not map onto whatever a person decides to
+         * ask for after taking control. So this is its own setting, and it defaults
+         * to the full working set rather than to nothing.
+         */
+        public List<String> resolvedTakeoverTools() {
+            return takeoverTools == null || takeoverTools.isEmpty() ? DEFAULT_TAKEOVER_TOOLS : takeoverTools;
+        }
+
         /**
          * Wall-clock budget for one agent turn, or empty to keep the built-in
          * default. Accepts {@code 45m}, {@code 2h}, {@code 900s} or ISO-8601

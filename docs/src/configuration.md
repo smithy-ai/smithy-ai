@@ -26,6 +26,7 @@ agent:
     apiKey: {env: ANTHROPIC_API_KEY}
     turnTimeout: 60m          # budget for one agent turn; overrunning turns are killed
     takeoverTimeout: 5m       # budget for a turn a human drove from the dashboard
+    takeoverTools: [Read, Glob, Grep, Bash, Edit, Write, WebFetch]
 
 auth:
   admin:
@@ -113,6 +114,19 @@ The agent on run <id> is in the middle of a turn.
 ```
 
 rather than queued behind it. Wait for the turn to land, or stop the run.
+
+`agent.claude.takeoverTools` is the tool list a human-driven turn runs with,
+defaulting to `[Read, Glob, Grep, Bash, Edit, Write, WebFetch]`. It is separate
+from the stage's `tools:` on purpose: a definition scopes tools per step to
+constrain the agent while it works on its own — read-only while planning, write
+while building — and that does not map onto whatever a person asks for after
+taking control.
+
+Note that an **empty** tool list is not "no restrictions", it is "nothing
+allowed": the CLI is run without `--allowedTools`, and a headless turn on default
+permissions then refuses every tool call before executing it. The agent reports
+that it cannot read a file or push a branch, which reads as an agent refusing to
+cooperate rather than one that was handed no permissions.
 
 ## Secrets
 
