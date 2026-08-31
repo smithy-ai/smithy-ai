@@ -36,10 +36,9 @@ public interface IssueTrackerClient extends ProviderClient {
     /**
      * URLs attached to the issue as links rather than written into its text.
      *
-     * <p>Jira's remote links are where an integration puts what it added — a
-     * Figma design linked through the Figma app never appears in the
-     * description. Trackers without the concept keep everything in the text,
-     * and answer with nothing.
+     * <p>Jira's remote links are what "Link issue → Add web link" writes, and
+     * where some integrations record what they added. Trackers without the
+     * concept keep everything in the text, and answer with nothing.
      */
     default List<String> getIssueLinks(String owner, String repo, String issueRef) {
         return List.of();

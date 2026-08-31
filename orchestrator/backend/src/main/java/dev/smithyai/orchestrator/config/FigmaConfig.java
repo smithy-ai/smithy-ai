@@ -5,7 +5,8 @@ package dev.smithyai.orchestrator.config;
  *
  * <p>Off unless a deployment says otherwise, because it needs a Figma token
  * and sends ticket content nowhere new only once one exists. A token is a
- * read-only personal access token with the {@code file_content} scope.
+ * personal access token with {@code file_content:read}, owned by an account
+ * that can open the files the tickets link to.
  *
  * @param maxDesigns how many frames one ticket may pull in. A file linked
  *                   without a frame can hold hundreds, and a prompt listing

@@ -219,8 +219,9 @@ on.
 
 `attachments.fetch` brings in both kinds of thing a ticket points at. Files
 somebody attached land under `paths`. Figma designs the ticket links to — in the
-description, in a comment, or as a Jira remote link, which is where the Figma
-app puts one — are rendered through the Figma API and land under `designs`, one
+description, in a comment, or as a Jira remote link; a design added through the
+Figma app's Designs panel is not readable over Jira's REST API and is not seen —
+are rendered through the Figma API and land under `designs`, one
 entry per frame with `path`, `frame`, `file` and the `url` it came from. Designs
 need [`figma`](../configuration.md#designs) configured; without it the step
 behaves exactly as it did before.

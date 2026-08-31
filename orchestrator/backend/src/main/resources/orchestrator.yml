@@ -62,8 +62,8 @@ ci:
   autofix: false
 
 # Designs a ticket links to, rendered into the agent's container so it can see
-# them. Needs a read-only Figma personal access token with the file_content
-# scope; off, and nothing is fetched.
+# them. Needs a Figma personal access token with file_content:read, owned by an
+# account that can open the linked files; off, and nothing is fetched.
 figma:
   enabled: false
   token:

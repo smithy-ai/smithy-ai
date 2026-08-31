@@ -84,9 +84,12 @@ public final class FigmaDesignHelper {
     }
 
     /**
-     * Everywhere a link can hide: the description, the comments, and — on Jira —
-     * the remote links, which is where the Figma app puts a design rather than
-     * in any text a human wrote.
+     * Everywhere a link can be read: the description, the comments, and — on
+     * Jira — the remote links.
+     *
+     * <p>Not everywhere a design can be. Jira's Designs panel is the Figma app's
+     * own storage and no public API returns it, so a design added only there is
+     * invisible from here however hard this looks.
      */
     private static List<String> issueTexts(IssueTrackerClient client, String owner, String repo, String issueRef) {
         var texts = new ArrayList<String>();

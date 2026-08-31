@@ -172,8 +172,13 @@ public class JiraClient implements IssueTrackerClient {
     }
 
     /**
-     * The issue's remote links. An app that attaches something to a story —
-     * Figma above all — registers it here rather than editing the description.
+     * The issue's remote links: what "Link issue → Add web link" writes, plus
+     * whatever an integration chose to record the same way.
+     *
+     * <p>Not everything attached to a story lives here. A design added through
+     * the Figma app's Designs panel is held by that app and exposed by no public
+     * Jira API, so it cannot be read at all — its URL has to be in the
+     * description, a comment, or a web link to be seen.
      */
     @Override
     public List<String> getIssueLinks(String owner, String repo, String issueRef) {

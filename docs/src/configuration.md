@@ -209,14 +209,24 @@ figma:
   maxDesigns: 10  # frames one ticket may pull in
 ```
 
-The token is a read-only Figma personal access token with the `file_content`
-scope, and it must be able to see the files your tickets link to.
+The token is a Figma personal access token with read access to file content
+(`file_content:read`; a legacy unscoped token works too). Access is per-account:
+the token's owner must be able to open the files your tickets link to, so a
+design in a team file needs an account with access to that team.
 
 Links are read from the issue description, its comments, and — on Jira — its
-remote links, which is where the Figma app records a design rather than editing
-the description. A link that names a frame (`?node-id=...`) renders that frame; a
-link to a file renders the top-level frames of its first page, up to
-`maxDesigns`.
+remote links, which is what "Link issue → Add web link" writes. A link that names
+a frame (`?node-id=...`) renders that frame; a link to a file renders the
+top-level frames of its first page, up to `maxDesigns`.
+
+!!! warning "Jira's Designs panel is not readable"
+
+    A design added through the Figma for Jira app's **Designs** panel is stored
+    by that app, not by Jira: it is not a remote link, not an attachment, and no
+    public Jira REST API returns it. Nothing here can see it. For a design to be
+    picked up, its URL has to appear in the issue description, in a comment, or
+    as a web link — pasting the Figma URL into the description is enough, and the
+    Figma app still shows it in the Designs panel as well.
 
 Off by default. While it is off, nothing about a ticket is sent to Figma and
 `attachments.fetch` behaves exactly as it did before. A design that will not
