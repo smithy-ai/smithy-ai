@@ -10,13 +10,11 @@ import {
   Box,
   Button,
   Group,
-  Textarea,
   Alert,
 } from "@mantine/core";
 import {
   fetchInstanceSession,
   releaseTakeover,
-  sendTakeoverMessage,
   takeoverHeartbeat,
   Instance,
 } from "../api/client";
@@ -24,6 +22,7 @@ import { parseSession } from "../lib/parseSession";
 import { groupTurns } from "../lib/groupTurns";
 import type { ToolResultContent } from "../lib/sessionTypes";
 import { TurnItem } from "../components/TurnItem";
+import { TakeoverComposer } from "../components/TakeoverComposer";
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 
@@ -38,8 +37,6 @@ export function SessionPanel({
 }) {
   const queryClient = useQueryClient();
   const [takenOver, setTakenOver] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
   const [takeoverError, setTakeoverError] = useState<string | null>(null);
   // Every turn starts collapsed; the list is an index you open into.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -105,22 +102,6 @@ export function SessionPanel({
       setTakeoverError(
         "Could not take over: no live workflow instance for this container.",
       );
-    }
-  }
-
-  async function handleSend() {
-    if (!selected || !draft.trim() || sending) return;
-    const text = draft.trim();
-    setSending(true);
-    setTakeoverError(null);
-    try {
-      await sendTakeoverMessage(selected, text);
-      setDraft("");
-    } catch (e) {
-      setTakeoverError(e instanceof Error ? e.message : "Failed to send message.");
-    } finally {
-      setSending(false);
-      queryClient.invalidateQueries({ queryKey: ["session", selected] });
     }
   }
 
@@ -221,32 +202,13 @@ export function SessionPanel({
           )}
 
           {takenOver && (
-            <Group align="flex-end" gap="sm">
-              <Textarea
-                placeholder="Message the session as the agent… (Ctrl+Enter to send)"
-                value={draft}
-                onChange={(e) => setDraft(e.currentTarget.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                autosize
-                minRows={2}
-                maxRows={8}
-                disabled={sending}
-                style={{ flex: 1 }}
-              />
-              <Button onClick={handleSend} loading={sending} disabled={!draft.trim()}>
-                Send
-              </Button>
-            </Group>
-          )}
-          {sending && (
-            <Text size="sm" c="dimmed">
-              Claude is working on your message — the transcript above updates live.
-            </Text>
+            <TakeoverComposer
+              containerName={selected}
+              onError={setTakeoverError}
+              onSent={() =>
+                queryClient.invalidateQueries({ queryKey: ["session", selected] })
+              }
+            />
           )}
         </>
       )}

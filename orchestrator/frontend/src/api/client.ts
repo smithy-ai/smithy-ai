@@ -183,15 +183,29 @@ const TAKEOVER_MESSAGE_TIMEOUT_MS = 6 * 60 * 1000;
 export async function sendTakeoverMessage(
   containerName: string,
   text: string,
+  screenshots: File[] = [],
 ): Promise<string> {
+  // Words alone stay JSON, which is the plainer contract; images make it
+  // multipart, because base64 in a JSON field inflates a paste for nothing.
+  const body =
+    screenshots.length > 0
+      ? (() => {
+          const form = new FormData();
+          form.append("text", text);
+          screenshots.forEach((file) => form.append("screenshots", file, file.name));
+          return form;
+        })()
+      : JSON.stringify({ text });
+
   let res: Response;
   try {
     res = await fetch(
       `/api/dashboard/takeover/${encodeURIComponent(containerName)}/message`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        // FormData sets its own multipart boundary; naming a type here breaks it.
+        headers: body instanceof FormData ? undefined : { "Content-Type": "application/json" },
+        body,
         signal: AbortSignal.timeout(TAKEOVER_MESSAGE_TIMEOUT_MS),
       },
     );
@@ -208,9 +222,16 @@ export async function sendTakeoverMessage(
     window.location.href = "/login";
     return "";
   }
-  // 409 is the session being mid-turn, 504 the turn running out of budget:
-  // both carry a sentence worth showing as-is.
-  if (res.status === 409 || res.status === 504) throw new Error(await res.text());
+  // 409 is the session being mid-turn, 504 the turn running out of budget, 400
+  // a rejected attachment: each carries a sentence worth showing as-is.
+  if (res.status === 400 || res.status === 409 || res.status === 504) {
+    throw new Error(await res.text());
+  }
+  // The server refuses an upload past its multipart ceiling before any handler
+  // of ours sees it, so the explanation has to come from here.
+  if (res.status === 413) {
+    throw new Error("That image is too large to attach (the limit is 10MB).");
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   return res.text();
 }

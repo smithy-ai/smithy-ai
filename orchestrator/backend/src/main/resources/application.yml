@@ -3,6 +3,14 @@ logging:
     dev.smithyai.orchestrator: DEBUG
 
 spring:
+  # Screenshots attached to a takeover message. A full-screen retina grab is a
+  # couple of megabytes; the ceiling is there so a stray upload cannot fill the
+  # orchestrator's heap.
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+
   threads:
     virtual:
       enabled: true

@@ -124,6 +124,12 @@ From there you can:
   inbound events are held rather than acted on, so the agent is not working on
   top of what you are typing. Control lapses on its own if you close the tab.
 
+    Messages can carry screenshots — paste one straight into the composer, drop
+    it on, or pick it with the image button, up to five per message. Each is
+    saved into the run's container under `.smithy/tmp/takeover/` and named in
+    the prompt, so the agent opens it as it would any other file. PNG, JPEG, GIF
+    and WebP, up to 10MB each. Showing a broken layout beats describing one.
+
 ## Labels
 
 | Label | Purpose |

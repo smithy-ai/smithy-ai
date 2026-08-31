@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @RestController
@@ -298,21 +300,87 @@ public class DashboardController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/dashboard/takeover/{containerName}/message")
+    /**
+     * How many images one message may carry. A handful is a person showing what
+     * they mean; a folder is a mistake, and every one of them costs the turn
+     * tokens and the container disk.
+     */
+    private static final int MAX_SCREENSHOTS = 5;
+
+    private static final java.util.Set<String> IMAGE_TYPES = java.util.Set.of(
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp"
+    );
+
+    @PostMapping(path = "/dashboard/takeover/{containerName}/message", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> sendTakeoverMessage(
         @PathVariable String containerName,
         @RequestBody MessageRequest request
     ) {
+        return deliver(containerName, request.text(), List.of());
+    }
+
+    /**
+     * The same message, with screenshots attached.
+     *
+     * <p>A separate mapping rather than a wider body: a screenshot is binary,
+     * and base64 in a JSON field would inflate a 4MB paste by a third for
+     * nothing. The JSON form above stays the plain contract for a message that
+     * is only words.
+     */
+    @PostMapping(path = "/dashboard/takeover/{containerName}/message", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<String> sendTakeoverMessageWithScreenshots(
+        @PathVariable String containerName,
+        @RequestParam(name = "text", required = false) String text,
+        @RequestParam(name = "screenshots", required = false) List<MultipartFile> screenshots
+    ) {
+        var files =
+            screenshots == null
+                ? List.<MultipartFile>of()
+                : screenshots
+                      .stream()
+                      .filter(f -> !f.isEmpty())
+                      .toList();
+        if (files.size() > MAX_SCREENSHOTS) {
+            return ResponseEntity.badRequest().body("At most " + MAX_SCREENSHOTS + " screenshots per message");
+        }
+        var attached = new ArrayList<RunTakeover.Screenshot>();
+        for (var file : files) {
+            String type = file.getContentType() == null ? "" : file.getContentType().toLowerCase(java.util.Locale.ROOT);
+            if (!IMAGE_TYPES.contains(type)) {
+                return ResponseEntity.badRequest().body(
+                    "Only PNG, JPEG, GIF and WebP images can be attached; got '" + type + "'"
+                );
+            }
+            try {
+                attached.add(new RunTakeover.Screenshot(file.getOriginalFilename(), file.getBytes()));
+            } catch (java.io.IOException e) {
+                log.warn("Failed to read uploaded screenshot {}", file.getOriginalFilename(), e);
+                return ResponseEntity.badRequest().body("Could not read the uploaded image");
+            }
+        }
+        return deliver(containerName, text, attached);
+    }
+
+    /** A message is worth sending when it has words, images, or both. */
+    private ResponseEntity<String> deliver(
+        String containerName,
+        String text,
+        List<RunTakeover.Screenshot> screenshots
+    ) {
         var run = runFor(containerName);
         if (run.isEmpty()) return ResponseEntity.notFound().build();
-        if (request.text() == null || request.text().isBlank()) {
+        String message = text == null ? "" : text;
+        if (message.isBlank() && screenshots.isEmpty()) {
             return ResponseEntity.badRequest().body("Message text is required");
         }
         if (!takeover.isHeld(run.get().id())) {
             return ResponseEntity.status(409).body("No active takeover for this run");
         }
         try {
-            return ResponseEntity.ok(takeover.send(run.get(), request.text(), List.of()));
+            return ResponseEntity.ok(takeover.send(run.get(), message, screenshots, List.of()));
         } catch (AgentBusyException e) {
             // 409 rather than 500: nothing is broken, the session is occupied.
             return ResponseEntity.status(409).body(e.getMessage());
