@@ -19,6 +19,7 @@ agent:
     apiKey: {env: ANTHROPIC_API_KEY}
     turnTimeout: 60m          # budget for one agent turn; overrunning turns are killed
     takeoverTimeout: 5m       # budget for a turn a human drove from the dashboard
+    takeoverTools: [Read, Glob, Grep, Bash, Edit, Write, WebFetch]
 
 auth:
   admin:

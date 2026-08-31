@@ -115,7 +115,7 @@ class ClaudeTurnTimeoutTest {
     // ── Plumbing ─────────────────────────────────────────────
 
     private static ClaudeAgentConfig agentConfig(String turnTimeout) {
-        return new ClaudeAgentConfig("claude-opus-5", null, null, turnTimeout, null);
+        return new ClaudeAgentConfig("claude-opus-5", null, null, turnTimeout, null, null);
     }
 
     private List<String> claudeInvocation() {

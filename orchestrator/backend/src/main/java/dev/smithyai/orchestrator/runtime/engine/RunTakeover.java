@@ -44,16 +44,43 @@ public class RunTakeover {
      */
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
 
+    /** Used only when there is no config bean at all — see agent.claude.takeoverTools. */
+    private static final List<String> DEFAULT_TOOLS = List.of(
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Edit",
+        "Write",
+        "WebFetch"
+    );
+
     private final RunStore store;
     private final RunEnvironments environments;
     private final RunLocks locks;
     private final Duration turnTimeout;
+    private final List<String> defaultTools;
 
     public RunTakeover(RunStore store, RunEnvironments environments, RunLocks locks, ClaudeAgentConfig claude) {
         this.store = store;
         this.environments = environments;
         this.locks = locks;
         this.turnTimeout = claude == null ? DEFAULT_TIMEOUT : claude.resolvedTakeoverTimeout().orElse(DEFAULT_TIMEOUT);
+        this.defaultTools = claude == null ? DEFAULT_TOOLS : claude.resolvedTakeoverTools();
+    }
+
+    /**
+     * The tools a human-driven turn may use.
+     *
+     * <p>Never an empty list. {@code ClaudeSession} omits {@code --allowedTools}
+     * when it has nothing to put there, and a headless turn on default
+     * permissions then refuses every tool call before it runs — the agent cannot
+     * read a file, let alone push a branch. That looks like an agent that has
+     * stopped cooperating rather than one that was handed no permissions, so the
+     * empty case is filled in here instead of being passed on.
+     */
+    private List<String> toolsFor(List<String> requested) {
+        return requested == null || requested.isEmpty() ? defaultTools : requested;
     }
 
     public boolean isHeld(String runId) {
@@ -99,7 +126,7 @@ public class RunTakeover {
         return locks
             .tryInRun(run.id(), BUSY_WAIT, () -> {
                 var container = environments.container(run);
-                var agent = environments.agent(run, tools);
+                var agent = environments.agent(run, toolsFor(tools));
                 agent.setTurnTimeout(turnTimeout);
                 String reply = agent.send(text);
                 environments.rememberAgentSession(container, agent);

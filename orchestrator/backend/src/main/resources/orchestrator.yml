@@ -25,6 +25,10 @@ agent:
     # Budget for a turn a human drove from the dashboard, where someone is
     # waiting on the reply in a browser rather than on a build.
     takeoverTimeout: 5m
+    # Tools a human-driven turn may use. Not the stage's list: a definition
+    # scopes tools per step to constrain the agent working on its own, which
+    # does not map onto whatever a person asks for after taking control.
+    takeoverTools: [Read, Glob, Grep, Bash, Edit, Write, WebFetch]
 
 auth:
   admin:
