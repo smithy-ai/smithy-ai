@@ -92,6 +92,35 @@ public class ContainerSession {
         service.copyToContainer(containerName, destDir, data, filename);
     }
 
+    /**
+     * Make a directory under {@code .smithy/tmp/} ready to be written into.
+     *
+     * <p>Copying a file in is a bare {@code cat >}, so the directory has to
+     * exist first. And everything under that path is material the run was
+     * given rather than work it produced — an attachment, a rendered design —
+     * so git is told to ignore it locally, where the exclusion travels with
+     * neither the branch nor a commit.
+     *
+     * @return whether the directory is now usable
+     */
+    public boolean ensureScratchDir(String dir) {
+        var result = exec(
+            List.of(
+                "sh",
+                "-c",
+                "mkdir -p '" +
+                    dir.replace("'", "'\\''") +
+                    "' && { grep -qxF '.smithy/tmp/' .git/info/exclude 2>/dev/null" +
+                    " || echo '.smithy/tmp/' >> .git/info/exclude; }"
+            )
+        );
+        if (result.exitCode() != 0) {
+            log.warn("Failed to prepare {} in {}: {}", dir, containerName, result.stderr());
+            return false;
+        }
+        return true;
+    }
+
     public void destroy() {
         service.destroy(containerName);
     }

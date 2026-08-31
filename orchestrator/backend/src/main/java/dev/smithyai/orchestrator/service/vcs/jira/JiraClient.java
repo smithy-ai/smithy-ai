@@ -171,6 +171,21 @@ public class JiraClient implements IssueTrackerClient {
         }
     }
 
+    /**
+     * The issue's remote links. An app that attaches something to a story —
+     * Figma above all — registers it here rather than editing the description.
+     */
+    @Override
+    public List<String> getIssueLinks(String owner, String repo, String issueRef) {
+        var node = get("/issue/%s/remotelink", issueRef);
+        var urls = new ArrayList<String>();
+        for (var link : node) {
+            String url = link.path("object").path("url").asText("");
+            if (!url.isBlank()) urls.add(url);
+        }
+        return urls;
+    }
+
     // ── Jira-specific operations ─────────────────────────────
 
     /** Adds a label to an issue without touching existing labels. */

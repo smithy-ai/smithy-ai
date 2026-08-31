@@ -18,6 +18,19 @@ Read them before planning — designs often carry requirements the story text om
 your child issues receive the same files, so reference them by filename in issue bodies where a
 design drives the work.
 {% endif %}
+{% if designs %}
+
+## Designs
+
+These Figma frames were linked from the issue and rendered into the container:
+{% for design in designs %}
+- `{{ design.path }}` — frame "{{ design.frame }}"{% if design.file %} in "{{ design.file }}"{% endif %}
+  ({{ design.url }})
+{% endfor %}
+
+Read the images. A design usually settles layout, states and wording the issue
+text leaves open; where it disagrees with the text, say so rather than guessing.
+{% endif %}
 
 ## Where things are
 

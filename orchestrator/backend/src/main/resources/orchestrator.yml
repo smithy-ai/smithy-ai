@@ -61,6 +61,19 @@ workflows:
 ci:
   autofix: false
 
+# Designs a ticket links to, rendered into the agent's container so it can see
+# them. Needs a read-only Figma personal access token with the file_content
+# scope; off, and nothing is fetched.
+figma:
+  enabled: false
+  token:
+    env: FIGMA_TOKEN
+  # png, jpg, svg or pdf. Scale 1-4; 2 keeps design text legible.
+  format: png
+  scale: 2
+  # How many frames one ticket may pull in.
+  maxDesigns: 10
+
 knowledgebase:
   enabled: false
   url: http://knowledgebase:8000/mcp

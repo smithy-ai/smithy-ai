@@ -192,6 +192,36 @@ defaults:
 Issue actions answer the connector that produced the event. Repository actions use
 that source when it is a VCS connector and otherwise use `defaults.vcs`.
 
+## Designs
+
+A design usually settles what a ticket leaves open, and it reaches the ticket as a
+Figma link rather than a file — which an agent in a container cannot open. Give
+the orchestrator a Figma token and it renders every design a ticket links to and
+copies the images into the container, where the prompt names them by path
+alongside the attachments:
+
+```yaml
+figma:
+  enabled: true
+  token: {env: FIGMA_TOKEN}
+  format: png     # png, jpg, svg or pdf
+  scale: 2        # 0.01-4; 2 keeps design text legible
+  maxDesigns: 10  # frames one ticket may pull in
+```
+
+The token is a read-only Figma personal access token with the `file_content`
+scope, and it must be able to see the files your tickets link to.
+
+Links are read from the issue description, its comments, and — on Jira — its
+remote links, which is where the Figma app records a design rather than editing
+the description. A link that names a frame (`?node-id=...`) renders that frame; a
+link to a file renders the top-level frames of its first page, up to
+`maxDesigns`.
+
+Off by default. While it is off, nothing about a ticket is sent to Figma and
+`attachments.fetch` behaves exactly as it did before. A design that will not
+render is logged and skipped rather than failing the run.
+
 ## Repository catalogs
 
 Reusable coordinator catalogs belong in deployment configuration:

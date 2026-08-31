@@ -149,7 +149,12 @@ class ArchitectDefinitionTest {
                 review.prFindByHeadAction(vcs.asRegistry()),
                 review.prReviewCommentsAction(vcs.asRegistry()),
                 review.prReviewAction(vcs.asRegistry()),
-                review.attachmentsFetchAction(trackers, environments),
+                review.attachmentsFetchAction(
+                    trackers,
+                    environments,
+                    dev.smithyai.orchestrator.service.design.FigmaClient.inactive(),
+                    dev.smithyai.orchestrator.config.FigmaConfig.disabled()
+                ),
                 review.fileDeleteAction(vcs.asRegistry()),
                 review.fileUrlAction(vcs.asRegistry()),
                 review.repoCloneUrlAction(vcs.asRegistry()),

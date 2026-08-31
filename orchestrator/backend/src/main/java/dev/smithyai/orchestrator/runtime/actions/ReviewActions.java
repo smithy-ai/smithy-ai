@@ -1,7 +1,10 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
+import dev.smithyai.orchestrator.config.FigmaConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
+import dev.smithyai.orchestrator.service.design.FigmaClient;
+import dev.smithyai.orchestrator.service.design.FigmaDesignHelper;
 import dev.smithyai.orchestrator.service.vcs.AttachmentHelper;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
 import dev.smithyai.orchestrator.service.vcs.VcsClients;
@@ -267,14 +270,25 @@ public class ReviewActions {
     }
 
     /**
-     * Pull an issue's attachments into the container.
+     * Pull what an issue points at into the container.
      *
      * <p>Designs and mockups carry requirements the issue text omits, and the
      * agent cannot follow a link out of its container — so the files come in and
-     * the prompt names them by path.
+     * the prompt names them by path. Two kinds of them: files somebody attached,
+     * and the Figma designs the ticket links to, which are rendered on the way
+     * in because a link is not something a container can open.
+     *
+     * <p>Designs come back under their own output rather than mixed into
+     * {@code paths}, because a prompt has more to say about one: which frame it
+     * is, and which link it came from.
      */
     @Bean
-    public WorkflowAction attachmentsFetchAction(IssueTrackers trackers, RunEnvironments environments) {
+    public WorkflowAction attachmentsFetchAction(
+        IssueTrackers trackers,
+        RunEnvironments environments,
+        FigmaClient figma,
+        FigmaConfig figmaConfig
+    ) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -294,14 +308,30 @@ public class ReviewActions {
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var session = environments.container(context.run());
-                var paths = AttachmentHelper.fetchAndInject(
-                    Trackers.pick(this, context, input, trackers),
-                    session,
-                    required(input, "owner"),
-                    required(input, "repo"),
-                    required(input, "issue")
-                );
-                return Map.of("paths", paths, "count", paths.size());
+                var tracker = Trackers.pick(this, context, input, trackers);
+                String owner = required(input, "owner");
+                String repo = required(input, "repo");
+                String issue = required(input, "issue");
+
+                var paths = AttachmentHelper.fetchAndInject(tracker, session, owner, repo, issue);
+                // Never fatal: a design the agent cannot see is a worse plan,
+                // not a failed run, and the same step also carries attachments.
+                List<Map<String, Object>> designs;
+                try {
+                    designs = FigmaDesignHelper.fetchAndInject(
+                        tracker,
+                        figma,
+                        session,
+                        owner,
+                        repo,
+                        issue,
+                        figmaConfig.resolvedMaxDesigns()
+                    );
+                } catch (Exception e) {
+                    log.warn("Failed to fetch Figma designs for issue {}", issue, e);
+                    designs = List.of();
+                }
+                return Map.of("paths", paths, "count", paths.size(), "designs", designs, "designCount", designs.size());
             }
         };
     }

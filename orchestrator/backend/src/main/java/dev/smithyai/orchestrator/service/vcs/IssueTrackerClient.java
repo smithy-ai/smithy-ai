@@ -32,4 +32,16 @@ public interface IssueTrackerClient extends ProviderClient {
     List<AttachmentInfo> getCommentAttachments(String owner, String repo, long commentId);
 
     byte[] downloadAttachment(String url);
+
+    /**
+     * URLs attached to the issue as links rather than written into its text.
+     *
+     * <p>Jira's remote links are where an integration puts what it added — a
+     * Figma design linked through the Figma app never appears in the
+     * description. Trackers without the concept keep everything in the text,
+     * and answer with nothing.
+     */
+    default List<String> getIssueLinks(String owner, String repo, String issueRef) {
+        return List.of();
+    }
 }

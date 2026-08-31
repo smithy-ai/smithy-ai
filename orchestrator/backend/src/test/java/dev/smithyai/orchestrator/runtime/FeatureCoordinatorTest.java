@@ -195,6 +195,7 @@ class FeatureCoordinatorTest {
                 )
             ),
             null,
+            null,
             null
         );
         // The registry answers what provider a connector speaks, so a
@@ -246,7 +247,12 @@ class FeatureCoordinatorTest {
                 review.prFindByHeadAction(vcsClients),
                 review.prReviewCommentsAction(vcsClients),
                 review.prReviewAction(vcsClients),
-                review.attachmentsFetchAction(trackers, environments),
+                review.attachmentsFetchAction(
+                    trackers,
+                    environments,
+                    dev.smithyai.orchestrator.service.design.FigmaClient.inactive(),
+                    dev.smithyai.orchestrator.config.FigmaConfig.disabled()
+                ),
                 review.fileDeleteAction(vcsClients),
                 review.fileUrlAction(vcsClients),
                 review.repoCloneUrlAction(vcsClients),

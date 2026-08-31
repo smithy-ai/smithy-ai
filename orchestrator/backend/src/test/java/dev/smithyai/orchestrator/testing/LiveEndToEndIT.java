@@ -328,7 +328,12 @@ class LiveEndToEndIT {
                 review.prFindByHeadAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 review.prReviewCommentsAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 review.prReviewAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
-                review.attachmentsFetchAction(trackers, environments),
+                review.attachmentsFetchAction(
+                    trackers,
+                    environments,
+                    dev.smithyai.orchestrator.service.design.FigmaClient.inactive(),
+                    dev.smithyai.orchestrator.config.FigmaConfig.disabled()
+                ),
                 review.fileDeleteAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 review.fileUrlAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 review.repoCloneUrlAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),

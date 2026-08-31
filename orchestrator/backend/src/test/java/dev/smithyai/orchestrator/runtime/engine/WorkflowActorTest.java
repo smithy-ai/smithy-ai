@@ -72,6 +72,7 @@ class WorkflowActorTest {
             null,
             Map.of(),
             null,
+            null,
             null
         );
 
@@ -159,6 +160,7 @@ class WorkflowActorTest {
             null,
             null,
             Map.of(),
+            null,
             null,
             null
         );

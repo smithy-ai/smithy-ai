@@ -45,21 +45,7 @@ public final class AttachmentHelper {
 
         if (allAttachments.isEmpty()) return List.of();
 
-        // Create attachments directory and exclude from git
-        var mkdirResult = session.exec(
-            List.of(
-                "sh",
-                "-c",
-                "mkdir -p \"" +
-                    ATTACHMENTS_DIR +
-                    "\"" +
-                    " && grep -qxF \".smithy/tmp/\" .git/info/exclude 2>/dev/null" +
-                    " || echo \".smithy/tmp/\" >> .git/info/exclude"
-            )
-        );
-        if (mkdirResult.exitCode() != 0) {
-            log.warn("Failed to create attachments directory: {}", mkdirResult.stderr());
-        }
+        session.ensureScratchDir(ATTACHMENTS_DIR);
 
         var paths = new ArrayList<String>();
         for (var attachment : allAttachments) {

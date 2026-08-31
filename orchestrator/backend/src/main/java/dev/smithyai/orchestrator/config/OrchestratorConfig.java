@@ -16,7 +16,8 @@ public record OrchestratorConfig(
     WorkflowConfig workflows,
     Map<String, List<RepositoryCatalogConfig>> repositoryCatalogs,
     KnowledgebaseConfig knowledgebase,
-    CiConfig ci
+    CiConfig ci,
+    FigmaConfig figma
 ) {
     public static final String API_VERSION = "smithy.ai/v1alpha1";
     public static final String KIND = "OrchestratorConfig";

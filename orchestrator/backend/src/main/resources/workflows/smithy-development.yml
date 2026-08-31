@@ -92,7 +92,8 @@ state:
               baseBranch: "{{ steps.base.stdout }}"
 
           # Designs carry requirements the issue text omits, and the agent
-          # cannot follow a link out of its container.
+          # cannot follow a link out of its container: attached files come in
+          # as they are, linked Figma frames come in rendered.
           - uses: attachments.fetch
             id: attachments
             with:
@@ -113,6 +114,7 @@ state:
                 issue_body: "{{ event.issueBody }}"
                 plan_file_path: "{{ vars.planDir }}/{{ event.issueRef }}.md"
                 attachments: "{{ steps.attachments.paths }}"
+                designs: "{{ steps.attachments.designs }}"
 
           # An empty plan is a dead end, not a crash: say so and wait for more
           # context rather than leaving the issue silent.
@@ -220,6 +222,7 @@ state:
                 comment_body: "{{ event.commentBody }}"
                 plan_file_path: "{{ vars.planPath }}"
                 attachments: "{{ steps.attachments.paths }}"
+                designs: "{{ steps.attachments.designs }}"
 
           - uses: exec
             with:
@@ -324,6 +327,7 @@ state:
                 issue_title: "{{ event.issueTitle }}"
                 plan_file_path: "{{ vars.planPath }}"
                 attachments: "{{ steps.attachments.paths }}"
+                designs: "{{ steps.attachments.designs }}"
 
           - uses: agent.ensureCommitted
             with:

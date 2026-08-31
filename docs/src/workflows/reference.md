@@ -215,7 +215,15 @@ on.
 | `issue.comment` | `owner`, `repo`, `issue`, `body` | none | `commentId` |
 | `issue.read` | `owner`, `repo`, `issue` | none | `issueRef`, `title`, `body`, `state`, `assignees`, `labels`, `baseBranch` |
 | `issue.link` | `owner`, `repo`, `issue` | none | `url` |
-| `attachments.fetch` | `owner`, `repo`, `issue` | none | `paths`, `count` |
+| `attachments.fetch` | `owner`, `repo`, `issue` | none | `paths`, `count`, `designs`, `designCount` |
+
+`attachments.fetch` brings in both kinds of thing a ticket points at. Files
+somebody attached land under `paths`. Figma designs the ticket links to — in the
+description, in a comment, or as a Jira remote link, which is where the Figma
+app puts one — are rendered through the Figma API and land under `designs`, one
+entry per frame with `path`, `frame`, `file` and the `url` it came from. Designs
+need [`figma`](../configuration.md#designs) configured; without it the step
+behaves exactly as it did before.
 
 ### Pull requests
 

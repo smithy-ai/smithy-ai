@@ -58,6 +58,10 @@ workflows:
   repositoryWorkflows: true
   defaults: {branchPrefix: smithy/, planApprovedLabel: Plan Approved}
 ci: {autofix: false}
+
+# Renders the Figma designs a Jira story links to into the agent's container.
+# Reads links from the description, the comments and the story's remote links.
+figma: {enabled: true, token: {env: FIGMA_TOKEN}, format: png, scale: 2, maxDesigns: 10}
 knowledgebase: {enabled: false}
 
 repositoryCatalogs:

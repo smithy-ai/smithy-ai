@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.config;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import dev.smithyai.orchestrator.service.claude.ClaudeSession;
+import dev.smithyai.orchestrator.service.design.FigmaClient;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -97,6 +98,29 @@ public class ConfigLoader {
     @Bean
     public CiConfig ciConfig() {
         return config.ci() != null ? config.ci() : new CiConfig(null);
+    }
+
+    /**
+     * The client that renders the designs a ticket links to, or an inactive one
+     * where no token was configured. Never null, so the actions that use it say
+     * nothing about whether a deployment set Figma up.
+     */
+    @Bean
+    public FigmaClient figmaClient() {
+        var figma = config.figma() != null ? config.figma() : FigmaConfig.disabled();
+        if (!figma.isEnabled()) return FigmaClient.inactive();
+        String token = resolveSecret(figma.token(), "figma.token");
+        if (token.isBlank()) {
+            log.warn("figma.enabled is true but figma.token resolved to nothing; designs will not be fetched");
+            return FigmaClient.inactive();
+        }
+        log.info("Figma design access enabled (format={}, scale={})", figma.resolvedFormat(), figma.resolvedScale());
+        return new FigmaClient(token, figma.resolvedFormat(), figma.resolvedScale());
+    }
+
+    @Bean
+    public FigmaConfig figmaConfig() {
+        return config.figma() != null ? config.figma() : FigmaConfig.disabled();
     }
 
     @Bean

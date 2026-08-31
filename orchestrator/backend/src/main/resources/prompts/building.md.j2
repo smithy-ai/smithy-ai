@@ -15,6 +15,19 @@ The following files were attached to this issue and are available in the contain
 
 You may read these files directly or copy them into the repository if needed.
 {% endif %}
+{% if designs %}
+
+## Designs
+
+These Figma frames were linked from the issue and rendered into the container:
+{% for design in designs %}
+- `{{ design.path }}` — frame "{{ design.frame }}"{% if design.file %} in "{{ design.file }}"{% endif %}
+  ({{ design.url }})
+{% endfor %}
+
+Read the images. A design usually settles layout, states and wording the issue
+text leaves open; where it disagrees with the text, say so rather than guessing.
+{% endif %}
 
 ## How you are running
 
