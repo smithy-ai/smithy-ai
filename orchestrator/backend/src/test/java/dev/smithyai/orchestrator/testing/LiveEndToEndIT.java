@@ -359,7 +359,8 @@ class LiveEndToEndIT {
             store,
             environments,
             new RepositoryWorkflowLoader(vcs, new WorkflowDefinitionParser()),
-            new EventDebouncer()
+            new EventDebouncer(),
+            new RunLocks()
         );
     }
 

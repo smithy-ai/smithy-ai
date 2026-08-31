@@ -115,7 +115,8 @@ class RepositoryWorkflowTest {
             store,
             new RunEnvironments(store, null, null),
             new RepositoryWorkflowLoader(vcs, parser),
-            new EventDebouncer()
+            new EventDebouncer(),
+            new RunLocks()
         );
     }
 

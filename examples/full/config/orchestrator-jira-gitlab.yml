@@ -13,6 +13,8 @@ agent:
     model: claude-opus-5
     oauthToken: {env: CLAUDE_CODE_OAUTH_TOKEN}
     apiKey: {env: ANTHROPIC_API_KEY}
+    turnTimeout: 60m          # budget for one agent turn; overrunning turns are killed
+    takeoverTimeout: 5m       # budget for a turn a human drove from the dashboard
 auth:
   admin:
     passwordHash: {env: ADMIN_PASSWORD_HASH}

@@ -30,11 +30,13 @@ public class ConfigLoader {
             ClaudeConfig claude = resolvedClaudeConfig();
             claude.validate();
             ClaudeSession.configureDefaultModel(claude.resolvedModel());
+            config.agent().claude().resolvedTurnTimeout().ifPresent(ClaudeSession::configureTurnTimeout);
             log.info(
-                "Loaded orchestrator config (connectors={}, defaultVcs={}, model={})",
+                "Loaded orchestrator config (connectors={}, defaultVcs={}, model={}, turnTimeout={})",
                 config.connectors().keySet(),
                 config.defaults().vcs(),
-                claude.resolvedModel()
+                claude.resolvedModel(),
+                ClaudeSession.turnTimeout()
             );
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to parse orchestrator config", e);
@@ -70,6 +72,12 @@ public class ConfigLoader {
     @Bean
     public ClaudeConfig claudeConfig() {
         return resolvedClaudeConfig();
+    }
+
+    /** The unresolved agent block, for the settings that are not secrets. */
+    @Bean
+    public AgentConfig.ClaudeAgentConfig claudeAgentConfig() {
+        return config.agent().claude();
     }
 
     private ClaudeConfig resolvedClaudeConfig() {

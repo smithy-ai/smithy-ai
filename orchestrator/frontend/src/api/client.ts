@@ -171,22 +171,46 @@ export function releaseTakeover(containerName: string, keepalive = false): Promi
   });
 }
 
+/**
+ * A turn is answered by the agent, so this is slow by nature — but not endless.
+ * Without a deadline a request that never comes back leaves the composer stuck
+ * with the draft still in it and no error, which reads as a prompt that was
+ * never sent. Kept above the server's takeover budget so the server's own
+ * message wins the race and says something useful.
+ */
+const TAKEOVER_MESSAGE_TIMEOUT_MS = 6 * 60 * 1000;
+
 export async function sendTakeoverMessage(
   containerName: string,
   text: string,
 ): Promise<string> {
-  const res = await fetch(
-    `/api/dashboard/takeover/${encodeURIComponent(containerName)}/message`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `/api/dashboard/takeover/${encodeURIComponent(containerName)}/message`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+        signal: AbortSignal.timeout(TAKEOVER_MESSAGE_TIMEOUT_MS),
+      },
+    );
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "TimeoutError") {
+      throw new Error(
+        "The agent did not reply within 6 minutes. It may still be working — " +
+          "check the transcript before sending again.",
+      );
+    }
+    throw e;
+  }
   if (res.status === 401 || res.status === 403) {
     window.location.href = "/login";
     return "";
   }
+  // 409 is the session being mid-turn, 504 the turn running out of budget:
+  // both carry a sentence worth showing as-is.
+  if (res.status === 409 || res.status === 504) throw new Error(await res.text());
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
   return res.text();
 }

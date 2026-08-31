@@ -157,7 +157,8 @@ class RunEngineTest {
             store,
             new RunEnvironments(store, null, null),
             null,
-            new EventDebouncer()
+            new EventDebouncer(),
+            new RunLocks()
         );
     }
 
@@ -363,9 +364,7 @@ class RunEngineTest {
 
         // A human opened MR 42 from the run's work branch. Its comments are
         // theirs: the run must not answer them just because the branch matches.
-        var strangers = engine
-            .handle(prComment(42, "please ignore this MR"))
-            .getFirst();
+        var strangers = engine.handle(prComment(42, "please ignore this MR")).getFirst();
         assertFalse(strangers.handled());
         assertNull(store.find(started.runId()).orElseThrow().vars().get("lastPrComment"));
 

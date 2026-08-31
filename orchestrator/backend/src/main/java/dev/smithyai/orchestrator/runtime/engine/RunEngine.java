@@ -42,6 +42,7 @@ public class RunEngine implements SignalDelivery {
     private final RunEnvironments environments;
     private final RepositoryWorkflowLoader repositoryWorkflows;
     private final EventDebouncer debouncer;
+    private final RunLocks locks;
 
     public RunEngine(
         WorkflowRegistry registry,
@@ -50,7 +51,8 @@ public class RunEngine implements SignalDelivery {
         RunStore store,
         RunEnvironments environments,
         RepositoryWorkflowLoader repositoryWorkflows,
-        EventDebouncer debouncer
+        EventDebouncer debouncer,
+        RunLocks locks
     ) {
         this.registry = registry;
         this.router = router;
@@ -59,6 +61,7 @@ public class RunEngine implements SignalDelivery {
         this.environments = environments;
         this.repositoryWorkflows = repositoryWorkflows;
         this.debouncer = debouncer;
+        this.locks = locks;
     }
 
     /** What an event did, for logs and for the tests that assert on routing. */
@@ -369,20 +372,13 @@ public class RunEngine implements SignalDelivery {
      * does not leave a lock behind if the process dies.
      */
     private Outcome dispatch(WorkflowDefinition definition, Run run, WorkflowEvent event) {
-        synchronized (lockFor(run.id())) {
+        return locks.inRun(run.id(), () -> {
             // Re-read inside the lock. The run was resolved before it, so another
             // event may have moved it since — and acting on the state it used to
             // be in runs the wrong transition.
             var current = store.find(run.id()).orElse(run);
             return dispatchSerially(definition, current, event);
-        }
-    }
-
-    private final java.util.concurrent.ConcurrentMap<String, Object> locks =
-        new java.util.concurrent.ConcurrentHashMap<>();
-
-    private Object lockFor(String runId) {
-        return locks.computeIfAbsent(runId, id -> new Object());
+        });
     }
 
     private Outcome dispatchSerially(WorkflowDefinition definition, Run run, WorkflowEvent event) {

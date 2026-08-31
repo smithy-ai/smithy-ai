@@ -284,7 +284,8 @@ class FeatureCoordinatorTest {
             store,
             environments,
             null,
-            new EventDebouncer()
+            new EventDebouncer(),
+            new RunLocks()
         );
     }
 
