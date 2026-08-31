@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.runtime.engine;
 
+import dev.smithyai.orchestrator.config.AgentConfig.ClaudeAgentConfig;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.Run;
 import dev.smithyai.orchestrator.runtime.store.RunLease;
@@ -30,12 +31,29 @@ public class RunTakeover {
 
     private static final Duration TTL = Duration.ofSeconds(30);
 
+    /**
+     * How long a human message waits for an in-flight turn before giving up. Kept
+     * short on purpose: the answer "the agent is busy" is useful immediately and
+     * useless after a queue.
+     */
+    private static final Duration BUSY_WAIT = Duration.ofSeconds(5);
+
+    /**
+     * Budget for a turn a person is waiting on in a browser. Much shorter than a
+     * build turn's — an unanswered request is a hung dashboard, not a long job.
+     */
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
+
     private final RunStore store;
     private final RunEnvironments environments;
+    private final RunLocks locks;
+    private final Duration turnTimeout;
 
-    public RunTakeover(RunStore store, RunEnvironments environments) {
+    public RunTakeover(RunStore store, RunEnvironments environments, RunLocks locks, ClaudeAgentConfig claude) {
         this.store = store;
         this.environments = environments;
+        this.locks = locks;
+        this.turnTimeout = claude == null ? DEFAULT_TIMEOUT : claude.resolvedTakeoverTimeout().orElse(DEFAULT_TIMEOUT);
     }
 
     public boolean isHeld(String runId) {
@@ -66,14 +84,32 @@ public class RunTakeover {
      *
      * <p>Renews the lease first: a long exchange should not lapse halfway
      * through because the reply took longer than the heartbeat interval.
+     *
+     * <p>Takes the run's turn lock, because holding the lease is not the same as
+     * the session being free. The lease stops <em>new</em> events being
+     * dispatched; a turn that was already running when someone took over keeps
+     * running, and firing a second {@code claude --resume} at the same session
+     * gets a message that never lands and a request that hangs until the budget
+     * runs out. So this reports the collision instead of joining it.
+     *
+     * @throws AgentBusyException if a turn is already in flight for this run
      */
     public String send(Run run, String text, List<String> tools) {
         heartbeat(run.id());
-        var container = environments.container(run);
-        var agent = environments.agent(run, tools);
-        String reply = agent.send(text);
-        environments.rememberAgentSession(container, agent);
-        store.appendEvent(run.id(), "takeover.message", Map.of("length", text.length()));
-        return reply;
+        return locks
+            .tryInRun(run.id(), BUSY_WAIT, () -> {
+                var container = environments.container(run);
+                var agent = environments.agent(run, tools);
+                agent.setTurnTimeout(turnTimeout);
+                String reply = agent.send(text);
+                environments.rememberAgentSession(container, agent);
+                store.appendEvent(run.id(), "takeover.message", Map.of("length", text.length()));
+                return reply == null ? "" : reply;
+            })
+            .orElseThrow(() -> {
+                store.appendEvent(run.id(), "takeover.message.busy", Map.of("length", text.length()));
+                log.info("Held a takeover message on run {}: a turn is already in flight", run.id());
+                return new AgentBusyException(run.id());
+            });
     }
 }

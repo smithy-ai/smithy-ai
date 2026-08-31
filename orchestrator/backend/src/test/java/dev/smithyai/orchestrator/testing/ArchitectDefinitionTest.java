@@ -177,7 +177,8 @@ class ArchitectDefinitionTest {
             store,
             environments,
             new RepositoryWorkflowLoader(vcs, new WorkflowDefinitionParser()),
-            debouncer
+            debouncer,
+            new RunLocks()
         );
     }
 

@@ -24,6 +24,8 @@ agent:
     model: claude-opus-5
     oauthToken: {env: CLAUDE_CODE_OAUTH_TOKEN}
     apiKey: {env: ANTHROPIC_API_KEY}
+    turnTimeout: 60m          # budget for one agent turn; overrunning turns are killed
+    takeoverTimeout: 5m       # budget for a turn a human drove from the dashboard
 
 auth:
   admin:
@@ -77,6 +79,40 @@ volumes:
   - ./config/workflows:/config/workflows:ro
   - orchestrator-data:/data
 ```
+
+## Agent turn timeout
+
+`agent.claude.turnTimeout` caps the wall-clock time one agent turn may take —
+`45m`, `2h`, `900s` and `PT45M` are all accepted, and the built-in default is
+60 minutes. The deadline is enforced inside the task container, so an overrunning
+turn is actually killed rather than left running after the orchestrator stops
+waiting for it.
+
+A turn that hits the cap fails its step with:
+
+```
+Claude turn on <container> (session=<id>) exceeded its 60m budget and was killed.
+```
+
+Raise the value for workflows whose build stage legitimately runs longer, or split
+the step into smaller turns. Note that the budget is per turn, not per run: a
+workflow with five turns can run for five times this long.
+
+`agent.claude.takeoverTimeout` (default 5 minutes) is the budget for a turn a
+person drove from the dashboard. It is deliberately much shorter: someone is
+waiting on that reply in a browser, so an unanswered request is a hung dashboard
+rather than a long job.
+
+A run's turns all share one agent session, and that session cannot take two
+concurrent processes. Taking control does not interrupt a turn that is already
+running — the lease stops new events being dispatched, not work in flight — so a
+message sent mid-turn is refused with a 409 and
+
+```
+The agent on run <id> is in the middle of a turn.
+```
+
+rather than queued behind it. Wait for the turn to land, or stop the run.
 
 ## Secrets
 

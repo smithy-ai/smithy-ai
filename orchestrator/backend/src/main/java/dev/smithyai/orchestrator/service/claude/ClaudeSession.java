@@ -20,9 +20,44 @@ import lombok.extern.slf4j.Slf4j;
 public class ClaudeSession {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final Duration TIMEOUT = Duration.ofMinutes(30);
     private static final String CLAUDE_BINARY = "/usr/bin/claude";
     private static final String PLANS_DIR = "/root/.claude/plans";
+
+    /**
+     * Wall-clock budget for one agent turn. A build turn on a real repository
+     * works for tens of minutes, so this is deliberately generous; override it
+     * with agent.claude.turnTimeout when a workflow needs longer still.
+     */
+    private static final Duration DEFAULT_TURN_TIMEOUT = Duration.ofMinutes(60);
+
+    /**
+     * Head-room on top of the budget before the local docker client stops
+     * waiting. The deadline is enforced inside the container, so the client only
+     * has to outlive it — this is a backstop for a wedged daemon, not the limit.
+     */
+    private static final Duration CLIENT_GRACE = Duration.ofSeconds(60);
+
+    /** Grace between SIGTERM and SIGKILL for a turn that overran. */
+    private static final String KILL_AFTER = "10s";
+
+    /** GNU timeout's exit status for a command it had to stop. */
+    private static final int TIMEOUT_EXIT_CODE = 124;
+
+    private static volatile Duration turnTimeout = DEFAULT_TURN_TIMEOUT;
+
+    /**
+     * Set once at startup from agent.claude.turnTimeout by
+     * {@link dev.smithyai.orchestrator.config.ConfigLoader}.
+     */
+    public static void configureTurnTimeout(Duration timeout) {
+        if (timeout != null && !timeout.isZero() && !timeout.isNegative()) {
+            turnTimeout = timeout;
+        }
+    }
+
+    public static Duration turnTimeout() {
+        return turnTimeout;
+    }
 
     /**
      * Model used when callers don't pass one explicitly. Set once at startup from
@@ -46,6 +81,7 @@ public class ClaudeSession {
     private String model;
     private List<String> addDirs = List.of();
     private boolean started = false;
+    private Duration sessionTurnTimeout;
 
     public ClaudeSession(ContainerSession container, List<String> tools) {
         this(container, tools, null, null);
@@ -93,8 +129,23 @@ public class ClaudeSession {
         this.addDirs = dirs == null ? List.of() : List.copyOf(dirs);
     }
 
+    /**
+     * Give this session's turns a different budget from the configured one — a
+     * turn someone is waiting on in a browser is not a build turn. Null or
+     * non-positive keeps the configured budget.
+     */
+    public void setTurnTimeout(Duration timeout) {
+        if (timeout != null && !timeout.isZero() && !timeout.isNegative()) {
+            this.sessionTurnTimeout = timeout;
+        }
+    }
+
     private String model() {
         return model != null ? model : defaultModel;
+    }
+
+    private Duration budget() {
+        return sessionTurnTimeout != null ? sessionTurnTimeout : turnTimeout;
     }
 
     public void startPlan(String prompt) {
@@ -186,7 +237,16 @@ public class ClaudeSession {
     // ── Internal ─────────────────────────────────────────────
 
     private String execute(String prompt, String model, String permissionMode, boolean resume, String outputSchema) {
+        Duration budget = budget();
+
         List<String> command = new ArrayList<>();
+        // Bound the turn inside the container rather than only here. Killing the
+        // local `docker exec` leaves the CLI running: the daemon does not stop an
+        // exec whose client went away, and the orphan keeps working and keeps
+        // writing the session transcript that the next turn resumes.
+        command.add("timeout");
+        command.add("--kill-after=" + KILL_AFTER);
+        command.add(budget.toSeconds() + "s");
         command.add(CLAUDE_BINARY);
         command.add("-p");
         command.add("-"); // read prompt from stdin
@@ -235,7 +295,17 @@ public class ClaudeSession {
         }
 
         log.debug("Executing Claude prompt on {} (session={})", container.getContainerName(), sessionId);
-        ExecResult result = container.exec(command, TIMEOUT, prompt);
+        ExecResult result = container.exec(command, budget.plus(CLIENT_GRACE), prompt);
+
+        if (result.exitCode() == TIMEOUT_EXIT_CODE) {
+            log.warn(
+                "Claude turn timed out after {} on {} (session={})",
+                budget,
+                container.getContainerName(),
+                sessionId
+            );
+            throw new ClaudeTimeoutException(budget, container.getContainerName(), sessionId, result.stdout());
+        }
 
         if (result.exitCode() != 0) {
             log.warn(

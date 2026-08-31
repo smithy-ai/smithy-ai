@@ -19,6 +19,12 @@ agent:
       env: CLAUDE_CODE_OAUTH_TOKEN
     apiKey:
       env: ANTHROPIC_API_KEY
+    # Wall-clock budget for a single agent turn (45m, 2h, 900s or PT45M).
+    # A turn that overruns is killed inside its container and the step fails.
+    turnTimeout: 60m
+    # Budget for a turn a human drove from the dashboard, where someone is
+    # waiting on the reply in a browser rather than on a build.
+    takeoverTimeout: 5m
 
 auth:
   admin:

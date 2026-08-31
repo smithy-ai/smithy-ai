@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.web;
 
+import dev.smithyai.orchestrator.runtime.engine.AgentBusyException;
 import dev.smithyai.orchestrator.runtime.engine.RunEngine;
 import dev.smithyai.orchestrator.runtime.engine.RunTakeover;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
@@ -8,6 +9,7 @@ import dev.smithyai.orchestrator.runtime.store.RunRecorder;
 import dev.smithyai.orchestrator.runtime.store.RunStatus;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.runtime.store.RunWait;
+import dev.smithyai.orchestrator.service.claude.ClaudeTimeoutException;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
 import dev.smithyai.orchestrator.service.metrics.MetricsRecorder;
 import dev.smithyai.orchestrator.web.dto.InstanceDto;
@@ -309,6 +311,13 @@ public class DashboardController {
         if (!takeover.isHeld(run.get().id())) {
             return ResponseEntity.status(409).body("No active takeover for this run");
         }
-        return ResponseEntity.ok(takeover.send(run.get(), request.text(), List.of()));
+        try {
+            return ResponseEntity.ok(takeover.send(run.get(), request.text(), List.of()));
+        } catch (AgentBusyException e) {
+            // 409 rather than 500: nothing is broken, the session is occupied.
+            return ResponseEntity.status(409).body(e.getMessage());
+        } catch (ClaudeTimeoutException e) {
+            return ResponseEntity.status(504).body(e.getMessage());
+        }
     }
 }
