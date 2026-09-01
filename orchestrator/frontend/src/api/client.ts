@@ -34,6 +34,8 @@ export interface Run {
   createdAt: string;
   updatedAt: string;
   terminalAt: string | null;
+  /** Routing key without the workflow prefix, e.g. "story:acme/product#PROD-1". */
+  key: string | null;
 }
 
 export async function fetchRuns(limit = 100): Promise<Run[]> {

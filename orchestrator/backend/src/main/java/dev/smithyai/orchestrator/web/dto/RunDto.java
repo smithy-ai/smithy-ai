@@ -19,9 +19,13 @@ public record RunDto(
     boolean live,
     Instant createdAt,
     Instant updatedAt,
-    Instant terminalAt
+    Instant terminalAt,
+    // The routing key the run was created under, e.g. "story:acme/product#PROD-1"
+    // — how a reader tells two runs of the same workflow apart. Null for runs
+    // that were spawned rather than routed.
+    String key
 ) {
-    public static RunDto from(Run run, List<String> containers, boolean live) {
+    public static RunDto from(Run run, List<String> containers, boolean live, String key) {
         return new RunDto(
             run.id(),
             run.workflowName(),
@@ -32,7 +36,8 @@ public record RunDto(
             live,
             run.createdAt(),
             run.updatedAt(),
-            run.terminalAt()
+            run.terminalAt(),
+            key
         );
     }
 }

@@ -150,6 +150,11 @@ function RunRow({
               </Badge>
             )}
           </Group>
+          {run.key && (
+            <Text size="xs" ff="monospace" c="dimmed">
+              {run.key}
+            </Text>
+          )}
         </Table.Td>
         <Table.Td>{run.state}</Table.Td>
         <Table.Td>
@@ -192,7 +197,18 @@ function RunRow({
                 variant="subtle"
                 color="red"
                 loading={cancel.isPending}
-                onClick={() => cancel.mutate()}
+                title="Cancels this run and every child run it spawned"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Cancel this ${run.workflowName} run${run.key ? ` (${run.key})` : ""} and all of its child runs?\n\n` +
+                        "Their containers are removed; the history stays. " +
+                        "Re-assigning the issue afterwards restarts it from scratch.",
+                    )
+                  ) {
+                    cancel.mutate();
+                  }
+                }}
               >
                 Cancel
               </Button>
