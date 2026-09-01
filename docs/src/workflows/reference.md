@@ -215,6 +215,7 @@ on.
 | `issue.comment` | `owner`, `repo`, `issue`, `body` | none | `commentId` |
 | `issue.read` | `owner`, `repo`, `issue` | none | `issueRef`, `title`, `body`, `state`, `assignees`, `labels`, `baseBranch` |
 | `issue.link` | `owner`, `repo`, `issue` | none | `url` |
+| `issue.comments` | `owner`, `repo`, `issue` | none | `comments[]` (`author`, `body`, `createdAt`), `count` |
 | `attachments.fetch` | `owner`, `repo`, `issue` | none | `paths`, `count` |
 
 ### Pull requests

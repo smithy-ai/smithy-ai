@@ -139,7 +139,27 @@ public class RunEngine implements SignalDelivery {
         ).or(() -> owner.filter(run -> run.workflowName().equals(name)));
 
         return switch (decision.action()) {
-            case create -> create(definition, key, existing, owner, event);
+            // Resolution and creation under a per-key lock: two identical
+            // deliveries arriving together must not each conclude "no run yet"
+            // and race two runs — and two same-named containers — into
+            // existence. Only the bookkeeping is locked; the dispatch below
+            // runs outside it, serialized per run by the run's own lock.
+            case create -> {
+                Run target = locks.inRun("create|" + (key == null ? name : key), () -> {
+                    var fresh = key == null
+                        ? Optional.<Run>empty()
+                        : store.findByCorrelation(CorrelationKind.KEY, key);
+                    var own = ownerOf(event);
+                    return resolveForCreate(
+                        definition,
+                        key,
+                        fresh.or(() -> own.filter(run -> run.workflowName().equals(name))),
+                        own,
+                        event
+                    );
+                });
+                yield target == null ? Outcome.ignored(name) : dispatch(definition, target, event);
+            }
             case dispatch -> existing
                 .map(run -> dispatch(definition, run, event))
                 .orElseGet(() -> {
@@ -159,20 +179,20 @@ public class RunEngine implements SignalDelivery {
     }
 
     /**
-     * Start a run for this event, adopt the one that already owns it, or stand
-     * aside.
+     * The run this event should be dispatched to: the one that already owns
+     * the key, a fresh one, or none at all (stand aside).
      *
-     * <p>The middle case is what makes a coordinator work. It creates a child
+     * <p>The adoption case is what makes a coordinator work. It creates a child
      * issue, spawns the run that will do the work, and correlates the two; the
      * assignment webhook then arrives and must find that run rather than open a
      * second, unrelated one beside it.
      *
-     * <p>The last case is what stops a coordinator fanning out from its own
-     * children. It listens for assigned issues, and every child it creates is an
-     * assigned issue — so without this a configured coordinator would plan a
-     * feature for each task of the feature it just planned.
+     * <p>The stand-aside case is what stops a coordinator fanning out from its
+     * own children. It listens for assigned issues, and every child it creates
+     * is an assigned issue — so without this a configured coordinator would
+     * plan a feature for each task of the feature it just planned.
      */
-    private Outcome create(
+    private Run resolveForCreate(
         WorkflowDefinition definition,
         String key,
         Optional<Run> existing,
@@ -193,7 +213,7 @@ public class RunEngine implements SignalDelivery {
                     owned.workflowName(),
                     definition.metadata().name()
                 );
-                return dispatch(definition, start(definition, key, event), event);
+                return start(definition, key, event);
             }
             log.debug(
                 "{} stands aside: this work already belongs to run {} ({})",
@@ -201,12 +221,11 @@ public class RunEngine implements SignalDelivery {
                 owner.get().id(),
                 owner.get().workflowName()
             );
-            return Outcome.ignored(definition.metadata().name());
+            return null;
         }
-        var run = existing
+        return existing
             .map(found -> found.isTerminal() ? reopen(definition, found) : found)
             .orElseGet(() -> start(definition, key, event));
-        return dispatch(definition, run, event);
     }
 
     /** The run that already owns the thing this event is about, whatever workflow it belongs to. */
