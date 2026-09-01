@@ -81,7 +81,7 @@ public class DashboardController {
             .map(run -> {
                 var containers = runStore.findEnvironmentNames(run.id(), RunRecorder.CONTAINER);
                 boolean live = containers.stream().anyMatch(running::contains);
-                return RunDto.from(run, containers, live);
+                return RunDto.from(run, containers, live, keyOf(run.id()));
             })
             .toList();
     }
@@ -93,9 +93,20 @@ public class DashboardController {
             .map(run -> {
                 var containers = runStore.findEnvironmentNames(run.id(), RunRecorder.CONTAINER);
                 var running = new HashSet<>(containerService.listManagedContainers());
-                return ResponseEntity.ok(RunDto.from(run, containers, containers.stream().anyMatch(running::contains)));
+                return ResponseEntity.ok(
+                    RunDto.from(run, containers, containers.stream().anyMatch(running::contains), keyOf(run.id()))
+                );
             })
             .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * The routing key a run answers to, without the workflow prefix — the
+     * workflow is already its own column, and "story:acme/product#PROD-1" is
+     * the part a reader needs to tell two runs of the same workflow apart.
+     */
+    private String keyOf(String runId) {
+        return runStore.findKeyRef(runId).map(ref -> ref.substring(ref.indexOf('|') + 1)).orElse(null);
     }
 
     /** A run's timeline, oldest first. */
@@ -116,7 +127,7 @@ public class DashboardController {
                 .stream()
                 .map(child -> {
                     var containers = runStore.findEnvironmentNames(child.id(), RunRecorder.CONTAINER);
-                    return RunDto.from(child, containers, containers.stream().anyMatch(running::contains));
+                    return RunDto.from(child, containers, containers.stream().anyMatch(running::contains), keyOf(child.id()));
                 })
                 .toList()
         );
@@ -174,27 +185,39 @@ public class DashboardController {
     }
 
     /**
-     * Stop a run.
+     * Stop a run, and everything it spawned.
      *
      * <p>Cancelling is a decision about the run, not about the container: the
      * container goes, the history stays, and the dashboard keeps showing what
-     * happened and where it stopped.
+     * happened and where it stopped. Children go with it — a coordinator
+     * cancelled from here must not leave its child runs working for a parent
+     * that no longer reacts, and cleaning them up one by one through the API
+     * is exactly the chore this endpoint exists to remove.
      */
     @DeleteMapping("/dashboard/runs/{runId}")
     public ResponseEntity<RunDto> cancelRun(@PathVariable String runId) {
         var run = runStore.find(runId);
         if (run.isEmpty()) return ResponseEntity.notFound().build();
-        if (run.get().isTerminal()) return ResponseEntity.ok(RunDto.from(run.get(), List.of(), false));
+        int cancelled = cancelWithChildren(run.get());
+        log.info("Run {} cancelled from the dashboard ({} run(s) including children)", runId, cancelled);
+        return ResponseEntity.ok(RunDto.from(runStore.find(runId).orElseThrow(), List.of(), false, keyOf(runId)));
+    }
 
-        try {
-            environments.destroyContainer(run.get());
-        } catch (RuntimeException e) {
-            log.warn("Could not release the container while cancelling run {}", runId, e);
+    /** Depth-first, children before their parent, already-terminal runs left alone. */
+    private int cancelWithChildren(dev.smithyai.orchestrator.runtime.store.Run run) {
+        int cancelled = 0;
+        for (var child : runStore.findChildren(run.id())) {
+            cancelled += cancelWithChildren(child);
         }
-        runStore.appendEvent(runId, "run.cancelled", Map.of("via", "dashboard"));
-        runStore.updateStatus(runId, RunStatus.CANCELLED);
-        log.info("Run {} cancelled from the dashboard", runId);
-        return ResponseEntity.ok(RunDto.from(runStore.find(runId).orElseThrow(), List.of(), false));
+        if (run.isTerminal()) return cancelled;
+        try {
+            environments.destroyContainer(run);
+        } catch (RuntimeException e) {
+            log.warn("Could not release the container while cancelling run {}", run.id(), e);
+        }
+        runStore.appendEvent(run.id(), "run.cancelled", Map.of("via", "dashboard"));
+        runStore.updateStatus(run.id(), RunStatus.CANCELLED);
+        return cancelled + 1;
     }
 
     /**

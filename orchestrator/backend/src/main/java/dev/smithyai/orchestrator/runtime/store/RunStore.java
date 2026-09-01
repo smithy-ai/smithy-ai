@@ -199,6 +199,19 @@ public class RunStore {
         db.sql("DELETE FROM run_correlations WHERE kind = ? AND ref = ?").params(kind.value(), ref).update();
     }
 
+    /**
+     * The routing key that owns this run, if any — how a dashboard reader tells
+     * which story or issue a run belongs to, since the run itself only knows
+     * its workflow.
+     */
+    public Optional<String> findKeyRef(String runId) {
+        return db
+            .sql("SELECT ref FROM run_correlations WHERE kind = ? AND run_id = ? LIMIT 1")
+            .params(CorrelationKind.KEY.value(), runId)
+            .query(String.class)
+            .optional();
+    }
+
     // ── Events ───────────────────────────────────────────────
 
     /**
