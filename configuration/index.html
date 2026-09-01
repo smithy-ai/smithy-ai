@@ -1,0 +1,1284 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Smithy, AI assisted software development orchestrator">
+      
+      
+      
+      
+        <link rel="prev" href="../usage/">
+      
+      
+        <link rel="next" href="../workflows/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Configuration - Smithy AI</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#configuration-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Smithy AI" class="md-header__button md-logo" aria-label="Smithy AI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Smithy AI
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Configuration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/smithy-ai/smithy-ai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    smithy-ai
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Smithy AI" class="md-nav__button md-logo" aria-label="Smithy AI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Smithy AI
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/smithy-ai/smithy-ai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    smithy-ai
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/github/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/gitlab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitLab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Usage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Day to day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#agent-turn-timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent turn timeout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secrets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connectors-and-actors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connectors and actors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jira-with-a-vcs-connector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jira with a VCS connector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repository-catalogs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository catalogs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repository-local-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository-local configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing a workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflows/reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflows/coordinator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Across repositories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Advanced
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/custom-task-images/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Task Images
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#agent-turn-timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent turn timeout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secrets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connectors-and-actors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connectors and actors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jira-with-a-vcs-connector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jira with a VCS connector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repository-catalogs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository catalogs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repository-local-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository-local configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="configuration-reference">Configuration Reference</h1>
+<p>The orchestrator is configured by one YAML file. It loads the path in
+<code>ORCHESTRATOR_CONFIG</code>, then <code>/config/orchestrator.yml</code>, then the classpath example.
+The environment is used only when a <code>SecretRef</code> names an environment variable.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy.ai/v1alpha1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OrchestratorConfig</span>
+
+<span class="nt">storage</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/smithy.db</span>
+<span class="w">  </span><span class="nt">metrics</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/data/metrics.jsonl</span>
+
+<span class="nt">runtime</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">docker</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker</span>
+<span class="w">    </span><span class="nt">network</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy-net</span>
+<span class="w">    </span><span class="nt">taskImage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/smithy-ai/claude-task-default:dev</span>
+<span class="w">    </span><span class="nt">caches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">pnpm</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">npm</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">maven</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">gradle</span><span class="p p-Indicator">]</span>
+
+<span class="nt">agent</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">claude</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude-opus-5</span>
+<span class="w">    </span><span class="nt">oauthToken</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">CLAUDE_CODE_OAUTH_TOKEN</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">apiKey</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">ANTHROPIC_API_KEY</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">turnTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60m</span><span class="w">          </span><span class="c1"># budget for one agent turn; overrunning turns are killed</span>
+<span class="w">    </span><span class="nt">takeoverTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5m</span><span class="w">       </span><span class="c1"># budget for a turn a human drove from the dashboard</span>
+<span class="w">    </span><span class="nt">takeoverTools</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">Read</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">Glob</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">Grep</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">Bash</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">Edit</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">Write</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">WebFetch</span><span class="p p-Indicator">]</span>
+
+<span class="nt">auth</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">admin</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">passwordHash</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">ADMIN_PASSWORD_HASH</span><span class="p p-Indicator">}</span>
+
+<span class="nt">connectors</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">forgejo-main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">provider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">forgejo</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://forgejo:3000</span>
+<span class="w">    </span><span class="nt">externalUrl</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://git.example.com</span>
+<span class="w">    </span><span class="nt">webhookSecret</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">FORGEJO_WEBHOOK_SECRET</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">actors</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">smithy</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy-bot</span>
+<span class="w">        </span><span class="nt">token</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">SMITHY_FORGEJO_TOKEN</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="nt">git</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Smithy</span>
+<span class="w">          </span><span class="nt">email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy@example.com</span>
+<span class="w">      </span><span class="nt">architect</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">architect-bot</span>
+<span class="w">        </span><span class="nt">token</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="nv">/run/secrets/architect_forgejo_token</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="nt">git</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Architect</span>
+<span class="w">          </span><span class="nt">email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">architect@example.com</span>
+
+<span class="nt">defaults</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">vcs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">forgejo-main</span>
+<span class="w">  </span><span class="nt">issueTracker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">event.source</span>
+<span class="w">  </span><span class="nt">actor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy</span>
+
+<span class="nt">workflows</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">definitionsDir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/config/workflows</span>
+<span class="w">  </span><span class="nt">repositoryWorkflows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">defaults</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">branchPrefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy/</span>
+<span class="w">    </span><span class="nt">planApprovedLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Plan Approved</span>
+
+<span class="nt">ci</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">autofix</span><span class="p">:</span><span class="w"> </span><span class="nv">false</span><span class="p p-Indicator">}</span>
+<span class="nt">knowledgebase</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://knowledgebase:8000/mcp</span>
+<span class="w">  </span><span class="nt">toolName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">searchKnowledge</span>
+</code></pre></div>
+<p>Unknown fields and invalid connector references fail startup. A deployment should
+mount the file read-only and mount writable storage separately:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">volumes</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./config/orchestrator.yml:/config/orchestrator.yml:ro</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./config/workflows:/config/workflows:ro</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orchestrator-data:/data</span>
+</code></pre></div>
+<h2 id="agent-turn-timeout">Agent turn timeout</h2>
+<p><code>agent.claude.turnTimeout</code> caps the wall-clock time one agent turn may take —
+<code>45m</code>, <code>2h</code>, <code>900s</code> and <code>PT45M</code> are all accepted, and the built-in default is
+60 minutes. The deadline is enforced inside the task container, so an overrunning
+turn is actually killed rather than left running after the orchestrator stops
+waiting for it.</p>
+<p>A turn that hits the cap fails its step with:</p>
+<div class="highlight"><pre><span></span><code>Claude turn on &lt;container&gt; (session=&lt;id&gt;) exceeded its 60m budget and was killed.
+</code></pre></div>
+<p>Raise the value for workflows whose build stage legitimately runs longer, or split
+the step into smaller turns. Note that the budget is per turn, not per run: a
+workflow with five turns can run for five times this long.</p>
+<p><code>agent.claude.takeoverTimeout</code> (default 5 minutes) is the budget for a turn a
+person drove from the dashboard. It is deliberately much shorter: someone is
+waiting on that reply in a browser, so an unanswered request is a hung dashboard
+rather than a long job.</p>
+<p>A run's turns all share one agent session, and that session cannot take two
+concurrent processes. Taking control does not interrupt a turn that is already
+running — the lease stops new events being dispatched, not work in flight — so a
+message sent mid-turn is refused with a 409 and</p>
+<div class="highlight"><pre><span></span><code>The agent on run &lt;id&gt; is in the middle of a turn.
+</code></pre></div>
+<p>rather than queued behind it. Wait for the turn to land, or stop the run.</p>
+<p><code>agent.claude.takeoverTools</code> is the tool list a human-driven turn runs with,
+defaulting to <code>[Read, Glob, Grep, Bash, Edit, Write, WebFetch]</code>. It is separate
+from the stage's <code>tools:</code> on purpose: a definition scopes tools per step to
+constrain the agent while it works on its own — read-only while planning, write
+while building — and that does not map onto whatever a person asks for after
+taking control.</p>
+<p>Note that an <strong>empty</strong> tool list is not "no restrictions", it is "nothing
+allowed": the CLI is run without <code>--allowedTools</code>, and a headless turn on default
+permissions then refuses every tool call before executing it. The agent reports
+that it cannot read a file or push a branch, which reads as an agent refusing to
+cooperate rather than one that was handed no permissions.</p>
+<h2 id="secrets">Secrets</h2>
+<p>Every credential accepts exactly one secret source:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">token</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">SMITHY_GITHUB_TOKEN</span><span class="p p-Indicator">}</span>
+<span class="nt">token</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="nv">/run/secrets/smithy_github_token</span><span class="p p-Indicator">}</span>
+<span class="nt">token</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">literal</span><span class="p">:</span><span class="w"> </span><span class="nv">local-development-only</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>Environment and file references keep values out of the deployment file. Literal
+values are intended only for local development. Resolved values are never included
+in configuration diagnostics.</p>
+<h2 id="connectors-and-actors">Connectors and actors</h2>
+<p>A connector ID such as <code>github-main</code> is the stable routing identity. <code>provider</code>
+selects the implementation (<code>forgejo</code>, <code>gitlab</code>, <code>github</code>, or <code>jira</code>). Webhooks use
+the connector ID:</p>
+<div class="highlight"><pre><span></span><code>https://smithy.example.com/webhooks/github-main
+</code></pre></div>
+<p>Actor identities are connector-specific and never inherit another actor's
+credentials. Every workflow actor must be configured on each connector it acts
+through; a missing identity fails the action instead of posting as the default
+actor.</p>
+<p>Actors are logical identities scoped to a connector. Workflows refer to <code>smithy</code>,
+<code>architect</code>, or another logical name; the connector resolves it to a username,
+Jira account ID, credentials, and git identity. An actor omitted from a connector
+uses the default actor's credentials for outbound actions and is not recognized as
+an inbound assignee on that connector.</p>
+<p>GitLab connectors may set <code>tokenType: oauth2</code> (the default) or
+<code>tokenType: private-token</code>.</p>
+<h2 id="jira-with-a-vcs-connector">Jira with a VCS connector</h2>
+<p>Jira is an issue connector, never a VCS connector. A split deployment defines both:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">connectors</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">gitlab-main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">provider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://gitlab.example.com</span>
+<span class="w">    </span><span class="nt">webhookSecret</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">GITLAB_WEBHOOK_SECRET</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">actors</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">smithy</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy-bot</span>
+<span class="w">        </span><span class="nt">token</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">SMITHY_GITLAB_TOKEN</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="nt">git</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">Smithy</span><span class="p p-Indicator">,</span><span class="nt"> email</span><span class="p">:</span><span class="w"> </span><span class="nv">smithy@example.com</span><span class="p p-Indicator">}</span>
+
+<span class="w">  </span><span class="nt">jira-product</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">provider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jira</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://company.atlassian.net</span>
+<span class="w">    </span><span class="nt">webhookSecret</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">JIRA_WEBHOOK_SECRET</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">actors</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">smithy</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">accountId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">abc123</span>
+<span class="w">        </span><span class="nt">email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy@example.com</span>
+<span class="w">        </span><span class="nt">apiToken</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="nv">SMITHY_JIRA_API_TOKEN</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">issueMapping</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">repositoryField</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customfield_12345</span>
+<span class="w">      </span><span class="nt">allowStoriesWithoutRepository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">planApprovedLabel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plan-approved</span>
+<span class="w">      </span><span class="nt">planApprovedStatus</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ready for Smithy</span>
+
+<span class="nt">defaults</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">vcs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab-main</span>
+<span class="w">  </span><span class="nt">issueTracker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">event.source</span>
+<span class="w">  </span><span class="nt">actor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy</span>
+</code></pre></div>
+<p>Issue actions answer the connector that produced the event. Repository actions use
+that source when it is a VCS connector and otherwise use <code>defaults.vcs</code>.</p>
+<h2 id="repository-catalogs">Repository catalogs</h2>
+<p>Reusable coordinator catalogs belong in deployment configuration:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">repositoryCatalogs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">acme-product</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">gitlab-main</span><span class="p p-Indicator">,</span><span class="nt"> owner</span><span class="p">:</span><span class="w"> </span><span class="nv">acme</span><span class="p p-Indicator">,</span><span class="nt"> repo</span><span class="p">:</span><span class="w"> </span><span class="nv">api</span><span class="p p-Indicator">,</span><span class="nt"> description</span><span class="p">:</span><span class="w"> </span><span class="nv">HTTP API</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="nv">gitlab-main</span><span class="p p-Indicator">,</span><span class="nt"> owner</span><span class="p">:</span><span class="w"> </span><span class="nv">acme</span><span class="p p-Indicator">,</span><span class="nt"> repo</span><span class="p">:</span><span class="w"> </span><span class="nv">web</span><span class="p p-Indicator">,</span><span class="nt"> description</span><span class="p">:</span><span class="w"> </span><span class="nv">Web client</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>Workflow customization remains in <code>/config/workflows</code>, not in the main config. A
+small workflow file can extend the built-in coordinator and import a catalog:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy.ai/v1alpha1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Workflow</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">acme-coordinator</span>
+<span class="w">  </span><span class="nt">extends</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">feature-coordinator</span>
+<span class="nt">vars</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">repositoryCatalog</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">acme-product</span>
+<span class="w">  </span><span class="nt">storyRepos</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">PRODUCT/PRODUCT</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>The registry resolves <code>repositoryCatalog</code> into the workflow's <code>vars.catalog</code> and
+rejects unknown catalog names.</p>
+<h2 id="repository-local-configuration">Repository-local configuration</h2>
+<p>Repository behavior stays with the repository. <code>.smithy/config.yml</code> currently
+supports the context repository:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">context</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shared-guidelines</span>
+</code></pre></div>
+<p>Repository-owned workflows live under <code>.smithy/workflows/*.yml</code> and can be disabled
+deployment-wide with <code>workflows.repositoryWorkflows: false</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

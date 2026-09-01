@@ -1,0 +1,2253 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Smithy, AI assisted software development orchestrator">
+      
+      
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../coordinator/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Reference - Smithy AI</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#workflow-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Smithy AI" class="md-header__button md-logo" aria-label="Smithy AI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Smithy AI
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/smithy-ai/smithy-ai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    smithy-ai
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Smithy AI" class="md-nav__button md-logo" aria-label="Smithy AI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Smithy AI
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/smithy-ai/smithy-ai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    smithy-ai
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/github/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/gitlab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitLab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Usage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Day to day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing a workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#routing-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expression-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expression context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Expression context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-rules-to-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two rules to note
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Events
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#issue-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Issue events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pull-request-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull-request events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#push-and-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Push and CI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#batching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Batching
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Actions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Actions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#environment-and-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment and agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment and agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#declaring-a-structured-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring a structured answer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#git" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Git
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pull-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull requests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#files-and-repositories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Files and repositories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#control-flow-and-coordination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control flow and coordination
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-definitions-come-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where definitions come from
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../coordinator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Across repositories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Advanced
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/custom-task-images/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Task Images
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#routing-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expression-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expression context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Expression context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-rules-to-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two rules to note
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Events
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#issue-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Issue events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pull-request-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull-request events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#push-and-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Push and CI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#batching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Batching
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Actions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Actions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#environment-and-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment and agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment and agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#declaring-a-structured-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring a structured answer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#git" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Git
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pull-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull requests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#files-and-repositories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Files and repositories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#control-flow-and-coordination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control flow and coordination
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-definitions-come-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where definitions come from
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="workflow-reference">Workflow reference</h1>
+<p>Schema, expression context, events and actions. This page is the complete surface
+a workflow can use.</p>
+<h2 id="schema">Schema</h2>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy.ai/v1alpha1</span><span class="w">     </span><span class="c1"># required, exactly this</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Workflow</span><span class="w">                     </span><span class="c1"># required, exactly this</span>
+
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-workflow</span><span class="w">                </span><span class="c1"># required, unique; later definitions win by name</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">"1"</span><span class="w">                     </span><span class="c1"># optional; recorded on each run it starts</span>
+<span class="w">  </span><span class="nt">extends</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">other-workflow</span><span class="w">          </span><span class="c1"># optional; inherits routing+state, may only add vars</span>
+
+<span class="nt">vars</span><span class="p">:</span><span class="w">                              </span><span class="c1"># optional; constants, readable as vars.x</span>
+<span class="w">  </span><span class="nt">anything</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">you-like</span>
+
+<span class="nt">actions</span><span class="p">:</span><span class="w">                           </span><span class="c1"># optional; named step lists a transition can `uses:`</span>
+<span class="w">  </span><span class="nt">someName</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="w"> </span><span class="nv">...</span><span class="w"> </span><span class="p p-Indicator">]</span>
+
+<span class="nt">routing</span><span class="p">:</span><span class="w">                           </span><span class="c1"># required unless `extends` is set</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">event</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">issue.assigned</span><span class="w">          </span><span class="c1"># a name, or a list of names</span>
+<span class="w">    </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">...</span><span class="nv"> </span><span class="s">}}"</span><span class="w">              </span><span class="c1"># optional predicate; must render to `true`</span>
+<span class="w">    </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">create</span><span class="w">                 </span><span class="c1"># create | dispatch | destroy | ignore</span>
+<span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">...</span><span class="nv"> </span><span class="s">}}"</span><span class="w">               </span><span class="c1"># required unless `by:` is set</span>
+<span class="w">    </span><span class="nt">by</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pr</span><span class="w">                         </span><span class="c1"># alternative to key: issue | pr | branch | container</span>
+
+<span class="nt">state</span><span class="p">:</span><span class="w">                             </span><span class="c1"># required unless `extends` is set</span>
+<span class="w">  </span><span class="nt">initial</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">new</span><span class="w">                     </span><span class="c1"># required; the state a new run starts in</span>
+<span class="w">  </span><span class="nt">terminal</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">done</span><span class="w">                   </span><span class="c1"># optional; reaching it completes the run</span>
+<span class="w">  </span><span class="nt">&lt;state-name&gt;</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">&lt;event-name&gt;</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;state-name&gt;</span><span class="w">           </span><span class="c1"># optional; stay put if absent</span>
+<span class="w">        </span><span class="nt">debounce</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span><span class="w">              </span><span class="c1"># optional; ms/s/m. Collects a burst into one transition</span>
+<span class="w">        </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;action&gt;</span><span class="w">         </span><span class="c1"># required</span>
+<span class="w">            </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name&gt;</span><span class="w">             </span><span class="c1"># optional; needed to read steps.&lt;id&gt;.*</span>
+<span class="w">            </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">...</span><span class="nv"> </span><span class="s">}}"</span><span class="w">        </span><span class="c1"># optional; must render to `true`</span>
+<span class="w">            </span><span class="nt">with</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="w"> </span><span class="nv">...</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w">          </span><span class="c1"># action inputs</span>
+<span class="w">            </span><span class="nt">steps</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="w"> </span><span class="nv">...</span><span class="w"> </span><span class="p p-Indicator">]</span><span class="w">         </span><span class="c1"># nested, for `foreach`</span>
+</code></pre></div>
+<h3 id="routing-actions">Routing actions</h3>
+<table>
+<thead>
+<tr>
+<th><code>action</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>create</code></td>
+<td>Start a run if none exists for this key. Stands aside if another workflow's run already owns the thing the event is about. A run that was cancelled or failed is restarted rather than left stopped</td>
+</tr>
+<tr>
+<td><code>dispatch</code></td>
+<td>Deliver to an existing run; ignored if there is none</td>
+</tr>
+<tr>
+<td><code>destroy</code></td>
+<td>End the run as <strong>cancelled</strong>. Work waiting on it keeps waiting, and a later <code>create</code> for the same key picks it back up</td>
+</tr>
+<tr>
+<td><code>ignore</code></td>
+<td>Match and stop, so a later rule cannot claim it</td>
+</tr>
+</tbody>
+</table>
+<h2 id="expression-context">Expression context</h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run</code></td>
+<td><code>id</code>, <code>workflow</code>, <code>state</code>, <code>parent</code> (the spawning run's id, empty for a standalone run — guard a <code>signal.emit</code> with <code>run.parent != ''</code>)</td>
+</tr>
+<tr>
+<td><code>vars</code></td>
+<td>The workflow's <code>vars</code>, plus everything <code>state.var</code> has written. <code>vars.source</code> is set to the connector the run started from, unless the definition declares its own</td>
+</tr>
+<tr>
+<td><code>steps</code></td>
+<td><code>steps.&lt;id&gt;.&lt;field&gt;</code>: outputs of earlier steps in this transition</td>
+</tr>
+<tr>
+<td><code>event</code></td>
+<td>See <a href="#events">events</a></td>
+</tr>
+<tr>
+<td><code>repo</code></td>
+<td><code>source</code>, <code>owner</code>, <code>name</code>, <code>fullName</code>, <code>cloneUrl</code></td>
+</tr>
+<tr>
+<td><code>item</code>, <code>index</code></td>
+<td>Inside a <code>foreach</code> only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="filters">Filters</h3>
+<table>
+<thead>
+<tr>
+<th>Filter</th>
+<th>Does</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slug</code></td>
+<td>Lowercase, non-alphanumerics to <code>-</code>, max 40 chars</td>
+<td><code>{{ event.issueTitle \| slug }}</code> → <code>add-a-greeting</code></td>
+</tr>
+<tr>
+<td><code>displayRef</code></td>
+<td><code>#</code> prefix for numeric refs; tracker keys unchanged</td>
+<td><code>7</code> → <code>#7</code>, <code>ECD-4309</code> → <code>ECD-4309</code></td>
+</tr>
+</tbody>
+</table>
+<p>Jinja's own filters (<code>length</code>, <code>default</code>, …) are available.</p>
+<h3 id="two-rules-to-note">Two rules to note</h3>
+<p><strong>A value that is exactly one expression yields the object it names</strong>, not its
+text, so <code>items: "{{ vars.plan }}"</code> iterates a list. Add any surrounding text
+and you get a string.</p>
+<p><strong><code>if:</code> and <code>when:</code> must render to the literal <code>true</code>.</strong> <code>{{ event.approver }}</code>
+renders <code>alice</code>, which is false. Write <code>{{ event.approver != '' }}</code>.</p>
+<h2 id="events">Events</h2>
+<p>Every event has <code>event.name</code>, <code>event.source.id</code> (the configured connector ID),
+<code>event.source.provider</code> (<code>forgejo</code>, <code>gitlab</code>, <code>github</code>, or <code>jira</code>), and <code>repo.*</code>.</p>
+<h3 id="issue-events">Issue events</h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Extra fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>issue.assigned</code></td>
+<td><code>issueRef</code>, <code>issueTitle</code>, <code>issueBody</code>, <code>baseBranch</code>, <code>assignee</code></td>
+</tr>
+<tr>
+<td><code>issue.unassigned</code></td>
+<td><code>issueRef</code>, <code>issueTitle</code>, <code>issueBody</code>, <code>baseBranch</code>, <code>assignee</code></td>
+</tr>
+<tr>
+<td><code>issue.commented</code></td>
+<td>above, plus <code>commentBody</code></td>
+</tr>
+<tr>
+<td><code>issue.plan_approved</code></td>
+<td>above, plus <code>approver</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>assignee</code> is which of this deployment's actors the issue was handed to. Filtering
+on it is how a feature for the coordinator is told from a task for the agent.</p>
+<h3 id="pull-request-events">Pull-request events</h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Extra fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pr.commented</code></td>
+<td><code>prNumber</code>, <code>prTitle</code>, <code>headBranch</code>, <code>baseBranch</code>, <code>commentBody</code>, <code>commentUser</code>, <code>commentId</code>, <code>discussionId</code></td>
+</tr>
+<tr>
+<td><code>pr.review_commented</code></td>
+<td><code>prNumber</code>, <code>prTitle</code>, <code>headBranch</code>, <code>baseBranch</code>, <code>comments</code>, <code>commentId</code>, <code>discussionId</code></td>
+</tr>
+<tr>
+<td><code>pr.review_submitted</code></td>
+<td><code>prNumber</code>, …, <code>reviewId</code>, <code>reviewBody</code>, <code>reviewer</code></td>
+</tr>
+<tr>
+<td><code>pr.review_requested</code></td>
+<td><code>prNumber</code>, <code>prTitle</code>, <code>headBranch</code>, <code>baseBranch</code></td>
+</tr>
+<tr>
+<td><code>pr.ready_for_review</code></td>
+<td>as above; emitted when a draft or WIP marker is removed</td>
+</tr>
+<tr>
+<td><code>pr.unassigned</code></td>
+<td>as above</td>
+</tr>
+<tr>
+<td><code>pr.merged</code></td>
+<td>as above</td>
+</tr>
+<tr>
+<td><code>pr.closed</code></td>
+<td><code>prNumber</code>, <code>headBranch</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="push-and-ci">Push and CI</h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Extra fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>push.human</code></td>
+<td><code>branch</code></td>
+</tr>
+<tr>
+<td><code>ci.failed</code></td>
+<td><code>branch</code>, <code>workflowId</code></td>
+</tr>
+<tr>
+<td><code>ci.recovered</code></td>
+<td><code>branch</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="internal">Internal</h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Extra fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>signal:&lt;name&gt;</code></td>
+<td><code>signal</code>, plus every key of the payload</td>
+</tr>
+</tbody>
+</table>
+<p>Emitted by <code>signal.emit</code>, by the engine when a child run reaches a terminal state
+(<code>signal:child-done</code>, payload includes <code>child</code>, <code>workflow</code>, <code>status</code> and the
+child's vars), and by the dashboard when a gate is approved
+(<code>signal:gate-approved</code>, payload includes <code>key</code>). The built-in
+<code>smithy-development</code> also signals its parent, if it has one, when its merge
+request opens (<code>signal:pr-opened</code>, payload includes <code>owner</code>, <code>repo</code>, <code>issueRef</code>,
+<code>prNumber</code>, <code>url</code>) — the feature coordinator relays that link onto the story.</p>
+<h3 id="batching">Batching</h3>
+<p>A transition with <code>debounce:</code> receives one event covering the burst. It reads as
+its most recent member, plus <code>event.batch</code> (a list of the individual event views)
+and <code>event.batchSize</code>.</p>
+<h2 id="actions">Actions</h2>
+<p>Inputs are given in a step's <code>with:</code>. Outputs are read as <code>steps.&lt;id&gt;.&lt;field&gt;</code>.</p>
+<p>Provider actions accept <code>target:</code> (a connector ID, defaulting to the event source)
+and <code>actor:</code> (a logical actor, defaulting to the workflow's <code>vars.actor</code>). VCS
+actions fall back to <code>defaults.vcs</code> when the event came from an issue-only
+connector such as Jira. Assignment actions require logical names under <code>actors:</code>
+and resolve them through the target connector. <code>pr.requestReview</code> accepts raw
+provider usernames under <code>reviewers:</code> or logical names under <code>actors:</code>.</p>
+<p><code>container.init</code> gets its token and commit address from the workflow's actor as
+well, so an agent working in the container pushes as that identity.</p>
+<h3 id="environment-and-agent">Environment and agent</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Required</th>
+<th>Optional</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>container.init</code></td>
+<td><code>name</code>, <code>cloneUrl</code></td>
+<td><code>branch</code> (empty = remote default), <code>sourceBranch</code>, <code>stage</code>, <code>gitEmail</code>, <code>gitUsername</code>, <code>vcsToken</code>, <code>extraRepos[]</code> (<code>cloneUrl</code>, <code>path</code>, <code>branch</code>)</td>
+<td><code>name</code>, <code>created</code></td>
+</tr>
+<tr>
+<td><code>agent.run</code></td>
+<td><code>prompt</code> or <code>template</code></td>
+<td><code>mode</code> (<code>plan</code>), <code>tools[]</code>, <code>vars{}</code>, <code>contextRepo</code>, <code>model</code></td>
+<td><code>reply</code>; in plan mode <code>planFile</code>, <code>hasPlan</code></td>
+</tr>
+<tr>
+<td><code>agent.runStructured</code></td>
+<td><code>output{}</code>, and <code>prompt</code> or <code>template</code></td>
+<td><code>tools[]</code>, <code>vars{}</code>, <code>contextRepo</code>, <code>model</code></td>
+<td>the declared fields</td>
+</tr>
+<tr>
+<td><code>agent.ensureCommitted</code></td>
+<td>none</td>
+<td><code>tools[]</code></td>
+<td><code>committed</code></td>
+</tr>
+<tr>
+<td><code>agent.newSession</code></td>
+<td>none</td>
+<td>none</td>
+<td><code>reset</code></td>
+</tr>
+<tr>
+<td><code>exec</code></td>
+<td><code>command[]</code> or <code>shell</code></td>
+<td><code>env{}</code>, <code>failOnError</code> (default true)</td>
+<td><code>exitCode</code>, <code>ok</code>, <code>stdout</code>, <code>stderr</code></td>
+</tr>
+<tr>
+<td><code>instance.destroy</code></td>
+<td>none</td>
+<td>none</td>
+<td><code>destroyed</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>agent.run</code> in plan mode starts a fresh conversation; otherwise it resumes the
+run's existing one. <code>agent.newSession</code> forces the next turn to start over,
+useful when planning and building want different tools and no shared history.</p>
+<p><code>model:</code> runs that one turn on a different Claude model than the configured
+<code>agent.claude.model</code> — a triage turn can run on a smaller model than the build
+turn it feeds. An empty value means the configured model.</p>
+<h4 id="declaring-a-structured-answer">Declaring a structured answer</h4>
+<div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">agent.runStructured</span>
+<span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plan</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">template</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">coordinator_plan.md.j2</span>
+<span class="w">    </span><span class="nt">output</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">summary</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+<span class="w">      </span><span class="nt">issues</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+<span class="w">          </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+<span class="w">          </span><span class="nt">dependsOn</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">integer</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>A scalar names a type (<code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>); a map is a
+nested object; a <strong>one-element list</strong> is an array of whatever that element
+describes. Every declared field is required.</p>
+<h3 id="git">Git</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Required</th>
+<th>Optional</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>git.pull</code></td>
+<td>none</td>
+<td><code>strategy</code> (<code>rebase</code> default, <code>ff-only</code>, <code>merge</code>)</td>
+<td><code>exitCode</code>, <code>ok</code>, <code>stdout</code>, <code>stderr</code></td>
+</tr>
+<tr>
+<td><code>git.push</code></td>
+<td>none</td>
+<td><code>tools[]</code></td>
+<td><code>pushed</code>, <code>retried</code>, <code>error</code></td>
+</tr>
+<tr>
+<td><code>git.status</code></td>
+<td>none</td>
+<td>none</td>
+<td><code>clean</code>, <code>branch</code>, <code>changes</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>git.push</code> asks the agent to reconcile and retries once if the first push fails.
+If it still fails it reports the error in its outputs and the transition carries
+on.</p>
+<h3 id="issues">Issues</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Required</th>
+<th>Optional</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>issue.create</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>title</code></td>
+<td><code>body</code>, <code>labels[]</code></td>
+<td><code>issueRef</code>, <code>title</code>, <code>baseBranch</code></td>
+</tr>
+<tr>
+<td><code>issue.assign</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>issue</code>, <code>actors[]</code></td>
+<td>none</td>
+<td><code>actors</code>, <code>assignees</code></td>
+</tr>
+<tr>
+<td><code>issue.label</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>issue</code>, <code>label</code> or <code>labels[]</code></td>
+<td>none</td>
+<td><code>labels</code></td>
+</tr>
+<tr>
+<td><code>issue.comment</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>issue</code>, <code>body</code></td>
+<td>none</td>
+<td><code>commentId</code></td>
+</tr>
+<tr>
+<td><code>issue.read</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>issue</code></td>
+<td>none</td>
+<td><code>issueRef</code>, <code>title</code>, <code>body</code>, <code>state</code>, <code>assignees</code>, <code>labels</code>, <code>baseBranch</code></td>
+</tr>
+<tr>
+<td><code>issue.link</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>issue</code></td>
+<td>none</td>
+<td><code>url</code></td>
+</tr>
+<tr>
+<td><code>issue.comments</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>issue</code></td>
+<td>none</td>
+<td><code>comments[]</code> (<code>author</code>, <code>body</code>, <code>createdAt</code>), <code>count</code></td>
+</tr>
+<tr>
+<td><code>attachments.fetch</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>issue</code></td>
+<td>none</td>
+<td><code>paths</code>, <code>count</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pull-requests">Pull requests</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Required</th>
+<th>Optional</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pr.create</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>title</code>, <code>head</code>, <code>base</code></td>
+<td><code>body</code>, <code>draft</code></td>
+<td><code>number</code>, <code>title</code>, <code>headRef</code>, <code>baseRef</code>, <code>reused</code></td>
+</tr>
+<tr>
+<td><code>pr.comment</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code>, <code>body</code></td>
+<td>none</td>
+<td><code>number</code></td>
+</tr>
+<tr>
+<td><code>pr.reply</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code>, <code>body</code></td>
+<td><code>discussion</code></td>
+<td><code>posted</code>, <code>threaded</code></td>
+</tr>
+<tr>
+<td><code>pr.review</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code></td>
+<td><code>summary</code>, <code>comments[]</code> (<code>path</code>, <code>line</code>, <code>body</code>), <code>event</code></td>
+<td><code>posted</code>, <code>comments</code></td>
+</tr>
+<tr>
+<td><code>pr.reviewComments</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code></td>
+<td><code>reviewId</code>, <code>reviewer</code>, <code>body</code></td>
+<td><code>comments</code>, <code>count</code></td>
+</tr>
+<tr>
+<td><code>pr.conversation</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code></td>
+<td>none</td>
+<td><code>entries</code>, <code>count</code></td>
+</tr>
+<tr>
+<td><code>pr.read</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code></td>
+<td>none</td>
+<td><code>number</code>, <code>title</code>, <code>body</code>, <code>merged</code>, <code>headRef</code>, <code>baseRef</code>, <code>assignees</code></td>
+</tr>
+<tr>
+<td><code>pr.findByHead</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>head</code></td>
+<td>none</td>
+<td><code>found</code>, <code>number</code>, <code>title</code>, <code>merged</code>, <code>assignees</code></td>
+</tr>
+<tr>
+<td><code>pr.isAssigned</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code>, <code>assignedActor</code></td>
+<td>none</td>
+<td><code>assigned</code>, <code>actor</code>, <code>username</code></td>
+</tr>
+<tr>
+<td><code>pr.setAssignees</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code>, <code>actors[]</code></td>
+<td>none</td>
+<td><code>actors</code>, <code>assignees</code></td>
+</tr>
+<tr>
+<td><code>pr.requestReview</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code></td>
+<td><code>reviewers[]</code>, <code>actors[]</code>, <code>notFromActor</code></td>
+<td><code>requested</code>, <code>reviewers</code>, <code>reason</code></td>
+</tr>
+<tr>
+<td><code>pr.link</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code></td>
+<td>none</td>
+<td><code>url</code></td>
+</tr>
+<tr>
+<td><code>comment.react</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>number</code>, <code>commentId</code></td>
+<td><code>reaction</code> (default <code>eyes</code>)</td>
+<td><code>reacted</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>pr.create</code> reuses an existing pull request for the same head branch instead of
+opening a second one. <code>pr.requestReview</code> resolves <code>notFromActor</code> and drops that
+provider username from the list. A failure to request the review is reported in
+<code>reason</code> without stopping the transition.</p>
+<h3 id="files-and-repositories">Files and repositories</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Required</th>
+<th>Optional</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>file.url</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>branch</code>, <code>path</code></td>
+<td>none</td>
+<td><code>url</code></td>
+</tr>
+<tr>
+<td><code>file.delete</code></td>
+<td><code>owner</code>, <code>repo</code>, <code>branch</code>, <code>path</code></td>
+<td><code>message</code></td>
+<td><code>deleted</code></td>
+</tr>
+<tr>
+<td><code>repo.cloneUrl</code></td>
+<td><code>owner</code>, <code>repo</code></td>
+<td>none</td>
+<td><code>cloneUrl</code>, <code>fullName</code></td>
+</tr>
+<tr>
+<td><code>repo.context</code></td>
+<td><code>owner</code>, <code>repo</code></td>
+<td>none</td>
+<td><code>owner</code>, <code>repo</code>, <code>fullName</code>, <code>cloneUrl</code>, <code>exists</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>repo.context</code> reads where a repository keeps its guidelines from its own
+<code>.smithy/config.yml</code> (<code>context.repository</code>, default <code>&lt;repo&gt;-context</code>).
+<code>exists</code> says whether that repository is actually there, so a workflow that
+consults guidelines opportunistically can pass an empty clone URL to
+<code>container.init</code> — which skips the entry — instead of failing the clone. The
+built-in <code>smithy-development</code> does exactly that: when the context repository
+exists it is cloned at <code>/context-repo</code>, and the planning and building prompts
+tell the agent to follow it — for UI work, to build with the design-system
+components documented there.</p>
+<h3 id="run-state">Run state</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Required</th>
+<th>Optional</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>state.set</code></td>
+<td><code>state</code></td>
+<td>none</td>
+<td><code>state</code></td>
+</tr>
+<tr>
+<td><code>state.var</code></td>
+<td>any keys</td>
+<td>none</td>
+<td>the keys written</td>
+</tr>
+<tr>
+<td><code>metrics.record</code></td>
+<td><code>name</code></td>
+<td>any keys</td>
+<td><code>recorded</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>state.var</code> merges: writing one variable does not erase the rest.</p>
+<h3 id="control-flow-and-coordination">Control flow and coordination</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Required</th>
+<th>Optional</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>foreach</code></td>
+<td><code>items[]</code>, nested <code>steps</code></td>
+<td>none</td>
+<td><code>count</code>, <code>results</code></td>
+</tr>
+<tr>
+<td><code>run.spawn</code></td>
+<td><code>workflow</code></td>
+<td><code>state</code>, plus any keys, which become the child's vars</td>
+<td><code>runId</code>, <code>workflow</code></td>
+</tr>
+<tr>
+<td><code>run.await</code></td>
+<td>none</td>
+<td><code>count</code> (a number, or <code>all</code>)</td>
+<td><code>satisfied</code>, <code>total</code>, <code>finished</code>, <code>failed</code>, <code>pending</code></td>
+</tr>
+<tr>
+<td><code>run.wave</code></td>
+<td>none</td>
+<td>none</td>
+<td><code>released[]</code>, <code>blocked[]</code>, <code>complete</code>, <code>total</code>, <code>finished</code>, <code>abandoned</code>, <code>pending</code></td>
+</tr>
+<tr>
+<td><code>gate.await</code></td>
+<td><code>key</code></td>
+<td><code>kind</code></td>
+<td><code>satisfied</code>, <code>key</code></td>
+</tr>
+<tr>
+<td><code>signal.emit</code></td>
+<td><code>signal</code></td>
+<td><code>to</code> (<code>parent</code> default, or a run id), plus any keys as payload</td>
+<td><code>signal</code>, <code>to</code>, <code>released</code>, <code>handled</code></td>
+</tr>
+<tr>
+<td><code>correlate</code></td>
+<td><code>kind</code> (<code>issue</code>/<code>pr</code>/<code>branch</code>/<code>container</code>/<code>key</code>), <code>ref</code></td>
+<td><code>run</code> (defaults to this run)</td>
+<td><code>kind</code>, <code>ref</code>, <code>run</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>run.wave</code> reads each child's <code>index</code> and <code>dependsOn</code> vars and releases those
+whose dependencies have completed. A cancelled child does not satisfy a
+dependency, and <code>complete</code> is true only when every child completed.</p>
+<h3 id="ci">CI</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Required</th>
+<th>Optional</th>
+<th>Outputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ci.retryGuard</code></td>
+<td>none</td>
+<td><code>maxAttempts</code> (default 5), <code>autofix</code></td>
+<td><code>proceed</code>, <code>reason</code>, <code>attempts</code></td>
+</tr>
+<tr>
+<td><code>ci.reset</code></td>
+<td>none</td>
+<td>none</td>
+<td><code>reset</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>reason</code> is one of <code>ok</code>, <code>paused</code>, <code>autofix-disabled</code>, <code>attempts-exhausted</code>.</p>
+<h2 id="capabilities">Capabilities</h2>
+<p>Each action declares what a provider must support. A definition needing something
+the configured provider cannot do is rejected at startup, naming the action and
+the capability.</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Supports</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GitLab</td>
+<td>everything</td>
+</tr>
+<tr>
+<td>Forgejo</td>
+<td>pull requests, issue comment/assign/create/label, file read</td>
+</tr>
+<tr>
+<td>GitHub</td>
+<td>pull requests, issue comment/assign</td>
+</tr>
+<tr>
+<td>Jira</td>
+<td>issue comment, issue assign</td>
+</tr>
+</tbody>
+</table>
+<h2 id="where-definitions-come-from">Where definitions come from</h2>
+<p>Read at startup, later winning by name:</p>
+<ol>
+<li><strong>Built in</strong>: the definitions that ship with Smithy-AI.</li>
+<li><strong><code>workflows.definitionsDir</code></strong> (default <code>/config/workflows</code>).</li>
+<li><strong>A repository's <code>.smithy/workflows/*.yml</code></strong>, read over the provider API when
+   an event from that repository arrives, cached briefly. Highest precedence. A
+   definition that fails to parse or validate is skipped and logged; the rest of
+   the repository's events are unaffected.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

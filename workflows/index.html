@@ -1,0 +1,1527 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for Smithy, AI assisted software development orchestrator">
+      
+      
+      
+      
+        <link rel="prev" href="../configuration/">
+      
+      
+        <link rel="next" href="reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Writing a workflow - Smithy AI</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#writing-a-workflow" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Smithy AI" class="md-header__button md-logo" aria-label="Smithy AI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Smithy AI
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Writing a workflow
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/smithy-ai/smithy-ai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    smithy-ai
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Smithy AI" class="md-nav__button md-logo" aria-label="Smithy AI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Smithy AI
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/smithy-ai/smithy-ai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    smithy-ai
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Setup
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/demo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/github/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/gitlab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitLab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup/forgejo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Forgejo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Usage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Day to day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workflows
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing a workflow
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing a workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-smallest-thing-that-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The smallest thing that works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#routing-which-run-does-this-belong-to" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing: which run does this belong to?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Routing: which run does this belong to?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#finding-a-run-without-a-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finding a run without a key
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-what-happens-and-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State: what happens, and when
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resumability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resumability
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expressions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#doing-something-per-item" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Doing something per item
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sharing-steps-between-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sharing steps between transitions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waiting-for-a-person" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waiting for a person
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waiting-for-other-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waiting for other runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-a-shipped-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring a shipped workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-mistakes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common mistakes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="coordinator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Across repositories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Advanced
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/custom-task-images/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Task Images
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-smallest-thing-that-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The smallest thing that works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#routing-which-run-does-this-belong-to" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing: which run does this belong to?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Routing: which run does this belong to?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#finding-a-run-without-a-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finding a run without a key
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-what-happens-and-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State: what happens, and when
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resumability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resumability
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expressions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#doing-something-per-item" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Doing something per item
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sharing-steps-between-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sharing steps between transitions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waiting-for-a-person" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waiting for a person
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waiting-for-other-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waiting for other runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-a-shipped-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring a shipped workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-mistakes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common mistakes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="writing-a-workflow">Writing a workflow</h1>
+<p>Building a workflow from scratch. For the complete field-by-field surface, see
+the <a href="reference/">reference</a>.</p>
+<p>Assumes you have read <a href="../concepts/">Concepts</a>.</p>
+<h2 id="the-smallest-thing-that-works">The smallest thing that works</h2>
+<p>Put this in <code>/config/workflows/greeter.yml</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy.ai/v1alpha1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Workflow</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">greeter</span>
+
+<span class="nt">routing</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">event</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">issue.assigned</span>
+<span class="w">    </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">create</span>
+<span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">repo.fullName</span><span class="nv"> </span><span class="s">}}#{{</span><span class="nv"> </span><span class="s">event.issueRef</span><span class="nv"> </span><span class="s">}}"</span>
+
+<span class="nt">state</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">initial</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">new</span>
+<span class="w">  </span><span class="nt">new</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">issue.assigned</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">issue.comment</span>
+<span class="w">            </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">repo.owner</span><span class="nv"> </span><span class="s">}}"</span>
+<span class="w">              </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">repo.name</span><span class="nv"> </span><span class="s">}}"</span>
+<span class="w">              </span><span class="nt">issue</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">event.issueRef</span><span class="nv"> </span><span class="s">}}"</span>
+<span class="w">              </span><span class="nt">body</span><span class="p">:</span><span class="w"> </span><span class="s">"Seen</span><span class="nv"> </span><span class="s">it."</span>
+</code></pre></div>
+<p>Restart the orchestrator. Assign an issue to the bot and it comments. That is a
+complete workflow: routing, a state, a step.</p>
+<p>The log tells you whether it loaded:</p>
+<div class="highlight"><pre><span></span><code>4 workflow definition(s) available: [architect-learn, architect-review, greeter, smithy-development]
+</code></pre></div>
+<p>If yours is missing, it failed to parse or asked for something this deployment
+cannot do; the line above it says which.</p>
+<h2 id="routing-which-run-does-this-belong-to">Routing: which run does this belong to?</h2>
+<p>Routing answers one question per event: <strong>which run</strong>, and <strong>what to do with it</strong>.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">routing</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">event</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">issue.assigned</span>
+<span class="w">    </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">event.assignee</span><span class="nv"> </span><span class="s">==</span><span class="nv"> </span><span class="s">'smithy'</span><span class="nv"> </span><span class="s">}}"</span>
+<span class="w">    </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">create</span>
+<span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">repo.fullName</span><span class="nv"> </span><span class="s">}}#{{</span><span class="nv"> </span><span class="s">event.issueRef</span><span class="nv"> </span><span class="s">}}"</span>
+</code></pre></div>
+<ul>
+<li><strong><code>event</code></strong>: one name or a list.</li>
+<li><strong><code>when</code></strong>: an optional predicate. Anything that does not render to <code>true</code> is
+  false. This is how two workflows listening for the same event stay out of each
+  other's way.</li>
+<li><strong><code>action</code></strong>: <code>create</code>, <code>dispatch</code>, <code>destroy</code> or <code>ignore</code>.</li>
+<li><strong><code>key</code></strong>: a template that must produce the same string for the same piece of
+  work. This is the run's identity.</li>
+</ul>
+<p>The first matching rule per workflow wins, so ordering in the file is arbitration
+you can see.</p>
+<h3 id="finding-a-run-without-a-key">Finding a run without a key</h3>
+<p>A pull request event carries no issue reference. Instead a run records what it
+owns, and routing reads that back:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="c1"># when the run opened the pull request</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">correlate</span>
+<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pr</span>
+<span class="w">      </span><span class="nt">ref</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">vars.owner</span><span class="nv"> </span><span class="s">}}/{{</span><span class="nv"> </span><span class="s">vars.repo</span><span class="nv"> </span><span class="s">}}!{{</span><span class="nv"> </span><span class="s">steps.pr.number</span><span class="nv"> </span><span class="s">}}"</span>
+
+<span class="w">  </span><span class="c1"># ...and later, in routing</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">event</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">pr.commented</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pr.review_submitted</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dispatch</span>
+<span class="w">    </span><span class="nt">by</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pr</span>
+</code></pre></div>
+<p><code>by:</code> takes <code>issue</code>, <code>pr</code>, <code>branch</code> or <code>container</code>.</p>
+<h2 id="state-what-happens-and-when">State: what happens, and when</h2>
+<div class="highlight"><pre><span></span><code><span class="nt">state</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">initial</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">new</span>
+<span class="w">  </span><span class="nt">terminal</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">done</span>
+
+<span class="w">  </span><span class="nt">new</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">issue.assigned</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">working</span>
+<span class="w">        </span><span class="nt">steps</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">...</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="nt">working</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">issue.commented</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">steps</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">...</span><span class="p p-Indicator">]</span><span class="w">        </span><span class="c1"># no `to:`, so the run stays put</span>
+<span class="w">      </span><span class="nt">pr.ready_for_review</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">done</span>
+<span class="w">        </span><span class="nt">steps</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">...</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="nt">done</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</code></pre></div>
+<p>An event a state does not name is ignored. That is normal, not an error. Reaching
+<code>terminal</code> completes the run, releases its container, and tells its parent if it
+has one.</p>
+<h2 id="steps">Steps</h2>
+<div class="highlight"><pre><span></span><code><span class="nt">steps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">agent.run</span>
+<span class="w">    </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plan</span><span class="w">                      </span><span class="c1"># so later steps can read steps.plan.*</span>
+<span class="w">    </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">vars.enabled</span><span class="nv"> </span><span class="s">}}"</span><span class="w">      </span><span class="c1"># optional</span>
+<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">template</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">refinement.md.j2</span>
+<span class="w">      </span><span class="nt">tools</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">Read</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">Glob</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">Grep</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>Give a step an <code>id</code> when something later needs its output. <code>steps.plan.reply</code>
+reads the agent's answer.</p>
+<h3 id="resumability">Resumability</h3>
+<p>A transition can be interrupted, and a half-hour agent turn makes that ordinary.
+On resume, completed steps are skipped and their recorded output reused. Actions
+declare whether repeating them is harmless; the ones that are not, such as
+opening a pull request or creating an issue, are never repeated.</p>
+<p>Write steps plainly and rely on that: a step does not need to check whether it
+already ran.</p>
+<h2 id="expressions">Expressions</h2>
+<p><code>{{ ... }}</code> is Jinja over a fixed set of names: <code>run</code>, <code>vars</code>, <code>steps</code>, <code>event</code>,
+<code>repo</code>, plus <code>item</code> and <code>index</code> inside a <code>foreach</code>. The full context is in the
+<a href="reference/#expression-context">reference</a>.</p>
+<p>Two behaviours to be aware of.</p>
+<p>A value that is exactly one expression yields the object rather than its text, so
+<code>items: "{{ vars.plan }}"</code> iterates a list. Add surrounding text and it becomes a
+string.</p>
+<p>Conditions must render to the literal <code>true</code>. This looks right and is always
+false:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">event.approver</span><span class="nv"> </span><span class="s">}}"</span><span class="w">          </span><span class="c1"># renders "alice", not "true"</span>
+<span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">event.approver</span><span class="nv"> </span><span class="s">!=</span><span class="nv"> </span><span class="s">''</span><span class="nv"> </span><span class="s">}}"</span><span class="w">    </span><span class="c1"># correct</span>
+</code></pre></div>
+<p>Two extra filters are available for branch and reference names: <code>slug</code> and
+<code>displayRef</code>.</p>
+<h2 id="doing-something-per-item">Doing something per item</h2>
+<div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">foreach</span>
+<span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fanout</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">items</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">vars.plan</span><span class="nv"> </span><span class="s">}}"</span>
+<span class="w">  </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">issue.create</span>
+<span class="w">      </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">item.owner</span><span class="nv"> </span><span class="s">}}"</span>
+<span class="w">        </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">item.repo</span><span class="nv"> </span><span class="s">}}"</span>
+<span class="w">        </span><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">item.title</span><span class="nv"> </span><span class="s">}}"</span>
+</code></pre></div>
+<p>Each iteration gets its own transition identity, so an interrupted fan-out
+resumes without creating anything twice.</p>
+<h2 id="sharing-steps-between-transitions">Sharing steps between transitions</h2>
+<p>Name a list of steps under <code>actions:</code> and <code>uses:</code> it from more than one place:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">actions</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">fanOut</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">foreach</span>
+<span class="w">        </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="nt">state</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">awaiting_approval</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">issue.plan_approved</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fanOut</span>
+<span class="w">      </span><span class="s">"signal:gate-approved"</span><span class="p p-Indicator">:</span>
+<span class="w">        </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fanOut</span>
+</code></pre></div>
+<p>The built-in coordinator uses this so that approving by label and approving from
+the dashboard run the same steps.</p>
+<h2 id="waiting-for-a-person">Waiting for a person</h2>
+<div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gate.await</span>
+<span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">approval</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plan-approval</span>
+</code></pre></div>
+<p>The gate records itself and the transition ends; nothing blocks. It is released
+by whatever the workflow treats as approval: a label producing
+<code>issue.plan_approved</code>, or the dashboard, which emits <code>signal:gate-approved</code>.</p>
+<h2 id="waiting-for-other-runs">Waiting for other runs</h2>
+<div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">run.spawn</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">workflow</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smithy-development</span>
+<span class="w">    </span><span class="nt">index</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">index</span><span class="nv"> </span><span class="s">}}"</span>
+<span class="w">    </span><span class="nt">dependsOn</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">item.dependsOn</span><span class="nv"> </span><span class="s">}}"</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">run.wave</span>
+<span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wave</span><span class="w">                     </span><span class="c1"># steps.wave.released lists what may start now</span>
+</code></pre></div>
+<p>The engine signals a parent <code>child-done</code> whenever a child reaches a terminal
+state, so a child workflow needs no knowledge that it is a child. See
+<a href="coordinator/">coordinating across repositories</a>.</p>
+<h2 id="configuring-a-shipped-workflow">Configuring a shipped workflow</h2>
+<p>Do not copy it. Extend it and supply only variables:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">acme-coordinator</span>
+<span class="w">  </span><span class="nt">extends</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">feature-coordinator</span>
+<span class="nt">vars</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">storyRepos</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">acme/product</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">repositoryCatalog</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">acme-product</span>
+</code></pre></div>
+<p><code>extends</code> contributes variables only; routing and states come from the base. A
+workflow that extends another shadows it, so the base does not also run.</p>
+<h2 id="testing-one">Testing one</h2>
+<p>There is no dry-run mode yet. In practice:</p>
+<ol>
+<li>Watch the startup line to confirm it loaded.</li>
+<li>Trigger it and watch the log. It records every run a workflow claimed, every
+   step that failed, and every reason a workflow decided an event was not
+   its own.</li>
+<li>Read the run's timeline in the dashboard: every event it received and every
+   <code>metrics.record</code> it wrote, in order.</li>
+</ol>
+<p>A step that fails leaves the run where it was. Fix the definition, re-send the
+event, and it carries on from that step.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Workflow never claims anything</td>
+<td><code>when:</code> does not render to <code>true</code>, or another workflow already owns the event's issue</td>
+</tr>
+<tr>
+<td>Every issue claimed, including ones you meant for another workflow</td>
+<td>No <code>when:</code> guard; filter on <code>event.assignee</code> or <code>event.source.id</code></td>
+</tr>
+<tr>
+<td><code>foreach</code> iterates characters</td>
+<td><code>items:</code> has text around the expression, so it rendered to a string</td>
+</tr>
+<tr>
+<td>A step is skipped on a second identical event</td>
+<td>Expected: same event identity means replay. A genuinely new occurrence has a different identity</td>
+</tr>
+<tr>
+<td>Workflow missing at startup</td>
+<td>Failed validation; the log line names the action or capability</td>
+</tr>
+<tr>
+<td>Comment posted to the wrong system</td>
+<td>Split connectors: name one with <code>target:</code>, or let it default to <code>event.source.id</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
