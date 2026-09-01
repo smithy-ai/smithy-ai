@@ -15,6 +15,12 @@ The following files were attached to this issue and are available in the contain
 
 You may read these files directly or copy them into the repository if needed.
 {% endif %}
+{% if context_repo %}
+
+## Project guidelines
+
+This repository's guidelines are cloned at `/context-repo` (from `{{ context_repo }}`). Read the parts relevant to this issue before planning. For UI work, plan around the components and patterns documented there — reuse them rather than inventing new ones, and say in the plan which ones you will use. If the issue asks for something the design system has no component for, note that in the plan instead of improvising one silently.
+{% endif %}
 
 ## How you are running
 

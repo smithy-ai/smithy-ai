@@ -207,6 +207,18 @@ state:
       issue.assigned:
         to: awaiting_approval
         steps:
+          # Acknowledge first, before any slow step: planning takes long
+          # minutes, and an assignment answered with silence looks like an
+          # assignment that was ignored.
+          - uses: issue.comment
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              issue: "{{ event.issueRef }}"
+              body: >-
+                On it. I'm reading the story and drafting a plan across the
+                affected repositories — I'll post it here for review.
+
           # One workspace for the whole feature. Only the first catalog
           # repository is cloned: with a large catalog, cloning everything up
           # front costs more than the planning turn itself, and the agent asks

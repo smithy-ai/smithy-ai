@@ -568,7 +568,11 @@ class FeatureCoordinatorTest {
 
         var run = story();
         assertEquals("awaiting_approval", run.state());
-        assertEquals(List.of("Add search across the API and the web client."), vcs.issueComments);
+        // First the acknowledgement, then the plan — silence between assignment
+        // and a plan minutes later reads as an assignment ignored.
+        assertEquals(2, vcs.issueComments.size(), vcs.issueComments.toString());
+        assertTrue(vcs.issueComments.getFirst().contains("On it"), vcs.issueComments.getFirst());
+        assertEquals("Add search across the API and the web client.", vcs.issueComments.getLast());
         assertEquals(1, store.findPendingWaits(run.id()).size(), "and nothing else happens until approval");
         assertTrue(vcs.createdIssues.isEmpty(), "no issue is created before a human agrees");
     }

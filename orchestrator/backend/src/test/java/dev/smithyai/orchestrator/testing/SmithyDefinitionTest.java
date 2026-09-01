@@ -92,7 +92,10 @@ class SmithyDefinitionTest {
     // ── The definition ───────────────────────────────────────
 
     private Observed runDefinition(FakeDockerCli docker, boolean approve) {
-        var vcs = new StubVcsClient();
+        return runDefinition(docker, approve, new StubVcsClient());
+    }
+
+    private Observed runDefinition(FakeDockerCli docker, boolean approve, StubVcsClient vcs) {
         var store = freshStore("yaml-" + System.identityHashCode(docker));
         scriptAPlan(docker);
 
@@ -218,6 +221,40 @@ class SmithyDefinitionTest {
     }
 
     @Test
+    void theContextRepoIsClonedBesideTheWorkWhenItExists() {
+        var docker = new FakeDockerCli();
+        runDefinition(docker, false);
+
+        // acme/app-context exists in the stub, so the workspace clones it at
+        // /context-repo for the agent to read guidelines from.
+        String extraRepos = extraReposFromCreate(docker);
+        assertTrue(extraRepos.contains("acme/app-context"), extraRepos);
+        assertTrue(extraRepos.contains("/context-repo"), extraRepos);
+    }
+
+    @Test
+    void aRepositoryWithoutAContextRepoWorksWithoutOne() {
+        var docker = new FakeDockerCli();
+        var vcs = new StubVcsClient();
+        vcs.existingRepos.remove("acme/app-context");
+
+        var observed = runDefinition(docker, false, vcs);
+
+        assertEquals("refine", observed.runState(), "the missing repo did not stop the work");
+        assertEquals("", extraReposFromCreate(docker), "and nothing was cloned beside it");
+    }
+
+    private static String extraReposFromCreate(FakeDockerCli docker) {
+        for (var args : docker.invocations) {
+            if (args.isEmpty() || !"create".equals(args.getFirst())) continue;
+            for (String arg : args) {
+                if (arg.startsWith("EXTRA_REPOS=")) return arg.substring("EXTRA_REPOS=".length());
+            }
+        }
+        return null;
+    }
+
+    @Test
     void theBranchCarriesTheIssueAndASlugOfItsTitle() {
         var docker = new FakeDockerCli();
         runDefinition(docker, false);
@@ -229,8 +266,10 @@ class SmithyDefinitionTest {
     void thePlanIsPostedBackToTheIssueWithItsOpenQuestions() {
         var comments = runDefinition(new FakeDockerCli(), false).issueComments();
 
-        assertEquals(1, comments.size(), comments.toString());
-        var comment = comments.getFirst();
+        // The acknowledgement lands first, the plan second.
+        assertEquals(2, comments.size(), comments.toString());
+        assertTrue(comments.getFirst().contains("On it"), comments.getFirst());
+        var comment = comments.getLast();
         assertTrue(comment.contains("Development plan:"), comment);
         assertTrue(comment.contains(".smithy/plans/7.md"), comment);
         assertTrue(comment.contains("Open Questions"), comment);
@@ -267,8 +306,8 @@ class SmithyDefinitionTest {
 
         // Approving a plan has to have visible feedback where the approval
         // happened, not only on a pull request nobody has been told about.
-        assertEquals(2, comments.size(), comments.toString());
-        assertTrue(comments.get(1).contains("Plan approved"), comments.get(1));
+        assertEquals(3, comments.size(), comments.toString());
+        assertTrue(comments.get(2).contains("Plan approved"), comments.get(2));
     }
 
     @Test
