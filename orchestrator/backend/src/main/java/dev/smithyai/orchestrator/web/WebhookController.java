@@ -31,17 +31,20 @@ public class WebhookController {
     private final ConnectorEventMappers eventMappers;
     private final WorkflowService workflowService;
     private final ObjectMapper mapper;
+    private final WebhookDeduplicator deduplicator;
 
     public WebhookController(
         ConnectorRegistry connectors,
         ConnectorEventMappers eventMappers,
         WorkflowService workflowService,
-        ObjectMapper mapper
+        ObjectMapper mapper,
+        WebhookDeduplicator deduplicator
     ) {
         this.connectors = connectors;
         this.eventMappers = eventMappers;
         this.workflowService = workflowService;
         this.mapper = mapper;
+        this.deduplicator = deduplicator;
     }
 
     @PostMapping("/webhooks/{connectorId}")
@@ -65,6 +68,13 @@ public class WebhookController {
         }
         if (!"jira".equals(provider) && (eventType == null || eventType.isBlank())) {
             return ResponseEntity.badRequest().body("Missing event type");
+        }
+
+        // After the signature check, so an attacker cannot pre-poison the seen
+        // set; before the mapping, so a duplicate costs nothing downstream.
+        if (!deduplicator.firstDelivery(deliveryKeys(provider, connectorId, body, headers))) {
+            log.info("Dropping duplicate {} webhook delivery for connector {}", provider, connectorId);
+            return ResponseEntity.ok("Duplicate delivery ignored");
         }
 
         try {
@@ -119,6 +129,42 @@ public class WebhookController {
     private static String header(HttpHeaders headers, String name) {
         String value = headers.getFirst(name);
         return value == null ? "" : value;
+    }
+
+    /**
+     * Everything that identifies this delivery: the provider's delivery id
+     * (absent on some providers and on old versions) and a digest of the body.
+     * Both are scoped to the connector — two connectors may legitimately
+     * receive the same payload.
+     */
+    private static java.util.List<String> deliveryKeys(
+        String provider,
+        String connectorId,
+        byte[] body,
+        HttpHeaders headers
+    ) {
+        String deliveryId = switch (provider) {
+            case "jira" -> header(headers, "X-Atlassian-Webhook-Identifier");
+            case "github" -> header(headers, "X-GitHub-Delivery");
+            case "gitlab" -> header(headers, "X-Gitlab-Event-UUID");
+            case "forgejo" -> {
+                String forgejo = header(headers, "X-Forgejo-Delivery");
+                yield forgejo.isBlank() ? header(headers, "X-Gitea-Delivery") : forgejo;
+            }
+            default -> "";
+        };
+        return java.util.List.of(
+            deliveryId.isBlank() ? "" : connectorId + "|id|" + deliveryId,
+            connectorId + "|body|" + sha256(body)
+        );
+    }
+
+    private static String sha256(byte[] body) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(body));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
     private static boolean constantTimeEquals(String expected, String actual) {

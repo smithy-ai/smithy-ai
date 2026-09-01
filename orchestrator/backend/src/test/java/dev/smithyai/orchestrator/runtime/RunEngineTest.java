@@ -187,6 +187,35 @@ class RunEngineTest {
         );
     }
 
+    /**
+     * Observed live: Jira delivering the same assignment twice, two threads
+     * each concluding "no run yet", and two runs — with two same-named
+     * containers, the second recreating the first's and killing the agent turn
+     * inside it. Creation is resolved under a per-key lock now, so however many
+     * identical deliveries race, exactly one run exists afterwards.
+     */
+    @Test
+    void simultaneousIdenticalDeliveriesCreateExactlyOneRun() throws Exception {
+        int deliveries = 8;
+        var barrier = new java.util.concurrent.CyclicBarrier(deliveries);
+        var threads = new java.util.ArrayList<Thread>();
+        for (int i = 0; i < deliveries; i++) {
+            threads.add(
+                Thread.ofVirtual().start(() -> {
+                    try {
+                        barrier.await();
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                    engine.handle(assigned());
+                })
+            );
+        }
+        for (var thread : threads) thread.join();
+
+        assertEquals(1, store.findRecent(50).size(), "one run, however many times the webhook was delivered");
+    }
+
     @Test
     void anEventStartsARunAndItsStepsExecute() {
         var outcomes = engine.handle(assigned());

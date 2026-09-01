@@ -98,6 +98,45 @@ public class IssueActions {
         };
     }
 
+    /**
+     * Read an issue's comment thread.
+     *
+     * <p>Decisions live in the discussion, not the description: "skip that part
+     * for now", "these two must ship together". A planning turn that reads only
+     * the description re-litigates every one of them after a reset — this is
+     * how a workflow hands the agent the conversation so far.
+     */
+    @Bean
+    public WorkflowAction issueCommentsAction(IssueTrackers trackers) {
+        return new WorkflowAction() {
+            @Override
+            public String type() {
+                return "issue.comments";
+            }
+
+            @Override
+            public boolean idempotent() {
+                return true;
+            }
+
+            @Override
+            public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var comments = Trackers.pick(this, context, input, trackers)
+                    .getIssueComments(required(input, "owner"), required(input, "repo"), required(input, "issue"))
+                    .stream()
+                    .map(comment -> {
+                        var entry = new LinkedHashMap<String, Object>();
+                        entry.put("author", comment.userLogin());
+                        entry.put("body", comment.body());
+                        entry.put("createdAt", String.valueOf(comment.createdAt()));
+                        return entry;
+                    })
+                    .toList();
+                return Map.of("comments", comments, "count", comments.size());
+            }
+        };
+    }
+
     @Bean
     public WorkflowAction issueLabelAction(IssueTrackers trackers) {
         return new WorkflowAction() {
