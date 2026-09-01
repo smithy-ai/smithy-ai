@@ -65,6 +65,17 @@ state:
       issue.assigned:
         to: refine
         steps:
+          # Acknowledge first, before any slow step: refinement takes minutes,
+          # and an assignment answered with silence looks like one ignored.
+          - uses: issue.comment
+            with:
+              owner: "{{ repo.owner }}"
+              repo: "{{ repo.name }}"
+              issue: "{{ event.issueRef }}"
+              body: >-
+                On it. I'm reading the issue and drafting a development plan —
+                I'll post it here for review.
+
           # Where this repository keeps its guidelines — a design system, an
           # architecture handbook. Read from the repository's own
           # .smithy/config.yml, defaulting to "<repo>-context". Cloned beside
