@@ -114,6 +114,17 @@ class IgnoredEventExplainerTest {
     }
 
     @Test
+    void aRedeliveredAssignmentOnAWorkingRunStaysSilent() {
+        // The run exists because of that assignment; a tracker redelivering the
+        // webhook mid-planning is not a person who needs an explanation.
+        ownedRun(RunStatus.RUNNING, "awaiting_approval");
+
+        explainer.explainIfIgnored(assigned(), nothingHandled());
+
+        assertTrue(tracker.issueComments.isEmpty(), "the acknowledgement already said 'on it'");
+    }
+
+    @Test
     void aHandledEventNeedsNoExplanation() {
         ownedRun(RunStatus.COMPLETED, "done");
 

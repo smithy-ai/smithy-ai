@@ -99,6 +99,14 @@ public class IgnoredEventExplainer {
                 "the beginning.").formatted(gesture, run.status().value());
         }
 
+        // An assignment landing on a run that is already working IS honoured —
+        // that run exists because of it. Trackers redeliver the assignment
+        // webhook when a long planning turn outlives their patience, and the
+        // redelivery queues up behind the run's lock; explaining it reads as
+        // the bot apologising for doing its job. Observed live: two of these
+        // half a second after the plan was posted.
+        if ("assignment".equals(gesture)) return null;
+
         String waits = store
             .findPendingWaits(run.id())
             .stream()
