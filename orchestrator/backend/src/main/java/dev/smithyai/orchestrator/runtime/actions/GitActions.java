@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.runtime.actions;
 
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.service.docker.dto.ExecResult;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,7 +90,7 @@ public class GitActions {
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var session = environments.container(context.run());
-                var first = session.exec("git", "push");
+                var first = push(session);
                 if (first.exitCode() == 0) return Map.of("pushed", true, "retried", false);
 
                 String error = first.stderr().isBlank() ? first.stdout() : first.stderr();
@@ -104,10 +105,11 @@ public class GitActions {
                     log.error("Agent could not reconcile the push in {}", session.getContainerName(), e);
                 }
 
-                var retry = session.exec("git", "push");
+                var retry = push(session);
                 boolean pushed = retry.exitCode() == 0;
                 if (!pushed) {
-                    log.error("git push failed on retry in {}", session.getContainerName());
+                    String retryError = retry.stderr().isBlank() ? retry.stdout() : retry.stderr();
+                    log.error("git push failed on retry in {}: {}", session.getContainerName(), retryError);
                 }
                 // Reported rather than thrown: the caller decides whether an
                 // unpushed branch is fatal or something to tell the reviewer.
@@ -241,6 +243,21 @@ public class GitActions {
                 return Map.of("destroyed", true);
             }
         };
+    }
+
+    /**
+     * How long a push may take. The docker client's 30-second default was
+     * sized for `cat` and `git status`; a push runs the repository's own
+     * pre-push hooks, and a monorepo's hook legitimately runs a format check
+     * over the whole workspace. Observed live: the hook outlived the default
+     * timeout, the client was killed mid-push twice, the branch landed on the
+     * remote anyway a moment later, and pr.create raced it and lost with
+     * "source_branch does not exist".
+     */
+    private static final Duration PUSH_TIMEOUT = Duration.ofMinutes(10);
+
+    private static ExecResult push(dev.smithyai.orchestrator.service.docker.ContainerSession session) {
+        return session.exec(List.of("git", "push"), PUSH_TIMEOUT, null);
     }
 
     private static Map<String, Object> outcome(ExecResult result) {
