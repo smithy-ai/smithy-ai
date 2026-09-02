@@ -110,6 +110,17 @@ public class RunStore {
             .list();
     }
 
+    /**
+     * Detach a run's children — they stay in the store with their history, but
+     * no longer count as anyone's. Used when a run is reopened: the children of
+     * its previous life are done or dead, and a wave or await in the new life
+     * must not count them.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int orphanChildren(String parentRunId) {
+        return db.sql("UPDATE runs SET parent_run_id = NULL WHERE parent_run_id = ?").param(parentRunId).update();
+    }
+
     /** Most recent runs first — what the dashboard lists. */
     public List<Run> findRecent(int limit) {
         return db.sql("SELECT * FROM runs ORDER BY created_at DESC LIMIT ?").param(limit).query(RUN_MAPPER).list();

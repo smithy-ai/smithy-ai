@@ -336,6 +336,27 @@ class RunEngineTest {
     }
 
     @Test
+    void aReopenedRunLeavesThePreviousLifesChildrenBehind() {
+        var started = engine.handle(assigned()).getFirst();
+        var child = store.create("smithy-development", "1", "new", started.runId());
+        store.updateStatus(child.id(), RunStatus.COMPLETED);
+        assertEquals(1, store.findChildren(started.runId()).size());
+
+        engine.handle(unassigned());
+        engine.handle(assigned());
+
+        // Observed live: a story reset over several rounds dragged seventeen
+        // dead children along, and run.await counted them — "all children
+        // finished" was true the moment the first new child reported in.
+        assertTrue(
+            store.findChildren(started.runId()).isEmpty(),
+            "children of the cancelled life must not count in the new one"
+        );
+        var orphan = store.find(child.id()).orElseThrow();
+        assertNull(orphan.parentRunId(), "the old child keeps its history, just not its parent");
+    }
+
+    @Test
     void workTakenOffTheAgentAndHandedBackPicksUpWhereItStarted() {
         var started = engine.handle(assigned()).getFirst();
         engine.handle(unassigned());
