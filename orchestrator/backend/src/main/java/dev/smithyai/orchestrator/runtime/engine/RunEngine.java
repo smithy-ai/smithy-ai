@@ -374,10 +374,26 @@ public class RunEngine implements SignalDelivery {
         String initial = definition.state().getInitial();
         store.clearSteps(stopped.id());
         store.clearPendingWaits(stopped.id());
+        // The children belong to the life that was cancelled, not to this one.
+        // Observed live: a story reset over several rounds dragged seventeen
+        // dead children along, and every run.await/run.wave counted them —
+        // "all children finished" was true the moment the first new child
+        // reported in. A reopened run starts from the beginning, childless.
+        int orphaned = store.orphanChildren(stopped.id());
         store.updateState(stopped.id(), initial);
         store.updateStatus(stopped.id(), RunStatus.RUNNING);
-        store.appendEvent(stopped.id(), "run.reopened", Map.of("was", stopped.status().value(), "state", initial));
-        log.info("Run {} ({}) reopened from {}", stopped.id(), stopped.workflowName(), stopped.status().value());
+        store.appendEvent(
+            stopped.id(),
+            "run.reopened",
+            Map.of("was", stopped.status().value(), "state", initial, "orphanedChildren", orphaned)
+        );
+        log.info(
+            "Run {} ({}) reopened from {} ({} children from its previous life detached)",
+            stopped.id(),
+            stopped.workflowName(),
+            stopped.status().value(),
+            orphaned
+        );
         return store.find(stopped.id()).orElse(stopped);
     }
 
