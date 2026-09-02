@@ -25,15 +25,24 @@ public class WorkflowService {
     private final ContainerService containerService;
     private final RunStore runStore;
     private final RunEngine engine;
+    private final IgnoredEventExplainer explainer;
 
-    public WorkflowService(ContainerService containerService, RunStore runStore, RunEngine engine) {
+    public WorkflowService(
+        ContainerService containerService,
+        RunStore runStore,
+        RunEngine engine,
+        IgnoredEventExplainer explainer
+    ) {
         this.containerService = containerService;
         this.runStore = runStore;
         this.engine = engine;
+        this.explainer = explainer;
     }
 
     public void onEvent(WorkflowEvent event) {
-        engine.handle(event);
+        var outcomes = engine.handle(event);
+        // A human gesture nothing reacted to gets an explanation, not silence.
+        if (explainer != null) explainer.explainIfIgnored(event, outcomes);
     }
 
     /**
