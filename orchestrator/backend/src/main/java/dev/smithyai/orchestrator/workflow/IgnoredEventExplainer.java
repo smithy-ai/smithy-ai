@@ -8,8 +8,12 @@ import dev.smithyai.orchestrator.runtime.store.RunRecorder;
 import dev.smithyai.orchestrator.runtime.store.RunStatus;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.service.vcs.IssueTrackers;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -33,6 +37,15 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class IgnoredEventExplainer {
+
+    /**
+     * Say each thing once. Redelivered webhooks queue behind a busy run's lock
+     * and flush together when it frees — observed live as five identical
+     * explanations in 130 milliseconds. One is an answer; five are noise.
+     */
+    private static final Duration REPEAT_WINDOW = Duration.ofMinutes(15);
+
+    private final Map<String, Instant> recentlySaid = new ConcurrentHashMap<>();
 
     private final RunStore store;
     private final IssueTrackers trackers;
@@ -62,6 +75,7 @@ public class IgnoredEventExplainer {
 
         String reason = reasonFor(gesture, owner);
         if (reason == null) return;
+        if (!firstTimeSaying(ctx.info().fullName() + "#" + ctx.issueRef() + "|" + reason)) return;
 
         try {
             trackers
@@ -73,6 +87,12 @@ public class IgnoredEventExplainer {
             // make the webhook fail and get redelivered.
             log.warn("Could not explain an ignored {} on {}#{}", gesture, ctx.info().fullName(), ctx.issueRef(), e);
         }
+    }
+
+    private boolean firstTimeSaying(String key) {
+        Instant now = Instant.now();
+        recentlySaid.values().removeIf(at -> at.plus(REPEAT_WINDOW).isBefore(now));
+        return recentlySaid.putIfAbsent(key, now) == null;
     }
 
     private String reasonFor(String gesture, Optional<Run> owner) {

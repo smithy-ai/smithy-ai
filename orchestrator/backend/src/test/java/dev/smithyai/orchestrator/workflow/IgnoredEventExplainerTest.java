@@ -125,6 +125,20 @@ class IgnoredEventExplainerTest {
     }
 
     @Test
+    void theSameExplanationIsNotRepeatedWithinTheWindow() {
+        // Redelivered webhooks queue behind a busy run's lock and flush
+        // together when it frees — observed live as five identical
+        // explanations in 130 milliseconds.
+        ownedRun(RunStatus.COMPLETED, "done");
+
+        for (int i = 0; i < 5; i++) {
+            explainer.explainIfIgnored(comment("what is the status?"), nothingHandled());
+        }
+
+        assertEquals(1, tracker.issueComments.size(), tracker.issueComments.toString());
+    }
+
+    @Test
     void aHandledEventNeedsNoExplanation() {
         ownedRun(RunStatus.COMPLETED, "done");
 
