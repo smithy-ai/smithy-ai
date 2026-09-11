@@ -53,6 +53,11 @@ public class ConfigLoader {
     }
 
     @Bean
+    public KnowledgebaseConfig.OllamaConfig ollamaConfig() {
+        return config.ollama();
+    }
+
+    @Bean
     public KnowledgebaseConfig.OpenaiConfig openaiConfig() {
         return config.openai();
     }

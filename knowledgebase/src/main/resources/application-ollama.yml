@@ -1,0 +1,17 @@
+spring:
+  ai:
+    openai:
+      api-key: dummy-disabled
+      chat:
+        enabled: false
+      embedding:
+        enabled: false
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://ollama:11434}
+      embedding:
+        options:
+          model: ${EMBEDDING_MODEL:nomic-embed-text}
+      chat:
+        options:
+          model: ${CHAT_MODEL:llama3.2}
+          temperature: 1
