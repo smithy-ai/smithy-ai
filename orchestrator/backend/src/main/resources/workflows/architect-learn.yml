@@ -30,6 +30,12 @@ routing:
     action: dispatch
     by: pr
 
+  # The proposal merged or closed: nobody is left to discuss it with, so the
+  # container waiting for that conversation goes too.
+  - event: pr.closed
+    action: destroy
+    by: pr
+
 state:
   initial: new
   terminal: done
