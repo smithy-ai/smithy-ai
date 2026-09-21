@@ -36,3 +36,8 @@ https://<orchestrator-host>/webhooks/forgejo-main
 Enable issue, issue comment, push, pull request, pull request comment, and Actions
 run events. Use the same webhook on the context repository. The demo under
 `examples/demo` automates user, token, label, collaborator, and webhook setup.
+
+Every repository the orchestrator may open a pull request in needs the webhook.
+When the bot can read a repository's webhooks, `pr.create` checks for one on this
+connector's path after opening a pull request and posts a heads-up on it when
+comments there could not reach the orchestrator.

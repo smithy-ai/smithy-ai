@@ -280,6 +280,40 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
 
     // ── HTTP helpers ─────────────────────────────────────────
 
+    @Override
+    public List<dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo> listWebhooks(String owner, String repo) {
+        var hooks = new ArrayList<dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo>();
+        for (var node : getList("/repos/%s/%s/hooks", owner, repo)) {
+            var events = new java.util.HashSet<String>();
+            for (var event : node.path("events")) {
+                switch (event.asText("")) {
+                    case "issue_comment", "pull_request_review_comment" -> events.add(
+                        dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.COMMENTS
+                    );
+                    case "pull_request", "pull_request_review" -> events.add(
+                        dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.PULL_REQUESTS
+                    );
+                    case "issues" -> events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.ISSUES);
+                    case "push" -> events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.PUSH);
+                    case "workflow_run", "check_run", "check_suite", "status" -> events.add(
+                        dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.CI
+                    );
+                    default -> {
+                        // Not something a workflow routes on.
+                    }
+                }
+            }
+            hooks.add(
+                new dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo(
+                    node.path("config").path("url").asText(""),
+                    node.path("active").asBoolean(true),
+                    events
+                )
+            );
+        }
+        return hooks;
+    }
+
     private JsonNode get(String pathTemplate, Object... args) {
         String path = pathTemplate.formatted(args);
         try {

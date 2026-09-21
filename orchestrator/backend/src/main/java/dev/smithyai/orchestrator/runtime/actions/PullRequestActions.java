@@ -59,12 +59,40 @@ public class PullRequestActions {
                     log.info("Reusing existing PR #{} for {}/{}:{}", pr.number(), owner, repo, head);
                 }
 
+                // A pull request in a repository that has no webhook for this
+                // connector is work delivered somewhere the orchestrator is deaf
+                // to: every comment there goes unanswered, and nothing tells the
+                // people commenting. Say so where they will look — once, when
+                // the pull request opens; a reused one has had its say.
+                boolean webhookMissing = false;
+                if (existing == null) {
+                    String connector = Vcs.target(this, context, input, clients);
+                    var notice = WebhookAudit.notice(vcs, connector, owner, repo);
+                    if (notice.isPresent()) {
+                        webhookMissing = true;
+                        log.warn(
+                            "{}/{} has no webhook delivering to {}: comments on PR #{} will not reach this orchestrator",
+                            owner,
+                            repo,
+                            WebhookAudit.webhookPath(connector),
+                            pr.number()
+                        );
+                        try {
+                            vcs.createPrComment(owner, repo, pr.number(), notice.get());
+                        } catch (RuntimeException e) {
+                            // A courtesy; the pull request itself is what matters.
+                            log.warn("Could not post the webhook notice on {}/{} PR #{}", owner, repo, pr.number(), e);
+                        }
+                    }
+                }
+
                 var output = new LinkedHashMap<String, Object>();
                 output.put("number", pr.number());
                 output.put("title", pr.title());
                 output.put("headRef", pr.headRef());
                 output.put("baseRef", pr.baseRef());
                 output.put("reused", existing != null);
+                output.put("webhookMissing", webhookMissing);
                 return output;
             }
         };
