@@ -9,6 +9,7 @@ import {
   Text,
   Stack,
 } from "@mantine/core";
+import { csrfHeaders } from "../api/client";
 
 export function LoginPage() {
   const [error, setError] = useState(false);
@@ -26,7 +27,7 @@ export function LoginPage() {
 
     const res = await fetch("/api/login", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: { "Content-Type": "application/x-www-form-urlencoded", ...csrfHeaders() },
       body,
     });
 

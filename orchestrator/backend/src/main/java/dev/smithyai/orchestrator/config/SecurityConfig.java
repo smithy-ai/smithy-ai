@@ -50,7 +50,10 @@ public class SecurityConfig {
                     .logoutUrl("/api/logout")
                     .logoutSuccessHandler((req, res, auth) -> res.setStatus(HttpStatus.OK.value()))
             )
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/webhooks/**", "/api/**"));
+            // The dashboard reads the token from the XSRF-TOKEN cookie and echoes
+            // it in X-XSRF-TOKEN. Webhooks are exempt: providers cannot fetch a
+            // token, and their signature is the check.
+            .csrf(csrf -> csrf.spa().ignoringRequestMatchers("/webhooks/**"));
         return http.build();
     }
 
