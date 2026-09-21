@@ -11,6 +11,8 @@ package dev.smithyai.orchestrator.runtime.actions;
  */
 public enum Capability {
     ISSUE_COMMENT("issue.comment"),
+    /** Removing a comment the bot itself wrote. */
+    ISSUE_COMMENT_DELETE("issue.comment.delete"),
     ISSUE_CREATE("issue.create"),
     ISSUE_LABEL("issue.label"),
     ISSUE_ASSIGN("issue.assign"),

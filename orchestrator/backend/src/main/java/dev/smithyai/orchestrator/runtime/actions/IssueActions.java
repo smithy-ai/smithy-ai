@@ -126,6 +126,9 @@ public class IssueActions {
                     .stream()
                     .map(comment -> {
                         var entry = new LinkedHashMap<String, Object>();
+                        // The id is what a later step needs to keep or remove
+                        // one comment rather than describe it.
+                        entry.put("id", comment.id());
                         entry.put("author", comment.userLogin());
                         entry.put("body", comment.body());
                         entry.put("createdAt", String.valueOf(comment.createdAt()));
@@ -133,6 +136,100 @@ public class IssueActions {
                     })
                     .toList();
                 return Map.of("comments", comments, "count", comments.size());
+            }
+        };
+    }
+
+    /**
+     * Remove the bot's own comments on an issue, except the ones named.
+     *
+     * <p>A planning conversation leaves a trail: an acknowledgement, a plan,
+     * a revised plan after every answer, each posted in full. By the time a
+     * plan is approved the issue holds several near-identical walls of text
+     * and the one that counts is indistinguishable from the ones it replaced.
+     * Observed live: readers missed answers and decisions buried between plan
+     * versions. This deletes what the workflow's own identity wrote, keeps
+     * what {@code keep} names — the approved plan, a digest — and never
+     * touches a human's comment.
+     *
+     * <p>Best-effort per comment: a deletion the provider refuses is counted
+     * and logged, not thrown, because tidying up must not undo an approval.
+     */
+    @Bean
+    public WorkflowAction issuePruneCommentsAction(IssueTrackers trackers) {
+        return new WorkflowAction() {
+            @Override
+            public String type() {
+                return "issue.pruneComments";
+            }
+
+            @Override
+            public Set<Capability> requires() {
+                return Set.of(Capability.ISSUE_COMMENT_DELETE);
+            }
+
+            @Override
+            public boolean idempotent() {
+                return true;
+            }
+
+            @Override
+            public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                String owner = required(input, "owner");
+                String repo = required(input, "repo");
+                String issueRef = required(input, "issue");
+                var keep = listInput(input, "keep")
+                    .stream()
+                    .map(String::strip)
+                    .filter(id -> !id.isEmpty())
+                    .collect(java.util.stream.Collectors.toSet());
+
+                // Whose comments: the workflow's actor as this tracker knows it
+                // (a Jira accountId, a GitLab username), unless the step names
+                // an identity itself.
+                String target = Trackers.target(this, context, input);
+                String actor = optional(input, "actor", context.actor());
+                String author = optional(input, "author", trackers.assignee(target, actor));
+                if (author == null || author.isBlank()) {
+                    throw new IllegalArgumentException(
+                        type() + " cannot tell which comments are its own: no identity for actor '" + actor + "'"
+                    );
+                }
+
+                var tracker = trackers.forConnector(actor, target);
+                var deleted = new java.util.ArrayList<Long>();
+                var kept = new java.util.ArrayList<Long>();
+                int failed = 0;
+                for (var comment : tracker.getIssueComments(owner, repo, issueRef)) {
+                    if (!author.equals(comment.userLogin())) continue;
+                    if (keep.contains(String.valueOf(comment.id()))) {
+                        kept.add(comment.id());
+                        continue;
+                    }
+                    try {
+                        tracker.deleteIssueComment(owner, repo, issueRef, comment.id());
+                        deleted.add(comment.id());
+                    } catch (RuntimeException e) {
+                        failed++;
+                        log.warn("Could not delete comment {} on {}/{}#{}", comment.id(), owner, repo, issueRef, e);
+                    }
+                }
+                log.info(
+                    "Pruned {} of {}'s comment(s) on {}/{}#{} ({} kept, {} failed)",
+                    deleted.size(),
+                    actor,
+                    owner,
+                    repo,
+                    issueRef,
+                    kept.size(),
+                    failed
+                );
+                var output = new LinkedHashMap<String, Object>();
+                output.put("deleted", deleted.size());
+                output.put("deletedIds", deleted);
+                output.put("kept", kept);
+                output.put("failed", failed);
+                return output;
             }
         };
     }
