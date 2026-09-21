@@ -539,6 +539,36 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     // ── HTTP helpers ─────────────────────────────────────────
 
     /** The given ref, or the project's default branch when it is null or blank. */
+    @Override
+    public List<dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo> listWebhooks(String owner, String repo) {
+        var hooks = new ArrayList<dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo>();
+        for (var node : getList("/projects/%s/hooks", projectId(owner, repo))) {
+            var events = new java.util.HashSet<String>();
+            if (node.path("note_events").asBoolean(false)) {
+                events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.COMMENTS);
+            }
+            if (node.path("merge_requests_events").asBoolean(false)) {
+                events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.PULL_REQUESTS);
+            }
+            if (node.path("issues_events").asBoolean(false)) {
+                events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.ISSUES);
+            }
+            if (node.path("push_events").asBoolean(false)) {
+                events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.PUSH);
+            }
+            if (node.path("pipeline_events").asBoolean(false)) {
+                events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.CI);
+            }
+            // GitLab disables a hook that keeps failing; a temporarily disabled
+            // one is still retried and still counts.
+            boolean active = !"disabled".equals(node.path("alert_status").asText(""));
+            hooks.add(
+                new dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo(node.path("url").asText(""), active, events)
+            );
+        }
+        return hooks;
+    }
+
     private String resolveRef(String owner, String repo, String ref) {
         if (ref != null && !ref.isBlank()) return ref;
         return get("/projects/%s", projectId(owner, repo)).path("default_branch").asText("");

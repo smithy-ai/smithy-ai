@@ -39,3 +39,8 @@ https://<orchestrator-host>/webhooks/github-main
 Enable issues, issue comments, pushes, pull requests, pull request reviews, review
 comments, and workflow runs. Configure the same connector webhook on the context
 repository.
+
+Every repository the orchestrator may open a pull request in needs the webhook.
+When the bot token can read a repository's webhooks (admin on the repository),
+`pr.create` checks for one on this connector's path after opening a pull request
+and posts a heads-up on it when comments there could not reach the orchestrator.

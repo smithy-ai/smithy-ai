@@ -56,6 +56,19 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     /** Repositories that exist; anything not listed is reported missing. */
     public final List<String> existingRepos = new ArrayList<>(List.of("acme/app", "acme/app-context"));
 
+    /**
+     * The webhooks every repository reports. Null — the default — means the
+     * stub cannot list them, which is what most tests want: a flow under test
+     * should not grow an extra comment about webhooks it never mentioned.
+     */
+    public List<WebhookInfo> webhooks = null;
+
+    @Override
+    public List<WebhookInfo> listWebhooks(String owner, String repo) {
+        if (webhooks == null) throw new UnsupportedOperationException("no webhooks in this stub");
+        return webhooks;
+    }
+
     private final AtomicInteger nextPrNumber = new AtomicInteger(100);
 
     // ── IssueTrackerClient ───────────────────────────────────

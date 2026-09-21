@@ -388,6 +388,41 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
         }
     }
 
+    @Override
+    public List<dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo> listWebhooks(String owner, String repo) {
+        // Straight to the endpoint, like the directory listing above: the hook
+        // shape is simple and this avoids depending on the generated model.
+        String url = "%s/api/v1/repos/%s/%s/hooks".formatted(baseUrl, encode(owner), encode(repo));
+        JsonNode node = readJson(url);
+        var hooks = new ArrayList<dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo>();
+        if (node == null || !node.isArray()) return hooks;
+        for (JsonNode hook : node) {
+            var events = new java.util.HashSet<String>();
+            for (JsonNode event : hook.path("events")) {
+                String name = event.asText("");
+                if (name.equals("issue_comment") || name.endsWith("_comment")) {
+                    events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.COMMENTS);
+                } else if (name.startsWith("pull_request")) {
+                    events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.PULL_REQUESTS);
+                } else if (name.startsWith("issue")) {
+                    events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.ISSUES);
+                } else if (name.equals("push")) {
+                    events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.PUSH);
+                } else if (name.startsWith("workflow_")) {
+                    events.add(dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo.CI);
+                }
+            }
+            hooks.add(
+                new dev.smithyai.orchestrator.service.vcs.dto.WebhookInfo(
+                    hook.path("config").path("url").asText(""),
+                    hook.path("active").asBoolean(true),
+                    events
+                )
+            );
+        }
+        return hooks;
+    }
+
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }

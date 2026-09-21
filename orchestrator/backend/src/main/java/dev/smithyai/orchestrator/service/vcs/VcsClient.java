@@ -65,6 +65,18 @@ public interface VcsClient extends ProviderClient {
     boolean repoExists(String owner, String repo);
 
     /**
+     * The webhooks a repository has registered.
+     *
+     * <p>How the orchestrator learns whether a repository it just opened a pull
+     * request in can talk back to it at all. Needs maintainer or admin rights on
+     * the repository on every provider, so a call may fail with a permission
+     * error; callers treat that as "unknown", not as "none".
+     */
+    default List<WebhookInfo> listWebhooks(String owner, String repo) {
+        throw new UnsupportedOperationException("listWebhooks not supported by " + getClass().getSimpleName());
+    }
+
+    /**
      * Read a file's raw content from a branch, or null if it doesn't exist.
      */
     default String getRawFile(String owner, String repo, String branch, String path) {

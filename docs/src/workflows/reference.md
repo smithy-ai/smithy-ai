@@ -222,7 +222,7 @@ on.
 
 | Action | Required | Optional | Outputs |
 |---|---|---|---|
-| `pr.create` | `owner`, `repo`, `title`, `head`, `base` | `body`, `draft` | `number`, `title`, `headRef`, `baseRef`, `reused` |
+| `pr.create` | `owner`, `repo`, `title`, `head`, `base` | `body`, `draft` | `number`, `title`, `headRef`, `baseRef`, `reused`, `webhookMissing` |
 | `pr.comment` | `owner`, `repo`, `number`, `body` | none | `number` |
 | `pr.reply` | `owner`, `repo`, `number`, `body` | `discussion` | `posted`, `threaded` |
 | `pr.review` | `owner`, `repo`, `number` | `summary`, `comments[]` (`path`, `line`, `body`), `event` | `posted`, `comments` |
@@ -237,9 +237,15 @@ on.
 | `comment.react` | `owner`, `repo`, `number`, `commentId` | `reaction` (default `eyes`) | `reacted` |
 
 `pr.create` reuses an existing pull request for the same head branch instead of
-opening a second one. `pr.requestReview` resolves `notFromActor` and drops that
-provider username from the list. A failure to request the review is reported in
-`reason` without stopping the transition.
+opening a second one. When it opens a new one, it checks whether the repository
+has a webhook delivering to this connector's `/webhooks/<connector>` path with
+comment and pull-request events enabled. If not, nothing said on that pull
+request can ever reach the orchestrator, so it posts a heads-up comment there
+saying so and reports `webhookMissing: true`. Listing webhooks needs maintainer
+rights on the repository; a bot without them, or a provider without the API,
+gets no check and no comment. `pr.requestReview` resolves `notFromActor` and
+drops that provider username from the list. A failure to request the review is
+reported in `reason` without stopping the transition.
 
 ### Files and repositories
 
