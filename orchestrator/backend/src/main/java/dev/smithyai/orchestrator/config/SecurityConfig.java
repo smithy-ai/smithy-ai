@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
@@ -14,7 +13,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.header.HeaderWriterFilter;
 
 @Slf4j
 @Configuration
@@ -55,22 +53,7 @@ public class SecurityConfig {
             // The dashboard reads the token from the XSRF-TOKEN cookie and echoes
             // it in X-XSRF-TOKEN. Webhooks are exempt: providers cannot fetch a
             // token, and their signature is the check.
-            .csrf(csrf -> csrf.spa().ignoringRequestMatchers("/webhooks/**"))
-            // Written before the request is handled rather than when the response
-            // commits: on a real Tomcat, static resources (the dashboard itself)
-            // went out without them, while API responses had them.
-            // SecurityHeadersServerTest pins this.
-            .headers(headers ->
-                headers.addObjectPostProcessor(
-                    new ObjectPostProcessor<HeaderWriterFilter>() {
-                        @Override
-                        public <O extends HeaderWriterFilter> O postProcess(O filter) {
-                            filter.setShouldWriteHeadersEagerly(true);
-                            return filter;
-                        }
-                    }
-                )
-            );
+            .csrf(csrf -> csrf.spa().ignoringRequestMatchers("/webhooks/**"));
         return http.build();
     }
 

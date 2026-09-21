@@ -11,10 +11,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 /**
- * Security headers as a real servlet container sends them. MockMvc showed them on
- * the dashboard page while the deployed server did not: with the default lazy
- * header writing, every static resource went out without them. Only a real
- * server reproduces that.
+ * Security headers as a real servlet container sends them. MockMvc showed them
+ * while the deployed server dropped them from every response whose Content-Length
+ * Spring Framework 7 sets via setHeader (static files, string bodies): Spring
+ * Security before 7.0.4 did not track that path and wrote its headers after the
+ * response had committed (CVE-2026-22732). Only a real server reproduces that.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class SecurityHeadersServerTest {
@@ -37,7 +38,11 @@ class SecurityHeadersServerTest {
             // The login form is the dashboard's first POST, so the token has to
             // arrive with the page.
             assertTrue(
-                response.headers().allValues("Set-Cookie").stream().anyMatch(c -> c.startsWith("XSRF-TOKEN=")),
+                response
+                    .headers()
+                    .allValues("Set-Cookie")
+                    .stream()
+                    .anyMatch(c -> c.startsWith("XSRF-TOKEN=")),
                 path + " sets XSRF-TOKEN"
             );
         }
