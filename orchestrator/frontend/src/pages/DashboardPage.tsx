@@ -14,7 +14,7 @@ import {
   Button,
   Tabs,
 } from "@mantine/core";
-import { fetchInstances, fetchMetrics } from "../api/client";
+import { csrfHeaders, fetchInstances, fetchMetrics } from "../api/client";
 import { LogsPanel, ORCHESTRATOR_LOG_SOURCE } from "./LogsPanel";
 import { SessionPanel } from "./SessionPanel";
 import { RunsTable } from "./RunsTable";
@@ -82,7 +82,7 @@ export function DashboardPage() {
             variant="subtle"
             size="sm"
             onClick={() => {
-              fetch("/api/logout", { method: "POST" }).then(
+              fetch("/api/logout", { method: "POST", headers: csrfHeaders() }).then(
                 () => (window.location.href = "/login"),
               );
             }}

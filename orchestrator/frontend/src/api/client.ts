@@ -1,3 +1,13 @@
+/**
+ * The header Spring Security checks on every request that changes something.
+ * The server sets the token as a readable XSRF-TOKEN cookie; echoing it back is
+ * what a cross-site page cannot do.
+ */
+export function csrfHeaders(): Record<string, string> {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+  return match ? { "X-XSRF-TOKEN": decodeURIComponent(match[1]) } : {};
+}
+
 export interface Instance {
   containerName: string;
   workflowType: string;
@@ -75,7 +85,7 @@ export async function fetchRunWaits(runId: string): Promise<RunWait[]> {
 export async function approveRunWait(runId: string, key: string): Promise<void> {
   const res = await fetch(
     `/api/dashboard/runs/${encodeURIComponent(runId)}/waits/${encodeURIComponent(key)}`,
-    { method: "POST" },
+    { method: "POST", headers: csrfHeaders() },
   );
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
@@ -83,6 +93,7 @@ export async function approveRunWait(runId: string, key: string): Promise<void> 
 export async function cancelRun(runId: string): Promise<void> {
   const res = await fetch(`/api/dashboard/runs/${encodeURIComponent(runId)}`, {
     method: "DELETE",
+    headers: csrfHeaders(),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
@@ -157,6 +168,7 @@ export interface TakeoverState {
 export async function takeoverHeartbeat(containerName: string): Promise<TakeoverState> {
   const res = await fetch(`/api/dashboard/takeover/${encodeURIComponent(containerName)}`, {
     method: "POST",
+    headers: csrfHeaders(),
   });
   if (res.status === 401 || res.status === 403) {
     window.location.href = "/login";
@@ -169,6 +181,7 @@ export async function takeoverHeartbeat(containerName: string): Promise<Takeover
 export function releaseTakeover(containerName: string, keepalive = false): Promise<Response> {
   return fetch(`/api/dashboard/takeover/${encodeURIComponent(containerName)}`, {
     method: "DELETE",
+    headers: csrfHeaders(),
     keepalive,
   });
 }
@@ -192,7 +205,7 @@ export async function sendTakeoverMessage(
       `/api/dashboard/takeover/${encodeURIComponent(containerName)}/message`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrfHeaders() },
         body: JSON.stringify({ text }),
         signal: AbortSignal.timeout(TAKEOVER_MESSAGE_TIMEOUT_MS),
       },
