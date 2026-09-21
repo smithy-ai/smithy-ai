@@ -277,6 +277,7 @@ class ArchitectDefinitionTest {
             .onExec("symbolic-ref", new dev.smithyai.orchestrator.service.docker.dto.ExecResult(0, "main", ""));
         var vcs = new StubVcsClient();
         vcs.repositoryFiles.put("acme/app:.smithy/config.yml", "context:\n  repository: platform/shared-guidelines\n");
+        vcs.existingRepos.add("platform/shared-guidelines");
         var store = freshStore("custom-context-" + System.identityHashCode(docker));
         var engine = engineFor(docker, vcs, store, new ImmediateDebouncer());
 
@@ -303,6 +304,38 @@ class ArchitectDefinitionTest {
         assertEquals("shared-guidelines", reply.repo());
         assertEquals(100, reply.number());
         assertEquals("Updated the proposal.", reply.body());
+    }
+
+    @Test
+    void aRepositoryWithoutGuidelinesIsNotReviewed() {
+        var docker = new FakeDockerCli();
+        var vcs = new StubVcsClient();
+        vcs.existingRepos.remove("acme/app-context");
+        var store = freshStore("review-no-context-" + System.identityHashCode(docker));
+        var engine = engineFor(docker, vcs, store, new EventDebouncer());
+
+        var run = engine.handle(reviewRequested()).stream().filter(RunEngine.Outcome::handled).findFirst().orElseThrow();
+
+        // Cloning a guidelines repository that is not there fails the init and
+        // strands the run; nothing to review against means nothing to do.
+        assertEquals(List.of(), observe(docker, vcs).containers());
+        assertEquals(List.of(), observe(docker, vcs).reviewSummaries());
+        assertEquals(RunStatus.COMPLETED, store.find(run.runId()).orElseThrow().status());
+    }
+
+    @Test
+    void aRepositoryWithoutGuidelinesTeachesNothing() {
+        var docker = new FakeDockerCli();
+        var vcs = new StubVcsClient();
+        vcs.existingRepos.remove("acme/app-context");
+        var store = freshStore("learn-no-context-" + System.identityHashCode(docker));
+        var engine = engineFor(docker, vcs, store, new EventDebouncer());
+
+        var run = engine.handle(prMerged()).stream().filter(RunEngine.Outcome::handled).findFirst().orElseThrow();
+
+        assertEquals(List.of(), observeLearn(docker, vcs).containers());
+        assertEquals(List.of(), vcs.createdPrs);
+        assertEquals(RunStatus.COMPLETED, store.find(run.runId()).orElseThrow().status());
     }
 
     @Test
