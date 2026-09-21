@@ -61,6 +61,26 @@ class GitLabEventMapperTest {
         assertEquals("please fix", review.comments().getFirst().body());
     }
 
+    @Test
+    void anUnhandledEventIsIgnoredWhateverItSaysAboutItsRepo() throws Exception {
+        // The repo is only named in a log line, and hooks differ in whether
+        // they carry one at all: none of these shapes may make the mapper fail.
+        // The name is resolved before the debug level is checked, so this holds
+        // at any log level.
+        for (String payload : new String[] {
+            """
+            {"object_kind": "build", "project": {"path_with_namespace": "acme/app"}}""",
+            """
+            {"object_kind": "build", "project_name": "Acme / App"}""",
+            """
+            {"object_kind": "build", "project": null}""",
+            "{}",
+        }) {
+            assertNull(mapper().map("Job Hook", json.readTree(payload)), payload);
+        }
+        assertNull(mapper().map("Job Hook", null));
+    }
+
     private static String diffNote(String sourceBranch) {
         return """
         {
