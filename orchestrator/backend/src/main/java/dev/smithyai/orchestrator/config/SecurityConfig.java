@@ -57,8 +57,9 @@ public class SecurityConfig {
             // token, and their signature is the check.
             .csrf(csrf -> csrf.spa().ignoringRequestMatchers("/webhooks/**"))
             // Written before the request is handled rather than when the response
-            // commits: static resources are sent by the container in a way that
-            // skips the commit hook, which left the dashboard page without them.
+            // commits: on a real Tomcat, static resources (the dashboard itself)
+            // went out without them, while API responses had them.
+            // SecurityHeadersServerTest pins this.
             .headers(headers ->
                 headers.addObjectPostProcessor(
                     new ObjectPostProcessor<HeaderWriterFilter>() {

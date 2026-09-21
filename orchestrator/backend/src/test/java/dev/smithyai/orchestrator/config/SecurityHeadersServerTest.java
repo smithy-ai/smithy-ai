@@ -12,9 +12,9 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 
 /**
  * Security headers as a real servlet container sends them. MockMvc showed them on
- * the dashboard page while the deployed server did not: static resources are
- * written by the container in a way that bypassed the lazy header writing, which
- * only a real server reproduces.
+ * the dashboard page while the deployed server did not: with the default lazy
+ * header writing, every static resource went out without them. Only a real
+ * server reproduces that.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class SecurityHeadersServerTest {
