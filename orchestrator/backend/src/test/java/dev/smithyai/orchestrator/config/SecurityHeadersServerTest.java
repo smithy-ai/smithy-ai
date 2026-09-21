@@ -34,6 +34,12 @@ class SecurityHeadersServerTest {
             assertEquals(200, response.statusCode(), path);
             assertEquals("DENY", response.headers().firstValue("X-Frame-Options").orElse(null), path);
             assertEquals("nosniff", response.headers().firstValue("X-Content-Type-Options").orElse(null), path);
+            // The login form is the dashboard's first POST, so the token has to
+            // arrive with the page.
+            assertTrue(
+                response.headers().allValues("Set-Cookie").stream().anyMatch(c -> c.startsWith("XSRF-TOKEN=")),
+                path + " sets XSRF-TOKEN"
+            );
         }
     }
 
