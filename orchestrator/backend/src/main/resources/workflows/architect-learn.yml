@@ -56,8 +56,11 @@ state:
 
           # The merged branch, with the guidelines repository cloned beside it on
           # a fresh branch — the agent edits the guidelines in place and the
-          # branch is what becomes the proposal.
+          # branch is what becomes the proposal. No guidelines repository means
+          # nothing to propose to: every step that needs one is skipped, and the
+          # run ends below as if there were nothing to learn.
           - uses: container.init
+            if: "{{ steps.context.exists }}"
             with:
               name: "architect.{{ repo.owner }}.{{ repo.name }}.learn-{{ event.prNumber }}"
               cloneUrl: "{{ repo.cloneUrl }}"
@@ -71,6 +74,7 @@ state:
 
           - uses: pr.conversation
             id: conversation
+            if: "{{ steps.context.exists }}"
             with:
               owner: "{{ repo.owner }}"
               repo: "{{ repo.name }}"
@@ -78,6 +82,7 @@ state:
 
           - uses: agent.runStructured
             id: learning
+            if: "{{ steps.context.exists }}"
             with:
               tools: "{{ vars.tools }}"
               template: architect_learn.md.j2
@@ -151,6 +156,7 @@ state:
               contextPrNumber: "{{ steps.context_pr.number }}"
 
           - uses: metrics.record
+            if: "{{ steps.context.exists }}"
             with:
               name: guideline_learned
               action: "{{ steps.learning.action }}"
