@@ -305,6 +305,27 @@ class ArchitectDefinitionTest {
         assertEquals("Updated the proposal.", reply.body());
     }
 
+    @Test
+    void closingTheProposalReleasesTheContainerWaitingOnIt() {
+        var docker = new FakeDockerCli()
+            .enqueueClaudeStructured(LEARNING_JSON)
+            .onExec("symbolic-ref", new dev.smithyai.orchestrator.service.docker.dto.ExecResult(0, "main", ""));
+        var vcs = new StubVcsClient();
+        var store = freshStore("proposal-closed-" + System.identityHashCode(docker));
+        var engine = engineFor(docker, vcs, store, new ImmediateDebouncer());
+
+        var started = engine.handle(prMerged()).stream().filter(RunEngine.Outcome::handled).findFirst().orElseThrow();
+        String container = "architect.acme.app.learn-3";
+        assertTrue(docker.containerExists(container), "held open for discussion on the proposal");
+
+        // Merged or closed arrive alike; either way the discussion is over.
+        var contextRepo = new RepoInfo("acme", "app-context", "https://git.invalid/acme/app-context");
+        engine.handle(new WorkflowEvent.PrClosed(contextRepo, 100, true, "architect/pr-3-learn"));
+
+        assertFalse(docker.containerExists(container), "a closed proposal must not pin a container");
+        assertEquals(RunStatus.CANCELLED, store.find(started.runId()).orElseThrow().status());
+    }
+
     private static final class ImmediateDebouncer extends EventDebouncer {
 
         @Override
