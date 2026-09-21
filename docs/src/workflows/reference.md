@@ -215,8 +215,19 @@ on.
 | `issue.comment` | `owner`, `repo`, `issue`, `body` | none | `commentId` |
 | `issue.read` | `owner`, `repo`, `issue` | none | `issueRef`, `title`, `body`, `state`, `assignees`, `labels`, `baseBranch` |
 | `issue.link` | `owner`, `repo`, `issue` | none | `url` |
-| `issue.comments` | `owner`, `repo`, `issue` | none | `comments[]` (`author`, `body`, `createdAt`), `count` |
+| `issue.comments` | `owner`, `repo`, `issue` | none | `comments[]` (`id`, `author`, `body`, `createdAt`), `count` |
+| `issue.pruneComments` | `owner`, `repo`, `issue` | `keep[]` (comment ids), `author` | `deleted`, `deletedIds`, `kept`, `failed` |
 | `attachments.fetch` | `owner`, `repo`, `issue` | none | `paths`, `count` |
+
+`issue.pruneComments` deletes the comments the workflow's own actor wrote on an
+issue, except the ids listed in `keep`. It never touches anyone else's comments:
+the actor is resolved to its identity on the target tracker (a Jira accountId, a
+GitLab username) and only comments by that author are considered; `author` names
+another identity instead. A planning conversation leaves a trail of superseded
+plans and acknowledgements that bury the one that was approved, and this is how
+a workflow keeps the approved plan (and, say, a digest of the questions and
+answers it collected) while the rest goes. A deletion the provider refuses is
+counted in `failed` and logged, not thrown, so tidying up cannot undo an approval.
 
 ### Pull requests
 
@@ -304,9 +315,9 @@ the capability.
 | Provider | Supports |
 |---|---|
 | GitLab | everything |
-| Forgejo | pull requests, issue comment/assign/create/label, file read |
-| GitHub | pull requests, issue comment/assign |
-| Jira | issue comment, issue assign |
+| Forgejo | pull requests, issue comment/delete/assign/create/label, file read |
+| GitHub | pull requests, issue comment/delete/assign |
+| Jira | issue comment (post and delete own), issue assign |
 
 ## Where definitions come from
 

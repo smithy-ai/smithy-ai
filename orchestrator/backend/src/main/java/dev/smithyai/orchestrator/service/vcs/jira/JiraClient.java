@@ -38,7 +38,7 @@ public class JiraClient implements IssueTrackerClient {
      */
     @Override
     public java.util.Set<Capability> capabilities() {
-        return java.util.EnumSet.of(Capability.ISSUE_COMMENT, Capability.ISSUE_ASSIGN);
+        return java.util.EnumSet.of(Capability.ISSUE_COMMENT, Capability.ISSUE_COMMENT_DELETE, Capability.ISSUE_ASSIGN);
     }
 
     private final String baseUrl;
@@ -121,6 +121,11 @@ public class JiraClient implements IssueTrackerClient {
             node.path("body").asText(""),
             parseDateTime(node.path("created").asText(""))
         );
+    }
+
+    @Override
+    public void deleteIssueComment(String owner, String repo, String issueRef, long commentId) {
+        delete("/issue/%s/comment/%d", issueRef, commentId);
     }
 
     /**
@@ -218,6 +223,25 @@ public class JiraClient implements IssueTrackerClient {
 
     private JsonNode put(String pathTemplate, Map<String, Object> body, Object... args) {
         return send("PUT", pathTemplate, body, args);
+    }
+
+    private void delete(String pathTemplate, Object... args) {
+        String path = pathTemplate.formatted(args);
+        try {
+            var request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/rest/api/2" + path))
+                .header("Authorization", authHeaderValue)
+                .DELETE()
+                .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                throw new RuntimeException(
+                    "Jira API error %d on DELETE %s: %s".formatted(response.statusCode(), path, response.body())
+                );
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("Jira API request failed: DELETE " + path, e);
+        }
     }
 
     private JsonNode send(String method, String pathTemplate, Map<String, Object> body, Object... args) {
