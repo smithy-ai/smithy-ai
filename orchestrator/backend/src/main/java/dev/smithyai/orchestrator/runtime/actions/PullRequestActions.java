@@ -1,6 +1,10 @@
 package dev.smithyai.orchestrator.runtime.actions;
 
+import dev.smithyai.orchestrator.runtime.store.Run;
+import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.service.vcs.VcsClients;
+import dev.smithyai.orchestrator.web.WebhookArrivals;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -13,6 +17,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class PullRequestActions {
 
+    /** The run variable, and dashboard flag, set when a pull request cannot report back. */
+    public static final String WEBHOOK_MISSING_VAR = "webhookMissing";
+
+    /** How long {@code pr.create} waits to hear its pull request was opened, unless told otherwise. */
+    static final Duration DEFAULT_WEBHOOK_PATIENCE = Duration.ofMinutes(1);
+
     /**
      * Open a pull request.
      *
@@ -21,9 +31,19 @@ public class PullRequestActions {
      * second one. Where the provider already has a PR for the branch it is
      * reused rather than duplicated, which covers the case where the crash
      * landed between the provider call and the record of it.
+     *
+     * <p>A newly opened pull request is then listened for. A pull request in a
+     * repository whose events do not reach this orchestrator is work delivered
+     * somewhere it is deaf to: every review comment, every "@bot fix this"
+     * lands in silence, and nothing tells the people commenting. Observed
+     * live: 132 of 138 catalog repositories in one deployment, and comments on
+     * merge requests there went unanswered for days. Whether the events reach
+     * us is judged from the one delivery that is certain to be attempted — the
+     * opening itself — rather than from the repository's hook list, which is
+     * empty wherever the hook lives on the group or organisation.
      */
     @Bean
-    public WorkflowAction prCreateAction(VcsClients clients) {
+    public WorkflowAction prCreateAction(VcsClients clients, WebhookArrivals arrivals, RunStore store) {
         return new WorkflowAction() {
             @Override
             public String type() {
@@ -59,31 +79,27 @@ public class PullRequestActions {
                     log.info("Reusing existing PR #{} for {}/{}:{}", pr.number(), owner, repo, head);
                 }
 
-                // A pull request in a repository that has no webhook for this
-                // connector is work delivered somewhere the orchestrator is deaf
-                // to: every comment there goes unanswered, and nothing tells the
-                // people commenting. Say so where they will look — once, when
-                // the pull request opens; a reused one has had its say.
+                // Once, when the pull request opens; a reused one has had its say.
                 boolean webhookMissing = false;
-                if (existing == null) {
+                Duration patience = existing == null ? patience(input) : Duration.ZERO;
+                if (!patience.isZero() && !arrivals.awaitPullRequest(owner, repo, pr.number(), patience)) {
+                    webhookMissing = true;
                     String connector = Vcs.target(this, context, input, clients);
-                    var notice = WebhookAudit.notice(vcs, connector, owner, repo);
-                    if (notice.isPresent()) {
-                        webhookMissing = true;
-                        log.warn(
-                            "{}/{} has no webhook delivering to {}: comments on PR #{} will not reach this orchestrator",
-                            owner,
-                            repo,
-                            WebhookAudit.webhookPath(connector),
-                            pr.number()
-                        );
-                        try {
-                            vcs.createPrComment(owner, repo, pr.number(), notice.get());
-                        } catch (RuntimeException e) {
-                            // A courtesy; the pull request itself is what matters.
-                            log.warn("Could not post the webhook notice on {}/{} PR #{}", owner, repo, pr.number(), e);
-                        }
+                    log.warn(
+                        "No webhook delivery about {}/{} PR #{} reached /webhooks/{} within {}: comments there will not either",
+                        owner,
+                        repo,
+                        pr.number(),
+                        connector,
+                        patience
+                    );
+                    try {
+                        vcs.createPrComment(owner, repo, pr.number(), notice(connector, patience));
+                    } catch (RuntimeException e) {
+                        // A courtesy; the pull request itself is what matters.
+                        log.warn("Could not post the webhook notice on {}/{} PR #{}", owner, repo, pr.number(), e);
                     }
+                    flag(store, context.run(), connector, owner, repo, pr.number(), patience);
                 }
 
                 var output = new LinkedHashMap<String, Object>();
@@ -92,10 +108,86 @@ public class PullRequestActions {
                 output.put("headRef", pr.headRef());
                 output.put("baseRef", pr.baseRef());
                 output.put("reused", existing != null);
-                output.put("webhookMissing", webhookMissing);
+                output.put(WEBHOOK_MISSING_VAR, webhookMissing);
                 return output;
             }
+
+            /** {@code webhookTimeout}: how long to listen for the opening; {@code 0} does not listen. */
+            private Duration patience(Map<String, Object> input) {
+                String raw = optional(input, "webhookTimeout", "");
+                if (raw.isBlank()) return DEFAULT_WEBHOOK_PATIENCE;
+                try {
+                    String value = raw.strip();
+                    if (value.regionMatches(true, 0, "P", 0, 1)) return Duration.parse(value);
+                    char unit = value.charAt(value.length() - 1);
+                    if (Character.isDigit(unit)) return Duration.ofSeconds(Long.parseLong(value));
+                    long amount = Long.parseLong(value.substring(0, value.length() - 1).strip());
+                    return switch (Character.toLowerCase(unit)) {
+                        case 's' -> Duration.ofSeconds(amount);
+                        case 'm' -> Duration.ofMinutes(amount);
+                        case 'h' -> Duration.ofHours(amount);
+                        default -> throw new IllegalArgumentException("unknown unit '" + unit + "'");
+                    };
+                } catch (RuntimeException e) {
+                    throw new IllegalArgumentException(
+                        "%s expects a duration for 'webhookTimeout' (e.g. 60s, 2m, PT1M or 0), got '%s'".formatted(
+                            type(),
+                            raw
+                        ),
+                        e
+                    );
+                }
+            }
         };
+    }
+
+    /** What the people on the pull request are told when the bot cannot hear them. */
+    static String notice(String connector, Duration waited) {
+        return (
+            "Heads-up: nothing said here will reach me. I opened this pull request and waited %s for the " +
+            "provider to tell the orchestrator about it at `/webhooks/%s`, and nothing arrived — so comments, " +
+            "reviews and pipeline results posted here will not arrive either. A maintainer can add a webhook " +
+            "for this repository, or for its group or organisation, pointing there, with merge/pull request " +
+            "and comment events enabled and the configured secret. Until then, reach me on the issue or from " +
+            "the dashboard."
+        ).formatted(humane(waited), connector);
+    }
+
+    /**
+     * Mark the run, so the dashboard shows the pull request that cannot report
+     * back and the timeline says which one and when.
+     */
+    private static void flag(
+        RunStore store,
+        Run run,
+        String connector,
+        String owner,
+        String repo,
+        int number,
+        Duration waited
+    ) {
+        if (store == null || run == null) return;
+        try {
+            var payload = new LinkedHashMap<String, Object>();
+            payload.put("owner", owner);
+            payload.put("repo", repo);
+            payload.put("number", number);
+            payload.put("connector", connector);
+            payload.put("waited", waited.toString());
+            store.appendEvent(run.id(), "webhook.missing", payload);
+            store.mergeVars(run.id(), Map.of(WEBHOOK_MISSING_VAR, true));
+        } catch (RuntimeException e) {
+            log.warn("Could not flag run {} for the missing webhook on {}/{} PR #{}", run.id(), owner, repo, number, e);
+        }
+    }
+
+    private static String humane(Duration duration) {
+        long seconds = duration.toSeconds();
+        if (seconds >= 60 && seconds % 60 == 0) {
+            long minutes = seconds / 60;
+            return minutes == 1 ? "a minute" : minutes + " minutes";
+        }
+        return seconds == 1 ? "a second" : seconds + " seconds";
     }
 
     @Bean

@@ -57,17 +57,15 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     public final List<String> existingRepos = new ArrayList<>(List.of("acme/app", "acme/app-context"));
 
     /**
-     * The webhooks every repository reports. Null — the default — means the
-     * stub cannot list them, which is what most tests want: a flow under test
-     * should not grow an extra comment about webhooks it never mentioned.
+     * Where this stub's webhook deliveries land. A pull request it opens is
+     * announced here the way a provider with a working webhook would, so a
+     * flow under test is not held for a delivery that is never coming.
      */
-    public List<WebhookInfo> webhooks = null;
+    public final dev.smithyai.orchestrator.web.WebhookArrivals arrivals =
+        new dev.smithyai.orchestrator.web.WebhookArrivals();
 
-    @Override
-    public List<WebhookInfo> listWebhooks(String owner, String repo) {
-        if (webhooks == null) throw new UnsupportedOperationException("no webhooks in this stub");
-        return webhooks;
-    }
+    /** False for a repository whose events never reach the orchestrator. */
+    public boolean deliversWebhooks = true;
 
     private final AtomicInteger nextPrNumber = new AtomicInteger(100);
 
@@ -139,6 +137,7 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     ) {
         var pr = new PrData(nextPrNumber.getAndIncrement(), title, body, false, head, base, List.of());
         createdPrs.add(pr);
+        if (deliversWebhooks) arrivals.pullRequestOpened(owner, repo, pr.number());
         return pr;
     }
 

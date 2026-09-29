@@ -229,7 +229,7 @@ class FeatureCoordinatorTest {
                 new AgentNewSessionAction(environments),
                 new PrConversationAction(vcsClients),
                 new RepoContextAction(new RepositoryConfigResolver(vcs), vcs),
-                prActions.prCreateAction(vcsClients),
+                prActions.prCreateAction(vcsClients, vcs.arrivals, store),
                 prActions.prCommentAction(vcsClients),
                 prActions.prRequestReviewAction(vcsClients),
                 prActions.prReadAction(vcsClients),

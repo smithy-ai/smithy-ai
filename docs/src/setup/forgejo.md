@@ -37,7 +37,8 @@ Enable issue, issue comment, push, pull request, pull request comment, and Actio
 run events. Use the same webhook on the context repository. The demo under
 `examples/demo` automates user, token, label, collaborator, and webhook setup.
 
-Every repository the orchestrator may open a pull request in needs the webhook.
-When the bot can read a repository's webhooks, `pr.create` checks for one on this
-connector's path after opening a pull request and posts a heads-up on it when
-comments there could not reach the orchestrator.
+Every repository the orchestrator may open a pull request in must deliver to
+this webhook, whether through its own hook or one on its organisation. After
+opening a pull request, `pr.create` waits a minute for the provider to report the
+opening; if nothing arrives, it posts a heads-up on the pull request, flags the
+run on the dashboard, and reports `webhookMissing`.

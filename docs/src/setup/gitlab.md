@@ -38,11 +38,13 @@ https://<orchestrator-host>/webhooks/gitlab-main
 Enable issue, comment, push, merge request, and pipeline events. Use the configured
 webhook secret as GitLab's secret token.
 
-Every project the orchestrator may open a merge request in needs this webhook,
-including each entry of a repository catalog a coordinator fans out to. A merge
-request in a project without one is work delivered somewhere the orchestrator
-cannot hear: review comments there are never answered. GitLab CE has no group
-webhooks, so register one per project. With `glab` authenticated as a maintainer:
+Every project the orchestrator may open a merge request in must deliver to this
+webhook, including each entry of a repository catalog a coordinator fans out to.
+A merge request in a project that does not is work delivered somewhere the
+orchestrator cannot hear: review comments there are never answered. On GitLab
+Premium and Ultimate a group webhook covers every project in the group. GitLab
+CE has no group webhooks, so register one per project. With `glab` authenticated
+as a maintainer:
 
 ```bash
 ORCH=https://<orchestrator-host>/webhooks/gitlab-main
@@ -54,7 +56,7 @@ for p in group/repo-a group/repo-b; do
 done
 ```
 
-When the bot has Maintainer access, `pr.create` reads the project's webhooks
-after opening a merge request and posts a heads-up on it if none delivers to
-this connector, or if the one that does lacks comment or merge request events.
-With Developer access GitLab hides the webhook list, and the check stays silent.
+After opening a merge request, `pr.create` waits a minute for GitLab to report
+the opening; if nothing arrives, it posts a heads-up on the merge request, flags
+the run on the dashboard, and reports `webhookMissing`. Judged from the delivery
+rather than the project's hook list, so a group webhook counts.
