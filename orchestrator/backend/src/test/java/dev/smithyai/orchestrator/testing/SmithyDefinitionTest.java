@@ -136,7 +136,7 @@ class SmithyDefinitionTest {
                 issues.issueAssignAction(trackers),
                 issues.issueLabelAction(trackers),
                 issues.issueReadAction(trackers),
-                prs.prCreateAction(vcs.asRegistry()),
+                prs.prCreateAction(vcs.asRegistry(), vcs.arrivals, store),
                 prs.prCommentAction(vcs.asRegistry()),
                 prs.prRequestReviewAction(vcs.asRegistry()),
                 prs.prReadAction(vcs.asRegistry()),

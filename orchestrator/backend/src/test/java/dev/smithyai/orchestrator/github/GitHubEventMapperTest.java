@@ -117,6 +117,30 @@ class GitHubEventMapperTest {
         return new VcsProviderConfig("github", null, null, null, github, null);
     }
 
+    @Test
+    void aPullRequestBeingOpenedIsReportedWhoeverOpenedIt() throws Exception {
+        // How the orchestrator learns a repository's events reach it at all:
+        // the step that opened the pull request waits for exactly this.
+        String payload = """
+            {
+              "action": "opened",
+              "sender": {"login": "smithy-bot"},
+              "repository": {"full_name": "acme/app", "owner": {"login": "acme"}, "name": "app",
+                             "html_url": "https://github.com/acme/app", "clone_url": "https://github.com/acme/app.git"},
+              "pull_request": {"number": 41, "title": "Add a thing", "body": "", "merged": false,
+                               "head": {"ref": "smithy/7-a-thing"}, "base": {"ref": "main"}}
+            }
+            """;
+
+        var event = mapper().map("pull_request", mapper.readTree(payload));
+
+        var opened = assertInstanceOf(WorkflowEvent.PrOpened.class, event);
+        assertEquals("pr.opened", opened.name());
+        assertEquals(41, opened.prc().number());
+        assertEquals("acme", opened.prc().info().owner());
+        assertEquals("app", opened.prc().info().repo());
+    }
+
     private GitHubEventMapper mapper() {
         var botConfig = new BotConfig(
             new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),

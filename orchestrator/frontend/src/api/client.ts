@@ -46,6 +46,8 @@ export interface Run {
   terminalAt: string | null;
   /** Routing key without the workflow prefix, e.g. "story:acme/product#PROD-1". */
   key: string | null;
+  /** A pull request this run opened is somewhere the orchestrator cannot hear. */
+  webhookMissing: boolean;
 }
 
 export async function fetchRuns(limit = 100): Promise<Run[]> {

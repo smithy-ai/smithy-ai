@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.web.dto;
 
+import dev.smithyai.orchestrator.runtime.actions.PullRequestActions;
 import dev.smithyai.orchestrator.runtime.store.Run;
 import java.time.Instant;
 import java.util.List;
@@ -23,7 +24,11 @@ public record RunDto(
     // The routing key the run was created under, e.g. "story:acme/product#PROD-1"
     // — how a reader tells two runs of the same workflow apart. Null for runs
     // that were spawned rather than routed.
-    String key
+    String key,
+    // A pull request this run opened is in a repository whose events never
+    // reached the orchestrator: whatever is said there goes unanswered until
+    // a webhook is added.
+    boolean webhookMissing
 ) {
     public static RunDto from(Run run, List<String> containers, boolean live, String key) {
         return new RunDto(
@@ -37,7 +42,8 @@ public record RunDto(
             run.createdAt(),
             run.updatedAt(),
             run.terminalAt(),
-            key
+            key,
+            Boolean.TRUE.equals(run.vars().get(PullRequestActions.WEBHOOK_MISSING_VAR))
         );
     }
 }

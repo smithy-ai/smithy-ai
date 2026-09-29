@@ -106,6 +106,7 @@ on it is how a feature for the coordinator is told from a task for the agent.
 | `pr.commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `commentBody`, `commentUser`, `commentId`, `discussionId` |
 | `pr.review_commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `comments`, `commentId`, `discussionId` |
 | `pr.review_submitted` | `prNumber`, …, `reviewId`, `reviewBody`, `reviewer` |
+| `pr.opened` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`; every pull request opened, by anyone |
 | `pr.review_requested` | `prNumber`, `prTitle`, `headBranch`, `baseBranch` |
 | `pr.ready_for_review` | as above; emitted when a draft or WIP marker is removed |
 | `pr.unassigned` | as above |
@@ -222,7 +223,7 @@ on.
 
 | Action | Required | Optional | Outputs |
 |---|---|---|---|
-| `pr.create` | `owner`, `repo`, `title`, `head`, `base` | `body`, `draft` | `number`, `title`, `headRef`, `baseRef`, `reused` |
+| `pr.create` | `owner`, `repo`, `title`, `head`, `base` | `body`, `draft`, `webhookTimeout` | `number`, `title`, `headRef`, `baseRef`, `reused`, `webhookMissing` |
 | `pr.comment` | `owner`, `repo`, `number`, `body` | none | `number` |
 | `pr.reply` | `owner`, `repo`, `number`, `body` | `discussion` | `posted`, `threaded` |
 | `pr.review` | `owner`, `repo`, `number` | `summary`, `comments[]` (`path`, `line`, `body`), `event` | `posted`, `comments` |
@@ -237,9 +238,15 @@ on.
 | `comment.react` | `owner`, `repo`, `number`, `commentId` | `reaction` (default `eyes`) | `reacted` |
 
 `pr.create` reuses an existing pull request for the same head branch instead of
-opening a second one. `pr.requestReview` resolves `notFromActor` and drops that
-provider username from the list. A failure to request the review is reported in
-`reason` without stopping the transition.
+opening a second one. When it opens a new one, it waits for the provider to
+deliver the `pr.opened` event for it — a minute by default, `webhookTimeout`
+(`30s`, `2m`, `PT1M`; `0` skips the wait) otherwise. If nothing arrives, the
+repository's events do not reach this orchestrator and nothing said on that pull
+request ever will, so it posts a heads-up comment there saying so, records
+`webhook.missing` on the run's timeline, flags the run on the dashboard, and
+reports `webhookMissing: true`. `pr.requestReview` resolves `notFromActor` and
+drops that provider username from the list. A failure to request the review is
+reported in `reason` without stopping the transition.
 
 ### Files and repositories
 
