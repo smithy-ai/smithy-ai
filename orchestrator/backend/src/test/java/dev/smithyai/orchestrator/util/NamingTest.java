@@ -26,6 +26,25 @@ class NamingTest {
     }
 
     @Test
+    void containerNameKeepsValidNames() {
+        assertEquals("architect.owner.repo.learn-12", Naming.containerName("architect.owner.repo.learn-12"));
+    }
+
+    @Test
+    void containerNameFlattensNestedRepoPaths() {
+        assertEquals(
+            "architect.cloudsuiteip.teams--shared--trydent.learn-10878",
+            Naming.containerName("architect.cloudsuiteip.teams/shared/trydent.learn-10878")
+        );
+    }
+
+    @Test
+    void containerNameReplacesOtherInvalidCharacters() {
+        assertEquals("smithy.owner.my-repo.ECD-1", Naming.containerName("smithy.owner.my repo.ECD-1"));
+        assertEquals("c--owner", Naming.containerName("/owner"));
+    }
+
+    @Test
     void repoSlug() {
         assertEquals("owner/repo", Naming.repoSlug("owner", "repo"));
     }

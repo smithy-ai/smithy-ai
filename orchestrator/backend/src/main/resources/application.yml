@@ -2,6 +2,11 @@ logging:
   level:
     dev.smithyai.orchestrator: DEBUG
 
+# Behind Caddy, which terminates TLS: trust its X-Forwarded-* headers so the
+# request counts as HTTPS (secure session cookie, HSTS).
+server:
+  forward-headers-strategy: native
+
 spring:
   threads:
     virtual:

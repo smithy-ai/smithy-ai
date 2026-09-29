@@ -4,6 +4,7 @@ import dev.smithyai.orchestrator.config.Actors;
 import dev.smithyai.orchestrator.config.DockerConfig;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.service.docker.dto.ContainerConfig;
+import dev.smithyai.orchestrator.util.Naming;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,7 +59,8 @@ public class ContainerInitAction implements WorkflowAction {
             return Map.of("name", existing.get().getContainerName(), "created", false);
         }
 
-        String name = required(input, "name");
+        // Templated from the repository path, which may be nested.
+        String name = Naming.containerName(required(input, "name"));
         String eventSource = context.event() == null ? "" : context.event().source();
         String connector = optional(input, "target", actors.vcsConnector(eventSource));
         if ("event.source".equals(connector)) connector = actors.vcsConnector(eventSource);

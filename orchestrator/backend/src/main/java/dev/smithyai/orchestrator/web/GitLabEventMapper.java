@@ -68,10 +68,22 @@ public class GitLabEventMapper {
             case "Merge Request Hook" -> mapMergeRequestHook(payload);
             case "Pipeline Hook" -> mapPipelineHook(payload);
             default -> {
-                log.debug("Unhandled GitLab event type: {}", eventType);
+                log.debug("Unhandled GitLab event type: {} (repo: {})", eventType, repoNameForLog(payload));
                 yield null;
             }
         };
+    }
+
+    /**
+     * Best-effort repo name for logging only. Not every hook carries a
+     * {@code project} object (older Job Hooks only have {@code project_name}),
+     * so this falls back rather than assuming the shape.
+     */
+    private static String repoNameForLog(JsonNode payload) {
+        if (payload == null) return "unknown";
+        String path = payload.path("project").path("path_with_namespace").asText("");
+        if (path.isBlank()) path = payload.path("project_name").asText("");
+        return path.isBlank() ? "unknown" : path;
     }
 
     // ── Issue Hook ──────────────────────────────

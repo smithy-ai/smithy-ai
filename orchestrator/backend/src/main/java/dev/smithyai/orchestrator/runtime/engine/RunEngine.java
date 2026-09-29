@@ -247,12 +247,19 @@ public class RunEngine implements SignalDelivery {
      */
     private Optional<Run> byCorrelation(String by, WorkflowEvent event) {
         return switch (by) {
-            case "pr" -> event instanceof WorkflowEvent.PrScoped pr
-                ? store.findByCorrelation(
-                      CorrelationKind.PR,
-                      RunRecorder.prRef(pr.prc().info().owner(), pr.prc().info().repo(), pr.prc().number())
-                  )
-                : Optional.empty();
+            case "pr" -> switch (event) {
+                case WorkflowEvent.PrScoped pr -> store.findByCorrelation(
+                    CorrelationKind.PR,
+                    RunRecorder.prRef(pr.prc().info().owner(), pr.prc().info().repo(), pr.prc().number())
+                );
+                // Not PR-scoped — a closed PR carries no PrContext — but it
+                // still names the pull request it is about.
+                case WorkflowEvent.PrClosed closed -> store.findByCorrelation(
+                    CorrelationKind.PR,
+                    RunRecorder.prRef(closed.info().owner(), closed.info().repo(), closed.prNumber())
+                );
+                default -> Optional.empty();
+            };
             case "issue" -> event instanceof WorkflowEvent.IssueScoped issue
                 ? store.findByCorrelation(
                       CorrelationKind.ISSUE,

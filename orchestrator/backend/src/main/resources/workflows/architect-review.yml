@@ -45,9 +45,17 @@ state:
               owner: "{{ repo.owner }}"
               repo: "{{ repo.name }}"
 
+          # No guidelines repository means nothing to review against: skip the
+          # review and end the run.
+          - uses: state.set
+            if: "{{ not steps.context.exists }}"
+            with:
+              state: done
+
           # The branch under review, with the guidelines cloned beside it: the
           # agent has to read both to say whether one follows the other.
           - uses: container.init
+            if: "{{ steps.context.exists }}"
             with:
               name: "architect.{{ repo.owner }}.{{ repo.name }}.pr-{{ event.prNumber }}"
               cloneUrl: "{{ repo.cloneUrl }}"
@@ -65,12 +73,14 @@ state:
               prNumber: "{{ event.prNumber }}"
 
           - uses: correlate
+            if: "{{ steps.context.exists }}"
             with:
               kind: pr
               ref: "{{ repo.owner }}/{{ repo.name }}!{{ event.prNumber }}"
 
           - uses: agent.runStructured
             id: review
+            if: "{{ steps.context.exists }}"
             with:
               tools: "{{ vars.tools }}"
               template: architect_review.md.j2
@@ -93,6 +103,7 @@ state:
                     body: string
 
           - uses: pr.review
+            if: "{{ steps.context.exists }}"
             with:
               owner: "{{ repo.owner }}"
               repo: "{{ repo.name }}"

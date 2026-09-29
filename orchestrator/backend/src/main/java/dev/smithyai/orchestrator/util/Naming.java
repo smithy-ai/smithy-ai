@@ -3,17 +3,11 @@ package dev.smithyai.orchestrator.util;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.smithyai.orchestrator.model.RepoInfo;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class Naming {
 
-    public static final Pattern CONTAINER_RE = Pattern.compile("^(smithy|architect)\\.([^.]+)\\.([^.]+)\\.(.+)$");
-    public static final Pattern ID_RE = Pattern.compile("^([A-Za-z0-9-]+)(?:\\.(refine|build))?$");
     // Issue ref in a branch: a plain number ("123") or an issue-tracker key ("ECD-4309").
     // Keys are uppercase, slugs lowercase, so the boundary is unambiguous.
     private static final Pattern ISSUE_REF_RE = Pattern.compile("^(?:smithy|architect)/((?:[A-Z][A-Z0-9_]*-)?\\d+)-");
@@ -59,33 +53,15 @@ public final class Naming {
         return issueRef.chars().allMatch(Character::isDigit) ? "#" + issueRef : issueRef;
     }
 
-    public static String containerName(String type, String owner, String repo, String identifier) {
-        String sanitizedOwner = owner.replace("/", "--");
-        String sanitizedRepo = repo.replace("/", "--");
-        String candidate = type + "." + sanitizedOwner + "." + sanitizedRepo + "." + identifier;
-        if (candidate.length() <= 63) {
-            return candidate;
-        }
-        String slug = sanitizedOwner + "." + sanitizedRepo;
-        String hash = shortHash(owner + "/" + repo);
-        // Fixed parts: type + "." + "." + "-" + hash + "." + identifier
-        int fixedLen = type.length() + 1 + 1 + 1 + hash.length() + 1 + identifier.length();
-        int available = 63 - fixedLen;
-        if (available < 1) {
-            available = 1;
-        }
-        String truncatedSlug = slug.substring(0, Math.min(slug.length(), available));
-        return type + "." + truncatedSlug + "-" + hash + "." + identifier;
-    }
-
-    private static String shortHash(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash, 0, 4);
-        } catch (NoSuchAlgorithmException e) {
-            throw new AssertionError("SHA-256 not available", e);
-        }
+    /**
+     * A Docker-safe form of a container name a workflow asks for. Docker only
+     * allows {@code [a-zA-Z0-9][a-zA-Z0-9_.-]*}, while repository paths can be
+     * nested ({@code group/subgroup/repo} on GitLab): slashes become {@code --}
+     * and anything else Docker rejects becomes {@code -}.
+     */
+    public static String containerName(String requested) {
+        String name = requested.replace("/", "--").replaceAll("[^a-zA-Z0-9_.-]", "-");
+        return name.isEmpty() || !Character.isLetterOrDigit(name.charAt(0)) ? "c" + name : name;
     }
 
     public static String contextRepoName(String repo) {
