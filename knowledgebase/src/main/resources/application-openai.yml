@@ -1,0 +1,16 @@
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      embedding:
+        options:
+          model: ${EMBEDDING_MODEL:text-embedding-3-small}
+      chat:
+        options:
+          model: ${CHAT_MODEL:gpt-4o}
+          temperature: 1
+    ollama:
+      embedding:
+        enabled: false
+      chat:
+        enabled: false

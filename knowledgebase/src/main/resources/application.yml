@@ -1,16 +1,9 @@
 spring:
   application:
     name: knowledgebase-mcp
+  profiles:
+    active: ${AI_PROVIDER:ollama}
   ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-      embedding:
-        options:
-          model: ${EMBEDDING_MODEL:text-embedding-3-small}
-      chat:
-        options:
-          model: ${CHAT_MODEL:gpt-4o}
-          temperature: 1
     mcp:
       server:
         enabled: true
