@@ -128,8 +128,20 @@ on it is how a feature for the coordinator is told from a task for the agent.
 
 Emitted by `signal.emit`, by the engine when a child run reaches a terminal state
 (`signal:child-done`, payload includes `child`, `workflow`, `status` and the
-child's vars), and by the dashboard when a gate is approved
-(`signal:gate-approved`, payload includes `key`). The built-in
+child's vars), by the dashboard when a gate is approved
+(`signal:gate-approved`, payload includes `key`), and by the dashboard when a
+person who took a session over hands it back (`signal:takeover-finished`,
+payload includes `messages` — how many they sent — and a unique `id`, so two
+hand-backs in one state are two transitions). A state that does not handle the
+hand-back ignores it, and the dashboard only offers the button where it would
+be handled.
+
+Events that arrive while a person holds a run's session are held, not acted
+on, and handed to the run in arrival order once control is released — after
+the hand-back signal, when there is one, so a workflow can write down what was
+agreed before a held approval runs it. Held events live in memory: an
+orchestrator restart during a takeover loses them, and the event has to be
+re-sent. The built-in
 `smithy-development` also signals its parent, if it has one, when its merge
 request opens (`signal:pr-opened`, payload includes `owner`, `repo`, `issueRef`,
 `prNumber`, `url`) — the feature coordinator relays that link onto the story.
@@ -165,6 +177,7 @@ well, so an agent working in the container pushes as that identity.
 | `agent.newSession` | none | none | `reset` |
 | `exec` | `command[]` or `shell` | `env{}`, `failOnError` (default true) | `exitCode`, `ok`, `stdout`, `stderr` |
 | `instance.destroy` | none | none | `destroyed` |
+| `session.link` | none | `container` (defaults to the run's own) | `url` |
 
 `agent.run` in plan mode starts a fresh conversation; otherwise it resumes the
 run's existing one. `agent.newSession` forces the next turn to start over,
@@ -173,6 +186,11 @@ useful when planning and building want different tools and no shared history.
 `model:` runs that one turn on a different Claude model than the configured
 `agent.claude.model` — a triage turn can run on a smaller model than the build
 turn it feeds. An empty value means the configured model.
+
+`session.link` is the dashboard page for the run's agent session, where a
+person can take the session over. It needs `dashboard.publicUrl` in the
+deployment configuration and a container (`container.init` first), and fails
+naming whichever is missing.
 
 #### Declaring a structured answer
 
@@ -269,6 +287,9 @@ components documented there.
 | `metrics.record` | `name` | any keys | `recorded` |
 
 `state.var` merges: writing one variable does not erase the rest.
+
+Comment and pull-request bodies are markdown. The Jira connector converts them
+to wiki markup on the way out; the other providers render markdown as is.
 
 ### Control flow and coordination
 

@@ -9,11 +9,23 @@ import {
   Text,
   Stack,
 } from "@mantine/core";
+import { useSearchParams } from "react-router-dom";
 import { csrfHeaders } from "../api/client";
+
+/**
+ * Where to go after signing in. Only a path on this site: an absolute or
+ * protocol-relative value here would make the login page an open redirect.
+ */
+function safeNext(next: string | null): string {
+  if (!next || !next.startsWith("/") || next.startsWith("/login")) return "/";
+  if (next.length > 1 && (next[1] === "/" || next[1] === "\\")) return "/";
+  return next;
+}
 
 export function LoginPage() {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [params] = useSearchParams();
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,7 +44,7 @@ export function LoginPage() {
     });
 
     if (res.ok) {
-      window.location.href = "/";
+      window.location.href = safeNext(params.get("next"));
     } else {
       setError(true);
       setLoading(false);

@@ -18,6 +18,7 @@ runtime:
     network: smithy-net
     taskImage: ghcr.io/smithy-ai/claude-task-default:dev
     caches: [pnpm, npm, maven, gradle]
+    claudeConfigDir: /config/claude   # optional; skills and subagents for every task container
 
 agent:
   claude:
@@ -27,6 +28,9 @@ agent:
     turnTimeout: 60m          # budget for one agent turn; overrunning turns are killed
     takeoverTimeout: 5m       # budget for a turn a human drove from the dashboard
     takeoverTools: [Read, Glob, Grep, Bash, Edit, Write, WebFetch]
+
+dashboard:
+  publicUrl: https://smithy.example.com   # optional; where people open the dashboard
 
 auth:
   admin:
@@ -128,6 +132,41 @@ permissions then refuses every tool call before executing it. The agent reports
 that it cannot read a file or push a branch, which reads as an agent refusing to
 cooperate rather than one that was handed no permissions.
 
+## Skills and subagents for the agent
+
+`runtime.docker.claudeConfigDir` names a directory laid out like Claude Code's
+own `~/.claude`: `skills/<name>/SKILL.md` and `agents/<name>.md`, for example.
+It is copied into `/root/.claude` of every task container when the container
+is created, so every run finds the same skills and subagents — business
+personas, review checklists, whatever the deployment wants every agent to have
+at hand. Mount it read-only beside the workflows:
+
+```yaml
+volumes:
+  - ./claude:/config/claude:ro
+```
+
+The directory is read by the orchestrator's docker CLI from its own
+filesystem, so no host path is involved. A configured directory that is
+missing is logged and skipped; a copy that fails fails the container, because
+an agent quietly working without the skills it was promised is the outcome
+this exists to prevent. A container that outlives a change to the directory
+keeps what it had.
+
+Headless turns only use what their allowlist permits: a workflow that wants
+its agent to load a skill puts `Skill` in that step's `tools:`, and one that
+wants it to delegate to a subagent adds `Agent` as well. The same goes for
+`agent.claude.takeoverTools` if a person steering a session should be able to
+ask for them.
+
+## Dashboard address
+
+`dashboard.publicUrl` is the origin people open the dashboard on. The
+orchestrator does not need it to work; the `session.link` action does, so a
+workflow can put a link to a run's agent session in a comment — a plan
+inviting the developer to open the session and steer it. Unset, that action
+fails naming this setting rather than posting a link to nowhere.
+
 ## Secrets
 
 Every credential accepts exactly one secret source:
@@ -205,6 +244,11 @@ defaults:
 
 Issue actions answer the connector that produced the event. Repository actions use
 that source when it is a VCS connector and otherwise use `defaults.vcs`.
+
+Comment bodies are written in markdown, as every other provider renders them.
+Jira renders wiki markup, so the Jira connector converts a body on the way out:
+headings, bold, links, lists, inline and fenced code, quotes, rules and tables.
+A body that is already wiki markup passes through unchanged.
 
 ## Repository catalogs
 

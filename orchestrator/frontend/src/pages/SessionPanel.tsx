@@ -15,6 +15,7 @@ import {
 } from "@mantine/core";
 import {
   fetchInstanceSession,
+  finishTakeover,
   releaseTakeover,
   sendTakeoverMessage,
   takeoverHeartbeat,
@@ -41,6 +42,10 @@ export function SessionPanel({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [takeoverError, setTakeoverError] = useState<string | null>(null);
+  // Whether the workflow would act on a hand-back right now; the server says.
+  const [canFinish, setCanFinish] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   // Every turn starts collapsed; the list is an index you open into.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const controlledRef = useRef<string | null>(null);
@@ -65,12 +70,18 @@ export function SessionPanel({
     let cancelled = false;
 
     const beat = () =>
-      takeoverHeartbeat(selected).catch(() => {
-        if (!cancelled) {
-          setTakenOver(false);
-          setTakeoverError("Lost control of the session (instance gone?).");
-        }
-      });
+      takeoverHeartbeat(selected)
+        .then((state) => {
+          // The run moves while you hold it (a turn you sent may change its
+          // state), so what hand-back means is re-read with every beat.
+          if (!cancelled) setCanFinish(state.canFinish);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setTakenOver(false);
+            setTakeoverError("Lost control of the session (instance gone?).");
+          }
+        });
 
     beat();
     const interval = setInterval(beat, HEARTBEAT_INTERVAL_MS);
@@ -93,18 +104,41 @@ export function SessionPanel({
       setTakenOver(false);
     }
     setExpanded(new Set());
+    setNotice(null);
   }, [selected]);
 
   async function handleTakeOver() {
     if (!selected) return;
     setTakeoverError(null);
+    setNotice(null);
     try {
-      await takeoverHeartbeat(selected);
+      const state = await takeoverHeartbeat(selected);
+      setCanFinish(state.canFinish);
       setTakenOver(true);
     } catch {
       setTakeoverError(
         "Could not take over: no live workflow instance for this container.",
       );
+    }
+  }
+
+  async function handleHandBack() {
+    if (!selected || finishing) return;
+    setFinishing(true);
+    setTakeoverError(null);
+    try {
+      await finishTakeover(selected);
+      // The cleanup effect's release is then a harmless no-op on the server.
+      setTakenOver(false);
+      setNotice(
+        "Handed back. The workflow is continuing with what you discussed — " +
+          "its next turn shows up in the transcript below.",
+      );
+    } catch (e) {
+      setTakeoverError(e instanceof Error ? e.message : "Failed to hand back.");
+    } finally {
+      setFinishing(false);
+      queryClient.invalidateQueries({ queryKey: ["session", selected] });
     }
   }
 
@@ -162,9 +196,21 @@ export function SessionPanel({
         />
         {selected &&
           (takenOver ? (
-            <Button color="orange" variant="light" onClick={() => setTakenOver(false)}>
-              Release control
-            </Button>
+            <Group gap="xs">
+              {canFinish && (
+                <Button onClick={handleHandBack} loading={finishing}>
+                  Hand back to workflow
+                </Button>
+              )}
+              <Button
+                color="orange"
+                variant="light"
+                onClick={() => setTakenOver(false)}
+                disabled={finishing}
+              >
+                Release control
+              </Button>
+            </Group>
           ) : (
             <Button variant="light" onClick={handleTakeOver}>
               Take over
@@ -174,8 +220,23 @@ export function SessionPanel({
 
       {takenOver && (
         <Alert color="orange" variant="light">
-          You are controlling this agent. Workflow events are paused while you hold
-          control; if you disconnect or release, the agent takes over again.
+          You are controlling this agent. Workflow events that arrive while you hold
+          control are held and handled after you let go.{" "}
+          {canFinish ? (
+            <>
+              <b>Hand back to workflow</b> when you are done and want the workflow to act
+              on what you discussed (a planning session posts the final plan on the story);{" "}
+              <b>Release control</b> just lets the agent carry on.
+            </>
+          ) : (
+            <>If you disconnect or release, the agent carries on where it was.</>
+          )}
+        </Alert>
+      )}
+
+      {notice && (
+        <Alert color="green" variant="light" withCloseButton onClose={() => setNotice(null)}>
+          {notice}
         </Alert>
       )}
 

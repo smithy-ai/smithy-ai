@@ -44,6 +44,9 @@ public class RunEngine implements SignalDelivery {
     private final EventDebouncer debouncer;
     private final RunLocks locks;
 
+    /** What arrived while a person held a run, waiting for them to let go. */
+    private final HeldEvents held = new HeldEvents();
+
     public RunEngine(
         WorkflowRegistry registry,
         WorkflowRouter router,
@@ -146,9 +149,7 @@ public class RunEngine implements SignalDelivery {
             // runs outside it, serialized per run by the run's own lock.
             case create -> {
                 Run target = locks.inRun("create|" + (key == null ? name : key), () -> {
-                    var fresh = key == null
-                        ? Optional.<Run>empty()
-                        : store.findByCorrelation(CorrelationKind.KEY, key);
+                    var fresh = key == null ? Optional.<Run>empty() : store.findByCorrelation(CorrelationKind.KEY, key);
                     var own = ownerOf(event);
                     return resolveForCreate(
                         definition,
@@ -426,9 +427,11 @@ public class RunEngine implements SignalDelivery {
     private Outcome dispatchSerially(WorkflowDefinition definition, Run run, WorkflowEvent event) {
         if (store.isLeased(run.id())) {
             // Someone is driving this session by hand. Acting on a webhook on
-            // top of what they are typing produces work neither asked for.
-            log.info("Run {} is under human control, holding {}", run.id(), event.name());
-            store.appendEvent(run.id(), "event.held", Map.of("event", event.name()));
+            // top of what they are typing produces work neither asked for —
+            // so it waits, and is handed back when they release the run.
+            int queued = held.hold(run.id(), event);
+            log.info("Run {} is under human control, holding {} ({} held)", run.id(), event.name(), queued);
+            store.appendEvent(run.id(), "event.held", Map.of("event", event.name(), "held", queued));
             return Outcome.ignored(definition.metadata().name());
         }
         if (run.isTerminal()) {
@@ -626,22 +629,76 @@ public class RunEngine implements SignalDelivery {
      */
     @Override
     public boolean deliver(String targetRunId, WorkflowEvent.Signal signal) {
+        return redeliver(targetRunId, signal);
+    }
+
+    /**
+     * Dispatch an event to a run that is already known, bypassing routing.
+     *
+     * <p>What a signal has always done, opened up to any event: an event held
+     * while a person had the run was routed once already, and routing it again
+     * could only send it somewhere else.
+     *
+     * @return whether the run's current state handled it
+     */
+    public boolean redeliver(String targetRunId, WorkflowEvent event) {
         var run = store.find(targetRunId);
         if (run.isEmpty()) {
-            log.warn("Signal {} addressed to unknown run {}", signal.name(), targetRunId);
+            log.warn("Event {} addressed to unknown run {}", event.name(), targetRunId);
             return false;
         }
-        var definition = candidates(signal)
+        var definition = candidates(event)
             .stream()
             .filter(candidate -> candidate.metadata().name().equals(run.get().workflowName()))
             .findFirst();
         if (definition.isEmpty()) {
             // The target runs a hardcoded flow, or a definition that is no
-            // longer loaded. The signal is still recorded in its history.
-            log.debug("Run {} has no loaded definition; signal {} recorded only", targetRunId, signal.name());
+            // longer loaded. The event is still recorded in its history.
+            log.debug("Run {} has no loaded definition; {} recorded only", targetRunId, event.name());
             return false;
         }
-        return dispatch(definition.get(), run.get(), signal).handled();
+        return dispatch(definition.get(), run.get(), event).handled();
+    }
+
+    /**
+     * Hand a run the events it was holding, oldest first.
+     *
+     * <p>One failing does not stop the rest: a failed transition already leaves
+     * the run where it was with {@code transition.failed} in its history, and
+     * the events after it are no less real for it.
+     *
+     * @return how many were handled by the run's state
+     */
+    public int redeliverAll(String runId, List<WorkflowEvent> events) {
+        int handled = 0;
+        for (var event : events) {
+            try {
+                if (redeliver(runId, event)) handled++;
+            } catch (RuntimeException e) {
+                log.error("Run {} failed on held event {}", runId, event.name(), e);
+            }
+        }
+        return handled;
+    }
+
+    /** Take everything held for a run, leaving nothing behind. */
+    public List<WorkflowEvent> drainHeld(String runId) {
+        return held.drain(runId);
+    }
+
+    /**
+     * Whether the run, as it stands now, has anything to do with an event.
+     *
+     * <p>What lets the dashboard offer "hand back to workflow" only where the
+     * workflow would do something with it: a button that releases control and
+     * then nothing happens reads as broken.
+     */
+    public boolean handlesNow(Run run, String eventName) {
+        return registry
+            .find(run.workflowName())
+            .map(definition -> definition.state().getStages().get(run.state()))
+            .map(stage -> stage.on().containsKey(eventName))
+            .orElse(false);
     }
 
     /** The run a workflow's routing key points at, for callers that only want to look. */

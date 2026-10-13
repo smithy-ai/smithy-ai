@@ -106,7 +106,10 @@ public class DashboardController {
      * the part a reader needs to tell two runs of the same workflow apart.
      */
     private String keyOf(String runId) {
-        return runStore.findKeyRef(runId).map(ref -> ref.substring(ref.indexOf('|') + 1)).orElse(null);
+        return runStore
+            .findKeyRef(runId)
+            .map(ref -> ref.substring(ref.indexOf('|') + 1))
+            .orElse(null);
     }
 
     /** A run's timeline, oldest first. */
@@ -127,7 +130,12 @@ public class DashboardController {
                 .stream()
                 .map(child -> {
                     var containers = runStore.findEnvironmentNames(child.id(), RunRecorder.CONTAINER);
-                    return RunDto.from(child, containers, containers.stream().anyMatch(running::contains), keyOf(child.id()));
+                    return RunDto.from(
+                        child,
+                        containers,
+                        containers.stream().anyMatch(running::contains),
+                        keyOf(child.id())
+                    );
                 })
                 .toList()
         );
@@ -294,11 +302,16 @@ public class DashboardController {
         return runStore.findByEnvironment(RunRecorder.CONTAINER, containerName);
     }
 
+    /** Whether handing this run back would mean anything to its workflow, as it stands now. */
+    private boolean canFinish(dev.smithyai.orchestrator.runtime.store.Run run) {
+        return engine.handlesNow(run, "signal:" + RunTakeover.FINISHED);
+    }
+
     @GetMapping("/dashboard/takeover/{containerName}")
     public ResponseEntity<TakeoverDto> takeoverStatus(@PathVariable String containerName) {
         var run = runFor(containerName);
         if (run.isEmpty()) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(new TakeoverDto(takeover.isHeld(run.get().id()), null));
+        return ResponseEntity.ok(new TakeoverDto(takeover.isHeld(run.get().id()), null, canFinish(run.get())));
     }
 
     @PostMapping("/dashboard/takeover/{containerName}")
@@ -309,8 +322,28 @@ public class DashboardController {
         // typing into the same agent session.
         return takeover
             .heartbeat(run.get().id())
-            .map(expiresAt -> ResponseEntity.ok(new TakeoverDto(true, expiresAt)))
+            .map(expiresAt -> ResponseEntity.ok(new TakeoverDto(true, expiresAt, canFinish(run.get()))))
             .orElseGet(() -> ResponseEntity.status(409).build());
+    }
+
+    /**
+     * Let go and tell the workflow to act on what was discussed.
+     *
+     * <p>Distinct from releasing: a person who refined a plan with the agent
+     * wants that plan written down and posted, not merely the agent back on
+     * autopilot. Answers at once; the workflow's turn runs in the background
+     * and shows up in the transcript the panel is already polling.
+     */
+    @PostMapping("/dashboard/takeover/{containerName}/finish")
+    public ResponseEntity<Map<String, Object>> finishTakeover(@PathVariable String containerName) {
+        var run = runFor(containerName);
+        if (run.isEmpty()) return ResponseEntity.notFound().build();
+        if (!takeover.isHeld(run.get().id())) {
+            return ResponseEntity.status(409).body(Map.of("error", "No active takeover for this run"));
+        }
+        takeover.finish(run.get());
+        log.info("Run {} handed back to its workflow from the dashboard", run.get().id());
+        return ResponseEntity.accepted().body(Map.of("finished", true));
     }
 
     @DeleteMapping("/dashboard/takeover/{containerName}")

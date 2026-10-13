@@ -122,7 +122,13 @@ From there you can:
   puts the same run back to work, starting over from its first step.
 - **Take over the session** and talk to the agent yourself. While you hold it,
   inbound events are held rather than acted on, so the agent is not working on
-  top of what you are typing. Control lapses on its own if you close the tab.
+  top of what you are typing; they are handled once you let go. Control lapses
+  on its own if you close the tab.
+- **Hand back to workflow** when you are done and want the workflow to act on
+  what you discussed — a planning workflow posts the plan as it now stands on
+  the story, and a held approval then runs that plan. **Release control** just
+  lets the agent carry on. The hand-back button only appears where the run's
+  workflow would do something with it.
 
 ## Labels
 

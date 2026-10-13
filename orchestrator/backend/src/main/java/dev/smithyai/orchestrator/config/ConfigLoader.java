@@ -65,8 +65,15 @@ public class ConfigLoader {
             value(docker == null ? null : docker.command(), "docker"),
             value(docker == null ? null : docker.network(), "smithy-net"),
             value(docker == null ? null : docker.taskImage(), "claude-task-default:latest"),
-            docker == null ? "" : String.join(",", docker.caches())
+            docker == null ? "" : String.join(",", docker.caches()),
+            value(docker == null ? null : docker.claudeConfigDir(), "")
         );
+    }
+
+    /** Where the dashboard is reachable from outside, for links a workflow posts. Unconfigured by default. */
+    @Bean
+    public DashboardConfig dashboardConfig() {
+        return config.dashboard() != null ? config.dashboard() : DashboardConfig.unconfigured();
     }
 
     @Bean

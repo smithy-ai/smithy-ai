@@ -37,6 +37,10 @@ class OrchestratorConfigTest {
         assertEquals("jira-product", registry.defaultIssueTracker("jira-product"));
         assertEquals("build/test.db", loader.storageConfig().resolvedDatabase());
         assertEquals("forgejo-main", config.repositoryCatalogs().get("product").getFirst().source());
+        assertEquals("/config/claude", loader.dockerConfig().claudeConfigDir());
+        assertTrue(loader.dockerConfig().hasClaudeConfigDir());
+        assertEquals("https://smithy.example.com", loader.dashboardConfig().resolvedPublicUrl());
+        assertEquals("https://smithy.example.com/session/box.1", loader.dashboardConfig().sessionUrl("box.1"));
         var missingActor = assertThrows(IllegalArgumentException.class, () ->
             registry.username("forgejo-main", "architect")
         );
@@ -55,6 +59,26 @@ class OrchestratorConfigTest {
 
         var error = assertThrows(java.io.UncheckedIOException.class, () -> new ConfigLoader(environment));
         assertTrue(error.getMessage().contains("parse orchestrator config"));
+    }
+
+    @Test
+    void anAbsentDashboardBlockLoadsAsUnconfigured() throws Exception {
+        Path webhookSecret = tempDir.resolve("webhook-secret");
+        Files.writeString(webhookSecret, "hook");
+        Path configFile = tempDir.resolve("orchestrator.yml");
+        Files.writeString(
+            configFile,
+            config(webhookSecret).replace("dashboard:\n", "").replace("  publicUrl: https://smithy.example.com/\n", "")
+        );
+        var environment = new MockEnvironment()
+            .withProperty("ORCHESTRATOR_CONFIG", configFile.toString())
+            .withProperty("CLAUDE_TOKEN", "claude")
+            .withProperty("FORGEJO_SMITHY_TOKEN", "forgejo");
+
+        var loader = new ConfigLoader(environment);
+
+        assertFalse(loader.dashboardConfig().isConfigured());
+        assertEquals("", loader.dashboardConfig().resolvedPublicUrl());
     }
 
     @Test
@@ -91,6 +115,7 @@ class OrchestratorConfigTest {
             network: test
             taskImage: task:test
             caches: [gradle]
+            claudeConfigDir: /config/claude
         agent:
           claude:
             model: test-model
@@ -136,6 +161,8 @@ class OrchestratorConfigTest {
             - {source: forgejo-main, owner: acme, repo: api, description: HTTP API}
         knowledgebase: {enabled: false}
         ci: {autofix: false}
+        dashboard:
+          publicUrl: https://smithy.example.com/
         """.formatted(webhookSecret.toString());
     }
 }
