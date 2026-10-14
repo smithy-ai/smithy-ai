@@ -289,7 +289,8 @@ components documented there.
 `state.var` merges: writing one variable does not erase the rest.
 
 Comment and pull-request bodies are markdown. The Jira connector converts them
-to wiki markup on the way out; the other providers render markdown as is.
+to wiki markup on the way out (and reads them as markdown only, so write
+markdown there too); the other providers render markdown as is.
 
 ### Control flow and coordination
 

@@ -8,9 +8,10 @@ import org.junit.jupiter.api.Test;
  * Comments are written once, in markdown, and must read well on Jira too.
  *
  * <p>The cases are the bodies the built-in definitions actually post and the
- * things a model puts in a summary, plus the other direction: a body that is
- * already wiki markup must survive untouched, because a deployment-specific
- * definition may well write one.
+ * things a model puts in a summary. The exact spacing is flexmark's; what is
+ * pinned here is that every construct becomes the right wiki markup, and
+ * that the pieces of wiki markup a deployment-specific definition might
+ * write by hand are not mangled.
  */
 class MarkdownToJiraWikiTest {
 
@@ -27,6 +28,7 @@ class MarkdownToJiraWikiTest {
             Development plan: [.smithy/plans/ECD-9.md|https://git.example.com/acme/app/-/blob/smithy/ECD-9/.smithy/plans/ECD-9.md]
 
             h3. Open Questions
+
             * Should the export include archived clients?
             * Which queue carries the event?""";
 
@@ -55,7 +57,7 @@ class MarkdownToJiraWikiTest {
     }
 
     @Test
-    void thePlanTemplateWithInlineCodeAndRuleConverts() {
+    void thePlanTemplateWithInlineCodeNestingAndRuleConverts() {
         String markdown = """
             Here's my plan for this story:
 
@@ -70,10 +72,12 @@ class MarkdownToJiraWikiTest {
             Here's my plan for this story:
 
             *Repos*
+
             * {{gerimedica/gm-financials}}: Add the WLZ export job
             ** nested detail
 
             ----
+
             Want to change something? [Open the session|https://smithy.example.com/session/gm.coordinator.ECD-1] and chat with me there, then hit *Hand back to workflow*. Add the {{plan-approved}} label and I'll get going.""";
 
         assertEquals(expected, MarkdownToJiraWiki.convert(markdown));
@@ -93,35 +97,33 @@ class MarkdownToJiraWikiTest {
         String expected = """
             Run it:
 
-            {code:bash}
+            {code:lang=bash}
             # not a heading
             echo **not bold** [not](a-link)
             {code}
+
             done""";
 
         assertEquals(expected, MarkdownToJiraWiki.convert(markdown));
     }
 
+    /**
+     * Wiki constructs that mean nothing in markdown come through as text; the
+     * one that does mean something — a single asterisk — is read as markdown.
+     * A definition that writes a comment by hand writes markdown, like the rest.
+     */
     @Test
-    void wikiMarkupComesBackUnchanged() {
-        String wiki = """
-            h2. Already wiki
-            *bold* and _italic_ and {{mono}} and [a link|https://example.com]
-            * item
-            ** nested
-            ||h1||h2||
-            |a|b|
-            {code:java}
-            int x = 1;
-            {code}
-            ----
-            bq. a quote""";
-
-        assertEquals(wiki, MarkdownToJiraWiki.convert(wiki));
+    void wikiOnlyConstructsPassThroughAsTextButMarkdownStillWins() {
+        assertEquals("h2. Still a heading line", MarkdownToJiraWiki.convert("h2. Still a heading line"));
+        assertEquals(
+            "see {{mono}} and [a link|https://example.com]",
+            MarkdownToJiraWiki.convert("see {{mono}} and [a link|https://example.com]")
+        );
+        assertEquals("_emphasis_ not bold", MarkdownToJiraWiki.convert("*emphasis* not bold"));
     }
 
     @Test
-    void singleAsterisksNumberedListsQuotesTablesAndStrikethrough() {
+    void numberedListsQuotesTablesAndStrikethrough() {
         String markdown = """
             1. first *emphasis stays*
             2. second ~~gone~~
@@ -136,17 +138,19 @@ class MarkdownToJiraWikiTest {
             > second""";
 
         String expected = """
-            # first *emphasis stays*
+            # first _emphasis stays_
             # second -gone-
-            bq. one quoted line
+
+            {quote}
+            one quoted line
+            {quote}
 
             ||Repo||Task||
             |api|export|
             |web|button|
 
             {quote}
-            first
-            second
+            first second
             {quote}""";
 
         assertEquals(expected, MarkdownToJiraWiki.convert(markdown));

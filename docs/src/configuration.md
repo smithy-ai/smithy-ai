@@ -246,9 +246,11 @@ Issue actions answer the connector that produced the event. Repository actions u
 that source when it is a VCS connector and otherwise use `defaults.vcs`.
 
 Comment bodies are written in markdown, as every other provider renders them.
-Jira renders wiki markup, so the Jira connector converts a body on the way out:
-headings, bold, links, lists, inline and fenced code, quotes, rules and tables.
-A body that is already wiki markup passes through unchanged.
+Jira renders wiki markup, so the Jira connector converts a body on the way out
+(flexmark's Jira converter, with GFM tables and strikethrough): headings, bold,
+links, lists, inline and fenced code, quotes, rules and tables. The body is
+read as markdown and nothing else; write wiki markup by hand and `*word*` comes
+out as italic, because that is what a single asterisk means in markdown.
 
 ## Repository catalogs
 
