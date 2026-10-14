@@ -114,7 +114,9 @@ public class JiraClient implements IssueTrackerClient {
 
     @Override
     public CommentEntry createIssueComment(String owner, String repo, String issueRef, String body) {
-        var node = post("/issue/%s/comment", Map.of("body", body), issueRef);
+        // Workflows write markdown, as every other provider renders it; Jira
+        // renders wiki markup, so the translation happens here and only here.
+        var node = post("/issue/%s/comment", Map.of("body", MarkdownToJiraWiki.convert(body)), issueRef);
         return new CommentEntry(
             node.path("id").asLong(),
             node.path("author").path("accountId").asText(""),

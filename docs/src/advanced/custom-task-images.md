@@ -80,3 +80,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /workspace
 CMD ["sleep", "infinity"]
 ```
+
+Skills and subagents are not baked into the image: `runtime.docker.claudeConfigDir`
+copies a `~/.claude`-shaped directory into every container at creation, so they
+can change without a rebuild. See the [configuration reference](../configuration.md#skills-and-subagents-for-the-agent).

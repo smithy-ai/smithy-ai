@@ -5,6 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import dev.smithyai.orchestrator.config.AgentConfig.ClaudeAgentConfig;
+import dev.smithyai.orchestrator.model.IssueContext;
+import dev.smithyai.orchestrator.model.RepoInfo;
+import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.Run;
 import dev.smithyai.orchestrator.runtime.store.RunStatus;
@@ -21,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 /**
  * A human message must not land on a session that is already mid-turn.
@@ -50,6 +54,7 @@ class RunTakeoverConcurrencyTest {
     private RunStore store;
     private RunEnvironments environments;
     private RunLocks locks;
+    private RunEngine engine;
     private RunTakeover takeover;
 
     @BeforeEach
@@ -57,11 +62,138 @@ class RunTakeoverConcurrencyTest {
         store = mock(RunStore.class);
         environments = mock(RunEnvironments.class);
         locks = new RunLocks();
+        engine = mock(RunEngine.class);
+        when(engine.drainHeld(any())).thenReturn(List.of());
 
         when(store.isLeased(any())).thenReturn(true);
         when(store.acquireLease(any(), any(), any())).thenReturn(Optional.of(Instant.now().plusSeconds(30)));
 
-        takeover = new RunTakeover(store, environments, locks, agentConfig("5m"));
+        takeover = new RunTakeover(store, environments, locks, agentConfig("5m"), engine);
+    }
+
+    private static WorkflowEvent approval() {
+        var repo = new RepoInfo("acme", "platform", null, "jira-product", "jira");
+        return new WorkflowEvent.PlanApproved(new IssueContext(repo, "ECD-9", "Add search", "body", "main", ""), "");
+    }
+
+    /**
+     * The point of finishing rather than releasing: the workflow writes the
+     * agreed plan down before a held approval executes it, so the two must
+     * reach the engine in that order on one thread.
+     */
+    @Test
+    void finishingDeliversTheSignalBeforeReplayingWhatWasHeld() {
+        var held = approval();
+        when(engine.drainHeld(RUN.id())).thenReturn(List.of(held));
+        when(engine.deliver(any(), any())).thenReturn(true);
+
+        takeover.finish(RUN);
+
+        InOrder inOrder = inOrder(engine);
+        var signal = ArgumentCaptor.forClass(WorkflowEvent.Signal.class);
+        inOrder.verify(engine, timeout(5000)).deliver(eq(RUN.id()), signal.capture());
+        inOrder.verify(engine, timeout(5000)).redeliverAll(RUN.id(), List.of(held));
+
+        assertEquals("signal:" + RunTakeover.FINISHED, signal.getValue().name());
+        // A second hand-back in the same state must be its own transition.
+        assertFalse(signal.getValue().identity().isBlank());
+        assertNotEquals("null", signal.getValue().identity());
+        // The lease is gone before the signal lands, or the engine would hold it too.
+        verify(store, timeout(5000)).releaseLease(RUN.id());
+        verify(store).appendEvent(eq(RUN.id()), eq("takeover.finished"), any());
+        assertEquals(0, signal.getValue().payload().get("messages"));
+    }
+
+    /**
+     * An approval given on the strength of a conversation must not execute the
+     * plan from before it: when the workflow fails on the hand-back signal, what
+     * was held is recorded, not replayed.
+     */
+    @Test
+    void aFailedHandBackTransitionKeepsHeldEventsFromRunningTheOldPlan() {
+        var held = approval();
+        when(engine.drainHeld(RUN.id())).thenReturn(List.of(held));
+        when(engine.deliver(any(), any())).thenThrow(new IllegalStateException("turn timed out"));
+
+        takeover.finish(RUN);
+
+        verify(store, timeout(5000)).appendEvent(eq(RUN.id()), eq("takeover.replay_skipped"), any());
+        verify(engine, never()).redeliverAll(any(), any());
+    }
+
+    @Test
+    void aReleaseWhileAHandBackIsQueuedIsANoOp() throws Exception {
+        var gate = new CountDownLatch(1);
+        when(engine.deliver(any(), any())).thenAnswer(invocation -> {
+            gate.await(5, TimeUnit.SECONDS);
+            return true;
+        });
+
+        takeover.finish(RUN);
+        // The dashboard's cleanup DELETE lands while the hand-back is still on its way.
+        takeover.release(RUN.id());
+        gate.countDown();
+
+        verify(engine, timeout(5000)).deliver(any(), any());
+        verify(store, timeout(5000)).appendEvent(eq(RUN.id()), eq("takeover.finished"), any());
+        verify(store, never()).appendEvent(eq(RUN.id()), eq("takeover.released"), any());
+    }
+
+    /** After a restart the process remembers no holder, but the held events are still there. */
+    @Test
+    void theSweepReplaysHeldEventsOfARunNobodyHoldsAnyMore() {
+        var held = approval();
+        when(store.isLeased(RUN.id())).thenReturn(false);
+        when(engine.heldRunIds()).thenReturn(java.util.Set.of(RUN.id()));
+        when(engine.hasHeld(RUN.id())).thenReturn(true);
+        when(engine.drainHeld(RUN.id())).thenReturn(List.of(held));
+
+        takeover.sweepLapsed();
+
+        verify(engine, timeout(5000)).redeliverAll(RUN.id(), List.of(held));
+        var payload = ArgumentCaptor.forClass(Map.class);
+        verify(store).appendEvent(eq(RUN.id()), eq("takeover.released"), payload.capture());
+        assertEquals("lapse", payload.getValue().get("via"));
+    }
+
+    @Test
+    void releasingReplaysWhatWasHeldWithoutAskingAnythingOfTheWorkflow() {
+        var held = approval();
+        when(engine.drainHeld(RUN.id())).thenReturn(List.of(held));
+
+        takeover.release(RUN.id());
+
+        verify(engine, timeout(5000)).redeliverAll(RUN.id(), List.of(held));
+        verify(engine, never()).deliver(any(), any());
+        verify(store).appendEvent(eq(RUN.id()), eq("takeover.released"), any());
+    }
+
+    @Test
+    void lettingGoOfARunNobodyHeldIsANoOp() {
+        when(store.isLeased(any())).thenReturn(false);
+
+        takeover.release(RUN.id());
+
+        verify(store, never()).appendEvent(any(), eq("takeover.released"), any());
+        verify(engine, never()).redeliverAll(any(), any());
+    }
+
+    @Test
+    void aLapsedLeaseIsReleasedByTheSweep() {
+        // Fresh takeover: nothing leased yet, so the heartbeat records a start.
+        when(store.isLeased(RUN.id())).thenReturn(false);
+        takeover.heartbeat(RUN.id());
+        verify(store).appendEvent(RUN.id(), "takeover.started", null);
+
+        // The tab closed; the lease ran out without a goodbye.
+        takeover.sweepLapsed();
+
+        var payload = ArgumentCaptor.forClass(Map.class);
+        verify(store).appendEvent(eq(RUN.id()), eq("takeover.released"), payload.capture());
+        assertEquals("lapse", payload.getValue().get("via"));
+        // And only once: a second sweep finds nothing to let go of.
+        takeover.sweepLapsed();
+        verify(store, times(1)).appendEvent(eq(RUN.id()), eq("takeover.released"), any());
     }
 
     @Test
@@ -137,7 +269,7 @@ class RunTakeoverConcurrencyTest {
         when(environments.agent(any(), any())).thenReturn(agent);
         when(agent.send(anyString())).thenReturn("done");
 
-        new RunTakeover(store, environments, locks, agentConfig(null)).send(RUN, "hello", List.of());
+        new RunTakeover(store, environments, locks, agentConfig(null), engine).send(RUN, "hello", List.of());
 
         verify(agent).setTurnTimeout(Duration.ofMinutes(5));
     }

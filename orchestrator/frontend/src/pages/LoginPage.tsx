@@ -9,11 +9,30 @@ import {
   Text,
   Stack,
 } from "@mantine/core";
+import { useSearchParams } from "react-router-dom";
 import { csrfHeaders } from "../api/client";
+
+/**
+ * Where to go after signing in. Only a page on this site: resolved by the
+ * browser's own URL parser against this origin and compared on origin, so
+ * the tricks a string check misses (a protocol-relative "//", a backslash,
+ * a tab or newline the parser strips) all land on "/".
+ */
+function safeNext(next: string | null): string {
+  if (!next) return "/";
+  try {
+    const url = new URL(next, window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname.startsWith("/login")) return "/";
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return "/";
+  }
+}
 
 export function LoginPage() {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [params] = useSearchParams();
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,7 +51,7 @@ export function LoginPage() {
     });
 
     if (res.ok) {
-      window.location.href = "/";
+      window.location.href = safeNext(params.get("next"));
     } else {
       setError(true);
       setLoading(false);

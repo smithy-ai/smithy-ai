@@ -33,6 +33,8 @@ dependencies {
     implementation("dev.smithy-ai:forgejo-client:14.0.3")
     implementation("com.github.victools:jsonschema-generator:4.38.0")
     implementation("com.github.victools:jsonschema-module-jackson:4.38.0")
+    // Jira renders wiki markup, not markdown; this converts comment bodies on the way out.
+    implementation("com.vladsch.flexmark:flexmark-jira-converter:0.64.8")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }

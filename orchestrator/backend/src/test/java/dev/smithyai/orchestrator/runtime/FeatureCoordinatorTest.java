@@ -195,6 +195,7 @@ class FeatureCoordinatorTest {
                 )
             ),
             null,
+            null,
             null
         );
         // The registry answers what provider a connector speaks, so a

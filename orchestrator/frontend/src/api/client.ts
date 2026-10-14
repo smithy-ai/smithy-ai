@@ -8,6 +8,18 @@ export function csrfHeaders(): Record<string, string> {
   return match ? { "X-XSRF-TOKEN": decodeURIComponent(match[1]) } : {};
 }
 
+/**
+ * Send the browser to sign in, remembering where it was. A session link
+ * pasted into a story must land on that session after signing in, not on the
+ * instance list; only a path on this site is remembered, so nothing here can
+ * be turned into a redirect elsewhere.
+ */
+export function redirectToLogin(): void {
+  const here = window.location.pathname + window.location.search;
+  const remember = here !== "/" && !here.startsWith("/login");
+  window.location.href = remember ? `/login?next=${encodeURIComponent(here)}` : "/login";
+}
+
 export interface Instance {
   containerName: string;
   workflowType: string;
@@ -22,7 +34,7 @@ export interface Instance {
 export async function fetchInstances(): Promise<Instance[]> {
   const res = await fetch("/api/dashboard/instances");
   if (res.status === 401 || res.status === 403) {
-    window.location.href = "/login";
+    redirectToLogin();
     return [];
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -51,7 +63,7 @@ export interface Run {
 export async function fetchRuns(limit = 100): Promise<Run[]> {
   const res = await fetch(`/api/dashboard/runs?limit=${limit}`);
   if (res.status === 401 || res.status === 403) {
-    window.location.href = "/login";
+    redirectToLogin();
     return [];
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -71,7 +83,7 @@ export interface RunWait {
 export async function fetchRunWaits(runId: string): Promise<RunWait[]> {
   const res = await fetch(`/api/dashboard/runs/${encodeURIComponent(runId)}/waits`);
   if (res.status === 401 || res.status === 403) {
-    window.location.href = "/login";
+    redirectToLogin();
     return [];
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -110,7 +122,7 @@ export interface RunEvent {
 export async function fetchRunEvents(runId: string): Promise<RunEvent[]> {
   const res = await fetch(`/api/dashboard/runs/${encodeURIComponent(runId)}/events`);
   if (res.status === 401 || res.status === 403) {
-    window.location.href = "/login";
+    redirectToLogin();
     return [];
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -124,7 +136,7 @@ export interface MetricsSummary {
 export async function fetchMetrics(): Promise<MetricsSummary> {
   const res = await fetch("/api/dashboard/metrics");
   if (res.status === 401 || res.status === 403) {
-    window.location.href = "/login";
+    redirectToLogin();
     return { counts: {} };
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -139,7 +151,7 @@ export async function checkAuth(): Promise<boolean> {
 async function fetchLogText(url: string): Promise<string> {
   const res = await fetch(url);
   if (res.status === 401 || res.status === 403) {
-    window.location.href = "/login";
+    redirectToLogin();
     return "";
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -163,6 +175,8 @@ export function fetchInstanceSession(containerName: string): Promise<string> {
 export interface TakeoverState {
   active: boolean;
   expiresAt: string | null;
+  /** Whether the run's workflow would act on being handed back right now. */
+  canFinish: boolean;
 }
 
 export async function takeoverHeartbeat(containerName: string): Promise<TakeoverState> {
@@ -171,8 +185,8 @@ export async function takeoverHeartbeat(containerName: string): Promise<Takeover
     headers: csrfHeaders(),
   });
   if (res.status === 401 || res.status === 403) {
-    window.location.href = "/login";
-    return { active: false, expiresAt: null };
+    redirectToLogin();
+    return { active: false, expiresAt: null, canFinish: false };
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -184,6 +198,25 @@ export function releaseTakeover(containerName: string, keepalive = false): Promi
     headers: csrfHeaders(),
     keepalive,
   });
+}
+
+/**
+ * Let go and tell the workflow to act on what was discussed. Distinct from
+ * releasing: a plan refined with the agent should be written down and posted,
+ * not merely left with the agent back on autopilot. Answers at once; the
+ * workflow's turn runs in the background and shows up in the transcript.
+ */
+export async function finishTakeover(containerName: string): Promise<void> {
+  const res = await fetch(
+    `/api/dashboard/takeover/${encodeURIComponent(containerName)}/finish`,
+    { method: "POST", headers: csrfHeaders() },
+  );
+  if (res.status === 401 || res.status === 403) {
+    redirectToLogin();
+    return;
+  }
+  if (res.status === 409) throw new Error("You no longer hold this session; take it over again first.");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 /**
@@ -220,7 +253,7 @@ export async function sendTakeoverMessage(
     throw e;
   }
   if (res.status === 401 || res.status === 403) {
-    window.location.href = "/login";
+    redirectToLogin();
     return "";
   }
   // 409 is the session being mid-turn, 504 the turn running out of budget:

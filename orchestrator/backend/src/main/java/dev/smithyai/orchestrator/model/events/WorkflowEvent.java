@@ -247,8 +247,14 @@ public interface WorkflowEvent {
 
         @Override
         public String identity() {
-            // Every child reporting in is its own occurrence.
-            return String.valueOf(payload == null ? "" : payload.getOrDefault("child", payload.get("from")));
+            // Every child reporting in is its own occurrence — and so is every
+            // hand-back from the dashboard, which carries an `id` for exactly
+            // this: two in the same state are two transitions, not a replay.
+            if (payload == null) return "";
+            Object which = payload.get("child");
+            if (which == null) which = payload.get("from");
+            if (which == null) which = payload.get("id");
+            return String.valueOf(which);
         }
     }
 

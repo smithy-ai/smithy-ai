@@ -8,8 +8,19 @@ public record DockerConfig(
     String command,
     String network,
     @JsonProperty("task-image") String taskImage,
-    @JsonProperty("cache-volumes") String cacheVolumes
+    @JsonProperty("cache-volumes") String cacheVolumes,
+    /** Copied into {@code /root/.claude} of every new task container; blank means nothing is. */
+    @JsonProperty("claude-config-dir") String claudeConfigDir
 ) {
+    /** The pre-existing shape: no directory to copy. */
+    public DockerConfig(String command, String network, String taskImage, String cacheVolumes) {
+        this(command, network, taskImage, cacheVolumes, "");
+    }
+
+    public boolean hasClaudeConfigDir() {
+        return claudeConfigDir != null && !claudeConfigDir.isBlank();
+    }
+
     private static final Map<String, CacheVolumeEntry> CACHE_VOLUME_MAP = Map.of(
         "pnpm",
         new CacheVolumeEntry("cache-pnpm", "/root/.local/share/pnpm/store"),

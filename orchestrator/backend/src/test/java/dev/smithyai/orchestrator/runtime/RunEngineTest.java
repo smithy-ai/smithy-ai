@@ -302,6 +302,46 @@ class RunEngineTest {
         assertEquals("planning", store.find(started.runId()).orElseThrow().state());
     }
 
+    /**
+     * A person holding the run does not lose the approval that lands while the
+     * tab is open: it waits, and runs once they let go — through the same
+     * transition it would have taken, against the state the run is in then.
+     */
+    @Test
+    void anEventThatArrivesUnderHumanControlIsHeldAndReplayedAfterRelease() {
+        var started = engine.handle(assigned()).getFirst();
+        store.acquireLease(started.runId(), RunLease.HUMAN, java.time.Duration.ofMinutes(5));
+
+        var held = engine.handle(approved()).getFirst();
+        assertFalse(held.handled());
+        assertEquals("planning", store.find(started.runId()).orElseThrow().state(), "nothing ran under the lease");
+        assertTrue(
+            store
+                .findEvents(started.runId())
+                .stream()
+                .anyMatch(event -> "event.held".equals(event.type())),
+            "the hold is visible in the history"
+        );
+
+        store.releaseLease(started.runId());
+        var drained = engine.drainHeld(started.runId());
+        assertEquals(List.of("issue.plan_approved"), drained.stream().map(WorkflowEvent::name).toList());
+        assertEquals(1, engine.redeliverAll(started.runId(), drained));
+
+        assertEquals("executing", store.find(started.runId()).orElseThrow().state());
+        assertTrue(engine.drainHeld(started.runId()).isEmpty(), "draining is final");
+    }
+
+    @Test
+    void handlesNowAnswersForTheStateTheRunIsInRightNow() {
+        var started = engine.handle(assigned()).getFirst();
+        var run = store.find(started.runId()).orElseThrow();
+
+        assertTrue(engine.handlesNow(run, "issue.plan_approved"));
+        assertFalse(engine.handlesNow(run, "issue.commented"), "'planning' has no rule for it");
+        assertFalse(engine.handlesNow(run, "signal:takeover-finished"));
+    }
+
     @Test
     void anEventForWorkThisWorkflowNeverStartedIsIgnored() {
         var outcomes = engine.handle(approved());

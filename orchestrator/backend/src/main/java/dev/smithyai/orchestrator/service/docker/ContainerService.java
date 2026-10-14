@@ -23,6 +23,8 @@ import org.springframework.stereotype.Component;
 public class ContainerService {
 
     private static final String STATE_PATH = "/tmp/smithy-state.json";
+    /** Where Claude Code looks for the user's skills, subagents and settings inside the task image. */
+    static final String CLAUDE_HOME = "/root/.claude";
     static final ObjectMapper MAPPER = new ObjectMapper()
         .registerModule(new JavaTimeModule())
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -43,6 +45,7 @@ public class ContainerService {
     private final String claudeApiKey;
     private final String gitAuthUser;
     private final String defaultGitEmail;
+    private final String claudeConfigDir;
 
     @Autowired
     public ContainerService(
@@ -56,6 +59,7 @@ public class ContainerService {
         this.docker = docker;
         this.network = dockerConfig.network();
         this.taskImage = dockerConfig.taskImage();
+        this.claudeConfigDir = dockerConfig.claudeConfigDir();
         this.vcsUrl = connectors.connector(connector).url();
         this.vcsToken = connectors.token(connector, actor);
         this.claudeOauthToken = claudeConfig.oauthToken();
@@ -74,6 +78,7 @@ public class ContainerService {
         this.docker = docker;
         this.network = dockerConfig.network();
         this.taskImage = dockerConfig.taskImage();
+        this.claudeConfigDir = dockerConfig.claudeConfigDir();
         this.vcsUrl = vcsConfig.resolvedUrl();
         this.vcsToken = vcsConfig.smithyToken();
         this.claudeOauthToken = claudeConfig.oauthToken();
@@ -257,6 +262,55 @@ public class ContainerService {
 
         log.info("Created container {}, waiting for init...", name);
         waitForInit(name);
+        try {
+            installClaudeConfig(name);
+        } catch (RuntimeException e) {
+            // The container exists and runs by now, and the next attempt would
+            // adopt it as it is — without the skills it was promised. Take it
+            // down so that attempt builds a complete one instead.
+            log.warn("Removing container {} after its Claude configuration could not be installed", name);
+            docker.run(List.of("rm", "-f", name));
+            throw e;
+        }
+    }
+
+    /**
+     * Put the operator's Claude configuration — skills, subagents — where Claude
+     * Code in the container will find it.
+     *
+     * <p>Under {@code /root/.claude}, not under the workspace: the workspace is
+     * the cloned repository, and anything dropped there would be committed by
+     * the next "commit your changes" turn. Copied by the docker CLI from this
+     * process's own filesystem, which is where the operator mounted the
+     * directory; the daemon never needs a host path. Done once, at creation —
+     * a container that outlives an update to the directory keeps what it had.
+     *
+     * <p>A directory that is configured but missing is a warning: the
+     * deployment is misconfigured, but the agent can still work. A copy that
+     * fails is not: the workflow was promised skills, and planning without
+     * them silently is the outcome this exists to prevent.
+     */
+    void installClaudeConfig(String name) {
+        if (claudeConfigDir == null || claudeConfigDir.isBlank()) return;
+        var source = java.nio.file.Path.of(claudeConfigDir).toAbsolutePath();
+        if (!java.nio.file.Files.isDirectory(source)) {
+            log.warn(
+                "runtime.docker.claudeConfigDir {} is not a directory here; container {} gets no skills or agents",
+                claudeConfigDir,
+                name
+            );
+            return;
+        }
+        var prepare = docker.run(List.of("exec", name, "mkdir", "-p", CLAUDE_HOME));
+        if (prepare.exitCode() != 0) {
+            throw new RuntimeException("Failed to prepare " + CLAUDE_HOME + " on " + name + ": " + prepare.stderr());
+        }
+        // "dir/." copies the directory's contents, not the directory itself.
+        var copy = docker.run(List.of("cp", source + "/.", name + ":" + CLAUDE_HOME));
+        if (copy.exitCode() != 0) {
+            throw new RuntimeException("Failed to copy Claude configuration into " + name + ": " + copy.stderr());
+        }
+        log.info("Installed Claude configuration from {} into {}:{}", claudeConfigDir, name, CLAUDE_HOME);
     }
 
     private void waitForInit(String name) {
