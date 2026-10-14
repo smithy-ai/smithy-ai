@@ -77,6 +77,36 @@ class ContainerServiceClaudeConfigTest {
         assertTrue(error.getMessage().contains("no space left"), error.getMessage());
     }
 
+    /**
+     * A container that exists without its skills would be adopted as-is by the
+     * next attempt, so a failed install takes the container down with it.
+     */
+    @Test
+    void creatingAContainerInstallsTheConfigAndRemovesTheContainerWhenThatFails() throws Exception {
+        Files.createDirectories(tempDir.resolve("claude"));
+        var docker = new FakeDockerCli() {
+            @Override
+            public ExecResult run(List<String> args) {
+                var result = super.run(args);
+                return "cp".equals(args.getFirst()) ? new ExecResult(1, "", "daemon hiccup") : result;
+            }
+        };
+        var config = dev.smithyai.orchestrator.service.docker.dto.ContainerConfig.builder()
+            .cloneUrl("https://git.invalid/acme/app.git")
+            .branch("")
+            .build();
+
+        assertThrows(RuntimeException.class, () ->
+            service(docker, tempDir.resolve("claude").toString()).create("box", config)
+        );
+
+        assertTrue(
+            docker.invocations.contains(List.of("rm", "-f", "box")),
+            "container left behind: " + docker.invocations
+        );
+        assertFalse(docker.containerExists("box"));
+    }
+
     private static ContainerService service(DockerCli docker, String claudeConfigDir) {
         return new ContainerService(
             new DockerConfig("docker", "smithy-net", "claude-task:test", null, claudeConfigDir),

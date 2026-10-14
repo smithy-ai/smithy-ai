@@ -262,7 +262,16 @@ public class ContainerService {
 
         log.info("Created container {}, waiting for init...", name);
         waitForInit(name);
-        installClaudeConfig(name);
+        try {
+            installClaudeConfig(name);
+        } catch (RuntimeException e) {
+            // The container exists and runs by now, and the next attempt would
+            // adopt it as it is — without the skills it was promised. Take it
+            // down so that attempt builds a complete one instead.
+            log.warn("Removing container {} after its Claude configuration could not be installed", name);
+            docker.run(List.of("rm", "-f", name));
+            throw e;
+        }
     }
 
     /**
@@ -283,7 +292,7 @@ public class ContainerService {
      */
     void installClaudeConfig(String name) {
         if (claudeConfigDir == null || claudeConfigDir.isBlank()) return;
-        var source = java.nio.file.Path.of(claudeConfigDir);
+        var source = java.nio.file.Path.of(claudeConfigDir).toAbsolutePath();
         if (!java.nio.file.Files.isDirectory(source)) {
             log.warn(
                 "runtime.docker.claudeConfigDir {} is not a directory here; container {} gets no skills or agents",

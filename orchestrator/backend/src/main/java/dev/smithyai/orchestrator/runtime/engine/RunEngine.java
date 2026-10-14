@@ -429,9 +429,32 @@ public class RunEngine implements SignalDelivery {
             // Someone is driving this session by hand. Acting on a webhook on
             // top of what they are typing produces work neither asked for —
             // so it waits, and is handed back when they release the run.
-            int queued = held.hold(run.id(), event);
-            log.info("Run {} is under human control, holding {} ({} held)", run.id(), event.name(), queued);
-            store.appendEvent(run.id(), "event.held", Map.of("event", event.name(), "held", queued));
+            var outcome = held.hold(run.id(), event);
+            if (outcome.outcome() == HeldEvents.Outcome.HELD) {
+                log.info(
+                    "Run {} is under human control, holding {} ({} held)",
+                    run.id(),
+                    event.name(),
+                    outcome.count()
+                );
+                store.appendEvent(run.id(), "event.held", Map.of("event", event.name(), "held", outcome.count()));
+            } else {
+                // A redelivery of something already held, or a queue that is
+                // full. Said as what it is: "held" would promise a replay.
+                log.info("Run {} is under human control; {} dropped as {}", run.id(), event.name(), outcome.outcome());
+                store.appendEvent(
+                    run.id(),
+                    "event.dropped",
+                    Map.of(
+                        "event",
+                        event.name(),
+                        "reason",
+                        outcome.outcome().name().toLowerCase(),
+                        "held",
+                        outcome.count()
+                    )
+                );
+            }
             return Outcome.ignored(definition.metadata().name());
         }
         if (run.isTerminal()) {
@@ -686,16 +709,30 @@ public class RunEngine implements SignalDelivery {
         return held.drain(runId);
     }
 
+    public boolean hasHeld(String runId) {
+        return held.hasAny(runId);
+    }
+
+    /** Runs holding events right now — what a sweep has to look at after a lease lapsed. */
+    public java.util.Set<String> heldRunIds() {
+        return held.runIds();
+    }
+
     /**
      * Whether the run, as it stands now, has anything to do with an event.
      *
      * <p>What lets the dashboard offer "hand back to workflow" only where the
      * workflow would do something with it: a button that releases control and
-     * then nothing happens reads as broken.
+     * then nothing happens reads as broken. Resolved the way dispatch resolves
+     * — a repository's own definition outranks the one it shares a name with —
+     * so the answer is about the definition that would actually run.
      */
     public boolean handlesNow(Run run, String eventName) {
-        return registry
-            .find(run.workflowName())
+        var probe = new WorkflowEvent.Signal(repoOf(run), eventName, Map.of());
+        return candidates(probe)
+            .stream()
+            .filter(candidate -> candidate.metadata().name().equals(run.workflowName()))
+            .findFirst()
             .map(definition -> definition.state().getStages().get(run.state()))
             .map(stage -> stage.on().containsKey(eventName))
             .orElse(false);

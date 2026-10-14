@@ -6,19 +6,21 @@ import dev.smithyai.orchestrator.runtime.env.RunEnvironments;
 import dev.smithyai.orchestrator.runtime.store.Run;
 import dev.smithyai.orchestrator.runtime.store.RunLease;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
+import dev.smithyai.orchestrator.service.claude.ClaudeSession;
+import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -40,7 +42,9 @@ import org.springframework.stereotype.Component;
  * Finishing says "I'm done, act on what we discussed": the workflow gets a
  * {@code takeover-finished} signal before anything held is replayed, so a
  * planning workflow can write the agreed plan down before a held approval
- * executes it.
+ * executes it. Both happen under the run's own lock, with the lease kept
+ * until then: nothing new slips in between the person letting go and the
+ * workflow hearing about it.
  */
 @Slf4j
 @Component
@@ -86,6 +90,13 @@ public class RunTakeover {
     private final Map<String, AtomicInteger> active = new ConcurrentHashMap<>();
 
     /**
+     * Runs whose letting-go is queued or in progress. A second release, a
+     * heartbeat from a tab that has not caught up, or the sweep must not undo
+     * what is about to happen on the run lock.
+     */
+    private final Set<String> lettingGo = ConcurrentHashMap.newKeySet();
+
+    /**
      * Where the work of letting go runs. A hand-back triggers an agent turn
      * that takes minutes, and the request that triggered it is a button click
      * that wants a prompt answer; the engine's per-run lock keeps the turn and
@@ -100,7 +111,7 @@ public class RunTakeover {
         RunEnvironments environments,
         RunLocks locks,
         ClaudeAgentConfig claude,
-        @Lazy RunEngine engine
+        RunEngine engine
     ) {
         this.store = store;
         this.environments = environments;
@@ -108,6 +119,11 @@ public class RunTakeover {
         this.engine = engine;
         this.turnTimeout = claude == null ? DEFAULT_TIMEOUT : claude.resolvedTakeoverTimeout().orElse(DEFAULT_TIMEOUT);
         this.defaultTools = claude == null ? DEFAULT_TOOLS : claude.resolvedTakeoverTools();
+    }
+
+    @PreDestroy
+    void shutdown() {
+        handback.shutdownNow();
     }
 
     /**
@@ -130,93 +146,111 @@ public class RunTakeover {
 
     /** Take control, or renew it. Empty if someone else already has it. */
     public Optional<Instant> heartbeat(String runId) {
+        if (lettingGo.contains(runId)) {
+            // Letting go is under way; a beat from a tab that has not caught up
+            // must neither start a new takeover nor extend the old one.
+            return store.findLease(runId).map(RunLease::expiresAt);
+        }
         boolean fresh = !store.isLeased(runId);
         var expiry = store.acquireLease(runId, RunLease.HUMAN, TTL);
-        if (fresh && expiry.isPresent()) {
-            active.put(runId, new AtomicInteger());
-            store.appendEvent(runId, "takeover.started", null);
-            log.info("A human took over run {}", runId);
+        if (expiry.isPresent()) {
+            // computeIfAbsent, not put: the lease outlives this process, and a
+            // beat after a restart continues the takeover rather than restarting it.
+            active.computeIfAbsent(runId, id -> new AtomicInteger());
+            if (fresh) {
+                store.appendEvent(runId, "takeover.started", null);
+                log.info("A human took over run {}", runId);
+            }
         }
         return expiry;
     }
 
     /** Let go without asking anything of the workflow; what was held is handled now. */
     public void release(String runId) {
-        release(runId, "dashboard");
-    }
-
-    private void release(String runId, String via) {
-        var ended = end(runId);
-        if (ended.isEmpty()) return;
-        store.appendEvent(
-            runId,
-            "takeover.released",
-            Map.of("via", via, "messages", ended.get().messages(), "held", ended.get().held().size())
-        );
-        log.info(
-            "Human takeover released on run {} ({}; {} message(s), {} held event(s))",
-            runId,
-            via,
-            ended.get().messages(),
-            ended.get().held().size()
-        );
-        if (!ended.get().held().isEmpty()) {
-            var held = ended.get().held();
-            handback.execute(() -> replay(runId, held));
-        }
+        letGo(runId, null, "dashboard");
     }
 
     /**
      * Let go and tell the workflow to act on the conversation.
      *
-     * <p>The signal goes first and the held events after it, on one thread, so
-     * a workflow that writes down what was agreed sees that happen before a
-     * held approval runs it. The engine's run lock means an in-flight turn is
-     * waited for rather than collided with. The lease is already gone when
-     * the signal arrives: otherwise the engine would hold it too.
+     * <p>The signal goes first and the held events after it, under the run lock,
+     * so a workflow that writes down what was agreed sees that happen before a
+     * held approval runs it. If the workflow fails on the signal, the held
+     * events are not replayed: an approval given on the strength of a
+     * conversation must not execute the plan from before it.
      */
     public void finish(Run run) {
-        var ended = end(run.id());
-        int messages = ended.map(Ended::messages).orElse(0);
-        var held = ended.map(Ended::held).orElse(List.of());
-        store.appendEvent(run.id(), "takeover.finished", Map.of("messages", messages, "held", held.size()));
-        log.info(
-            "Human handed run {} back to its workflow ({} message(s), {} held event(s))",
-            run.id(),
-            messages,
-            held.size()
-        );
-
         var payload = new LinkedHashMap<String, Object>();
-        payload.put("messages", messages);
         // Each hand-back is its own occurrence, however many happen in one state.
         payload.put("id", UUID.randomUUID().toString());
         payload.put("via", "dashboard");
-        var signal = new WorkflowEvent.Signal(RunEngine.repoOf(run), FINISHED, payload);
+        letGo(run.id(), new WorkflowEvent.Signal(RunEngine.repoOf(run), FINISHED, payload), "dashboard");
+    }
+
+    /**
+     * The one way out of a takeover.
+     *
+     * <p>Synchronously: stop counting the person as present, keep the run closed
+     * to new events (the heartbeat lease would lapse while a queued hand-back
+     * waits behind an in-flight turn, so it is renewed for as long as a turn
+     * can take) and record what happened. Then, on the run lock: take what was
+     * held, open the run, deliver the signal if there is one, replay. A
+     * dispatcher that saw the lease before the lock was taken has finished
+     * holding its event by the time the lock is ours, so the drain under the
+     * lock is complete.
+     */
+    private void letGo(String runId, WorkflowEvent.Signal signal, String via) {
+        if (!lettingGo.add(runId)) return;
+        boolean wasHeld = store.isLeased(runId) || active.containsKey(runId) || engine.hasHeld(runId);
+        if (!wasHeld) {
+            lettingGo.remove(runId);
+            return;
+        }
+        int messages = Optional.ofNullable(active.remove(runId)).map(AtomicInteger::get).orElse(0);
+        store.acquireLease(runId, RunLease.HUMAN, ClaudeSession.turnTimeout().plus(TTL));
+        String what = signal == null ? "takeover.released" : "takeover.finished";
+        store.appendEvent(runId, what, Map.of("via", via, "messages", messages));
+        log.info("Run {}: {} ({}, {} message(s))", runId, what, via, messages);
+        if (signal != null) signal.payload().put("messages", messages);
 
         handback.execute(() -> {
             try {
-                boolean handled = engine.deliver(run.id(), signal);
-                log.info("Run {} {} the {} signal", run.id(), handled ? "handled" : "did not handle", FINISHED);
-            } catch (RuntimeException e) {
-                // The held events still deserve their turn.
-                log.error("Run {} failed on the {} signal", run.id(), FINISHED, e);
+                locks.inRun(runId, () -> {
+                    var held = engine.drainHeld(runId);
+                    store.releaseLease(runId);
+                    boolean proceed = true;
+                    if (signal != null) proceed = deliverFinished(runId, signal, held);
+                    if (proceed) replay(runId, held);
+                    return null;
+                });
+            } finally {
+                lettingGo.remove(runId);
             }
-            replay(run.id(), held);
         });
     }
 
-    /** A takeover that has ended: what the person sent, and what arrived meanwhile. */
-    private record Ended(int messages, List<WorkflowEvent> held) {}
-
-    /** Drop the lease and collect what was held. Empty when nobody held the run. */
-    private Optional<Ended> end(String runId) {
-        boolean wasHeld = store.isLeased(runId) || active.containsKey(runId);
-        store.releaseLease(runId);
-        var counter = active.remove(runId);
-        var held = engine.drainHeld(runId);
-        if (!wasHeld && held.isEmpty()) return Optional.empty();
-        return Optional.of(new Ended(counter == null ? 0 : counter.get(), held));
+    /** @return whether the held events may follow */
+    private boolean deliverFinished(String runId, WorkflowEvent.Signal signal, List<WorkflowEvent> held) {
+        try {
+            boolean handled = engine.deliver(runId, signal);
+            log.info("Run {} {} the {} signal", runId, handled ? "handled" : "did not handle", FINISHED);
+            return true;
+        } catch (RuntimeException e) {
+            log.error("Run {} failed on the {} signal; {} held event(s) not replayed", runId, FINISHED, held.size(), e);
+            if (!held.isEmpty()) {
+                store.appendEvent(
+                    runId,
+                    "takeover.replay_skipped",
+                    Map.of(
+                        "events",
+                        held.stream().map(WorkflowEvent::name).toList(),
+                        "reason",
+                        "hand-back transition failed"
+                    )
+                );
+            }
+            return false;
+        }
     }
 
     private void replay(String runId, List<WorkflowEvent> held) {
@@ -226,13 +260,17 @@ public class RunTakeover {
     }
 
     /**
-     * A closed tab whose goodbye never arrived. The lease has lapsed on its own;
-     * this notices, so what was held while it was alive is not held forever.
+     * A closed tab whose goodbye never arrived, or held events the process no
+     * longer remembers a holder for (an orchestrator restart mid-takeover). The
+     * lease has lapsed on its own; this notices, so what was held while it was
+     * alive is not held forever.
      */
     @Scheduled(fixedDelay = 10_000)
     public void sweepLapsed() {
-        for (String runId : List.copyOf(active.keySet())) {
-            if (!store.isLeased(runId)) release(runId, "lapse");
+        var candidates = new java.util.LinkedHashSet<>(active.keySet());
+        candidates.addAll(engine.heldRunIds());
+        for (String runId : candidates) {
+            if (!lettingGo.contains(runId) && !store.isLeased(runId)) letGo(runId, null, "lapse");
         }
     }
 
@@ -261,8 +299,7 @@ public class RunTakeover {
                 String reply = agent.send(text);
                 environments.rememberAgentSession(container, agent);
                 store.appendEvent(run.id(), "takeover.message", Map.of("length", text.length()));
-                var sent = active.get(run.id());
-                if (sent != null) sent.incrementAndGet();
+                active.computeIfAbsent(run.id(), id -> new AtomicInteger()).incrementAndGet();
                 return reply == null ? "" : reply;
             })
             .orElseThrow(() -> {

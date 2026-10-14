@@ -99,8 +99,61 @@ class RunTakeoverConcurrencyTest {
         assertFalse(signal.getValue().identity().isBlank());
         assertNotEquals("null", signal.getValue().identity());
         // The lease is gone before the signal lands, or the engine would hold it too.
-        verify(store).releaseLease(RUN.id());
+        verify(store, timeout(5000)).releaseLease(RUN.id());
         verify(store).appendEvent(eq(RUN.id()), eq("takeover.finished"), any());
+        assertEquals(0, signal.getValue().payload().get("messages"));
+    }
+
+    /**
+     * An approval given on the strength of a conversation must not execute the
+     * plan from before it: when the workflow fails on the hand-back signal, what
+     * was held is recorded, not replayed.
+     */
+    @Test
+    void aFailedHandBackTransitionKeepsHeldEventsFromRunningTheOldPlan() {
+        var held = approval();
+        when(engine.drainHeld(RUN.id())).thenReturn(List.of(held));
+        when(engine.deliver(any(), any())).thenThrow(new IllegalStateException("turn timed out"));
+
+        takeover.finish(RUN);
+
+        verify(store, timeout(5000)).appendEvent(eq(RUN.id()), eq("takeover.replay_skipped"), any());
+        verify(engine, never()).redeliverAll(any(), any());
+    }
+
+    @Test
+    void aReleaseWhileAHandBackIsQueuedIsANoOp() throws Exception {
+        var gate = new CountDownLatch(1);
+        when(engine.deliver(any(), any())).thenAnswer(invocation -> {
+            gate.await(5, TimeUnit.SECONDS);
+            return true;
+        });
+
+        takeover.finish(RUN);
+        // The dashboard's cleanup DELETE lands while the hand-back is still on its way.
+        takeover.release(RUN.id());
+        gate.countDown();
+
+        verify(engine, timeout(5000)).deliver(any(), any());
+        verify(store, timeout(5000)).appendEvent(eq(RUN.id()), eq("takeover.finished"), any());
+        verify(store, never()).appendEvent(eq(RUN.id()), eq("takeover.released"), any());
+    }
+
+    /** After a restart the process remembers no holder, but the held events are still there. */
+    @Test
+    void theSweepReplaysHeldEventsOfARunNobodyHoldsAnyMore() {
+        var held = approval();
+        when(store.isLeased(RUN.id())).thenReturn(false);
+        when(engine.heldRunIds()).thenReturn(java.util.Set.of(RUN.id()));
+        when(engine.hasHeld(RUN.id())).thenReturn(true);
+        when(engine.drainHeld(RUN.id())).thenReturn(List.of(held));
+
+        takeover.sweepLapsed();
+
+        verify(engine, timeout(5000)).redeliverAll(RUN.id(), List.of(held));
+        var payload = ArgumentCaptor.forClass(Map.class);
+        verify(store).appendEvent(eq(RUN.id()), eq("takeover.released"), payload.capture());
+        assertEquals("lapse", payload.getValue().get("via"));
     }
 
     @Test

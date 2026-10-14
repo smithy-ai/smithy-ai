@@ -139,9 +139,12 @@ be handled.
 Events that arrive while a person holds a run's session are held, not acted
 on, and handed to the run in arrival order once control is released — after
 the hand-back signal, when there is one, so a workflow can write down what was
-agreed before a held approval runs it. Held events live in memory: an
-orchestrator restart during a takeover loses them, and the event has to be
-re-sent. The built-in
+agreed before a held approval runs it. If the transition handling the
+hand-back signal fails, the held events are not replayed (the run's history
+records `takeover.replay_skipped` with their names): an approval given on the
+strength of a conversation must not execute the plan from before it. Held
+events live in memory: an orchestrator restart during a takeover loses them,
+and the event has to be re-sent. The built-in
 `smithy-development` also signals its parent, if it has one, when its merge
 request opens (`signal:pr-opened`, payload includes `owner`, `repo`, `issueRef`,
 `prNumber`, `url`) — the feature coordinator relays that link onto the story.
@@ -288,9 +291,9 @@ components documented there.
 
 `state.var` merges: writing one variable does not erase the rest.
 
-Comment and pull-request bodies are markdown. The Jira connector converts them
-to wiki markup on the way out (and reads them as markdown only, so write
-markdown there too); the other providers render markdown as is.
+Comment bodies are markdown. The Jira connector converts them to wiki markup
+on the way out (and reads them as markdown only, so write markdown there too);
+the other providers render markdown as is.
 
 ### Control flow and coordination
 

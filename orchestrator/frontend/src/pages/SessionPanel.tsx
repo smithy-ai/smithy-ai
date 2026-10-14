@@ -49,6 +49,9 @@ export function SessionPanel({
   // Every turn starts collapsed; the list is an index you open into.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const controlledRef = useRef<string | null>(null);
+  // Set before the hand-back request goes out, so a heartbeat already due does
+  // not re-take the run the server is in the middle of letting go of.
+  const finishingRef = useRef(false);
 
   const {
     data: raw,
@@ -69,8 +72,9 @@ export function SessionPanel({
     controlledRef.current = selected;
     let cancelled = false;
 
-    const beat = () =>
-      takeoverHeartbeat(selected)
+    const beat = () => {
+      if (finishingRef.current) return Promise.resolve();
+      return takeoverHeartbeat(selected)
         .then((state) => {
           // The run moves while you hold it (a turn you sent may change its
           // state), so what hand-back means is re-read with every beat.
@@ -82,6 +86,7 @@ export function SessionPanel({
             setTakeoverError("Lost control of the session (instance gone?).");
           }
         });
+    };
 
     beat();
     const interval = setInterval(beat, HEARTBEAT_INTERVAL_MS);
@@ -123,8 +128,9 @@ export function SessionPanel({
   }
 
   async function handleHandBack() {
-    if (!selected || finishing) return;
+    if (!selected || finishing || sending) return;
     setFinishing(true);
+    finishingRef.current = true;
     setTakeoverError(null);
     try {
       await finishTakeover(selected);
@@ -138,6 +144,7 @@ export function SessionPanel({
       setTakeoverError(e instanceof Error ? e.message : "Failed to hand back.");
     } finally {
       setFinishing(false);
+      finishingRef.current = false;
       queryClient.invalidateQueries({ queryKey: ["session", selected] });
     }
   }
@@ -198,7 +205,7 @@ export function SessionPanel({
           (takenOver ? (
             <Group gap="xs">
               {canFinish && (
-                <Button onClick={handleHandBack} loading={finishing}>
+                <Button onClick={handleHandBack} loading={finishing} disabled={sending}>
                   Hand back to workflow
                 </Button>
               )}

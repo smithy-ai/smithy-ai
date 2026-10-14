@@ -13,13 +13,20 @@ import { useSearchParams } from "react-router-dom";
 import { csrfHeaders } from "../api/client";
 
 /**
- * Where to go after signing in. Only a path on this site: an absolute or
- * protocol-relative value here would make the login page an open redirect.
+ * Where to go after signing in. Only a page on this site: resolved by the
+ * browser's own URL parser against this origin and compared on origin, so
+ * the tricks a string check misses (a protocol-relative "//", a backslash,
+ * a tab or newline the parser strips) all land on "/".
  */
 function safeNext(next: string | null): string {
-  if (!next || !next.startsWith("/") || next.startsWith("/login")) return "/";
-  if (next.length > 1 && (next[1] === "/" || next[1] === "\\")) return "/";
-  return next;
+  if (!next) return "/";
+  try {
+    const url = new URL(next, window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname.startsWith("/login")) return "/";
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return "/";
+  }
 }
 
 export function LoginPage() {
