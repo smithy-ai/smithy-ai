@@ -54,7 +54,11 @@ class IgnoredEventExplainerTest {
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         store = new RunStore(JdbcClient.create((DataSource) dataSource), new ObjectMapper());
         tracker = new StubVcsClient();
-        explainer = new IgnoredEventExplainer(store, new IssueTrackers(Map.of("forgejo-main", tracker)));
+        explainer = new IgnoredEventExplainer(
+            store,
+            new IssueTrackers(Map.of("forgejo-main", tracker)),
+            new dev.smithyai.orchestrator.config.DashboardConfig("https://smithy.example.com")
+        );
     }
 
     private static WorkflowEvent comment(String body) {
@@ -113,6 +117,41 @@ class IgnoredEventExplainerTest {
         assertTrue(tracker.issueComments.getFirst().contains("state 'executing'"), tracker.issueComments.getFirst());
     }
 
+    /**
+     * A comment nobody acts on is a dead end unless the reply says where the
+     * person can be heard: the run's session, when there is one to open.
+     */
+    @Test
+    void anUnheardCommentOnARunWithASessionPointsAtTheSession() {
+        var run = ownedRun(RunStatus.WAITING, "awaiting_approval");
+        store.attachEnvironment(run.id(), RunRecorder.CONTAINER, "gm.coordinator.ECD-9", Map.of());
+
+        explainer.explainIfIgnored(comment("can we drop the frontend part?"), nothingHandled());
+
+        var reply = tracker.issueComments.getFirst();
+        assertTrue(reply.contains("https://smithy.example.com/session/gm.coordinator.ECD-9"), reply);
+        assertTrue(reply.contains("open the session"), reply);
+    }
+
+    @Test
+    void noSessionHintWithoutAContainerOrADashboardAddress() {
+        ownedRun(RunStatus.WAITING, "executing");
+        explainer.explainIfIgnored(comment("status?"), nothingHandled());
+        assertFalse(tracker.issueComments.getFirst().contains("session"), tracker.issueComments.getFirst());
+
+        var silentDashboard = new IgnoredEventExplainer(
+            store,
+            new IssueTrackers(Map.of("forgejo-main", tracker)),
+            dev.smithyai.orchestrator.config.DashboardConfig.unconfigured()
+        );
+        var run = store
+            .findByCorrelation(CorrelationKind.ISSUE, RunRecorder.issueRef("acme", "platform", "ECD-9"))
+            .orElseThrow();
+        store.attachEnvironment(run.id(), RunRecorder.CONTAINER, "box", Map.of());
+        silentDashboard.explainIfIgnored(comment("status again?"), nothingHandled());
+        assertFalse(tracker.issueComments.getLast().contains("session"), tracker.issueComments.getLast());
+    }
+
     @Test
     void aRedeliveredAssignmentOnAWorkingRunStaysSilent() {
         // The run exists because of that assignment; a tracker redelivering the
@@ -147,10 +186,7 @@ class IgnoredEventExplainerTest {
     void machineTrafficIsNeverExplained() {
         ownedRun(RunStatus.COMPLETED, "done");
 
-        explainer.explainIfIgnored(
-            new WorkflowEvent.HumanPush(REPO, "some-branch"),
-            List.of()
-        );
+        explainer.explainIfIgnored(new WorkflowEvent.HumanPush(REPO, "some-branch"), List.of());
 
         assertTrue(tracker.issueComments.isEmpty(), "pushes go unhandled all the time, legitimately");
     }

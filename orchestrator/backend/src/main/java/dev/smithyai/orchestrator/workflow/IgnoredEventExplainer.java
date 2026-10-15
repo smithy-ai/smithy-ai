@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.workflow;
 
+import dev.smithyai.orchestrator.config.DashboardConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.engine.RunEngine;
 import dev.smithyai.orchestrator.runtime.store.CorrelationKind;
@@ -36,10 +37,12 @@ public class IgnoredEventExplainer {
 
     private final RunStore store;
     private final IssueTrackers trackers;
+    private final DashboardConfig dashboard;
 
-    public IgnoredEventExplainer(RunStore store, IssueTrackers trackers) {
+    public IgnoredEventExplainer(RunStore store, IssueTrackers trackers, DashboardConfig dashboard) {
         this.store = store;
         this.trackers = trackers;
+        this.dashboard = dashboard;
     }
 
     public void explainIfIgnored(WorkflowEvent event, List<RunEngine.Outcome> outcomes) {
@@ -90,13 +93,17 @@ public class IgnoredEventExplainer {
 
         Run run = owner.get();
         if (run.status() == RunStatus.COMPLETED) {
-            return ("I didn't act on that %s: my run for this issue already completed, and delivered work is not " +
+            return (
+                "I didn't act on that %s: my run for this issue already completed, and delivered work is not " +
                 "redone on a stray event. To start a fresh round, remove me from the assignees and then assign " +
-                "me again.").formatted(gesture);
+                "me again."
+            ).formatted(gesture);
         }
         if (run.isTerminal()) {
-            return ("I didn't act on that %s: my run for this issue was %s. Assign me again to restart it from " +
-                "the beginning.").formatted(gesture, run.status().value());
+            return (
+                "I didn't act on that %s: my run for this issue was %s. Assign me again to restart it from " +
+                "the beginning."
+            ).formatted(gesture, run.status().value());
         }
 
         // An assignment landing on a run that is already working IS honoured —
@@ -112,13 +119,31 @@ public class IgnoredEventExplainer {
             .stream()
             .map(wait -> wait.waitKey())
             .collect(Collectors.joining(", "));
-        return ("I saw the %s, but I'm mid-way through this issue (state '%s') and that stage doesn't react to it. %s")
-            .formatted(
-                gesture,
-                run.state(),
-                waits.isEmpty()
-                    ? "The current stage finishes on its own; what happens next will be posted here."
-                    : "It is waiting on: " + waits + "."
-            );
+        return (
+            "I saw the %s, but I'm mid-way through this issue (state '%s') and that stage doesn't react to it. %s%s"
+        ).formatted(
+            gesture,
+            run.state(),
+            waits.isEmpty()
+                ? "The current stage finishes on its own; what happens next will be posted here."
+                : "It is waiting on: " + waits + ".",
+            sessionHint(run)
+        );
+    }
+
+    /**
+     * Where the person can say it to the agent directly. A comment nobody acts
+     * on is a dead end; the session is the way through, so it is named
+     * whenever there is one to open — a run with a container, on a deployment
+     * that knows its own address.
+     */
+    private String sessionHint(Run run) {
+        if (!dashboard.isConfigured()) return "";
+        var containers = store.findEnvironmentNames(run.id(), RunRecorder.CONTAINER);
+        if (containers.isEmpty()) return "";
+        return (
+            " If you want to steer it, open the session and talk to me there: " +
+            dashboard.sessionUrl(containers.getLast())
+        );
     }
 }
