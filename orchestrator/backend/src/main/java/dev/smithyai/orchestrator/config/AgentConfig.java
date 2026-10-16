@@ -15,14 +15,42 @@ public record AgentConfig(ClaudeAgentConfig claude) {
         "WebFetch"
     );
 
+    /**
+     * What a human-driven turn is told about itself. The agent otherwise
+     * carries its last workflow turn's habits into the conversation — observed
+     * live: a planning agent trying to call the StructuredOutput tool from a
+     * takeover turn, where no schema and therefore no such tool exists, and
+     * concluding it could not change the plan.
+     */
+    public static final String DEFAULT_TAKEOVER_SYSTEM_PROMPT = String.join(
+        " ",
+        "A person has taken this session over from the Smithy dashboard and is talking to you directly;",
+        "they are the human in the loop for the workflow this run belongs to.",
+        "Discuss, verify in the code, and refine with them.",
+        "In this mode you cannot post to the issue tracker, open merge requests, or return structured output:",
+        "the StructuredOutput tool and the workflow's own steps are not available here, so do not try.",
+        "When they hand the session back, the workflow asks you for the final result",
+        "(for a planning run: the complete plan) in a separate structured turn,",
+        "so keep an explicit, up-to-date statement of what has been agreed in this conversation.",
+        "If they ask for something only the workflow can do, say so and tell them to hand back."
+    );
+
     public record ClaudeAgentConfig(
         String model,
         SecretRef oauthToken,
         SecretRef apiKey,
         String turnTimeout,
         String takeoverTimeout,
-        List<String> takeoverTools
+        List<String> takeoverTools,
+        String takeoverSystemPrompt
     ) {
+        /** The system prompt appended to a human-driven turn; the built-in text unless the deployment wrote its own. */
+        public String resolvedTakeoverSystemPrompt() {
+            return takeoverSystemPrompt == null || takeoverSystemPrompt.isBlank()
+                ? DEFAULT_TAKEOVER_SYSTEM_PROMPT
+                : takeoverSystemPrompt;
+        }
+
         /**
          * Tools a human-driven turn may use.
          *

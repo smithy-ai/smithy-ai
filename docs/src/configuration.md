@@ -28,6 +28,7 @@ agent:
     turnTimeout: 60m          # budget for one agent turn; overrunning turns are killed
     takeoverTimeout: 5m       # budget for a turn a human drove from the dashboard
     takeoverTools: [Read, Glob, Grep, Bash, Edit, Write, WebFetch]
+    # takeoverSystemPrompt: optional; replaces what a human-driven turn is told about itself
 
 dashboard:
   publicUrl: https://smithy.example.com   # optional; where people open the dashboard
@@ -125,6 +126,16 @@ from the stage's `tools:` on purpose: a definition scopes tools per step to
 constrain the agent while it works on its own — read-only while planning, write
 while building — and that does not map onto whatever a person asks for after
 taking control.
+
+`agent.claude.takeoverSystemPrompt` is appended to Claude's system prompt on
+every human-driven turn. The built-in text tells the agent that a person has
+taken the session over, that it cannot post, open merge requests or return
+structured output from there, and that handing back will ask it for the final
+result in a separate structured turn — without it, an agent carries its last
+workflow turn's habits into the conversation and, for instance, tries to call
+the `StructuredOutput` tool that only a schema-bearing turn has. Set it to
+replace that text for a deployment with different workflows. The dashboard
+waits for a reply as long as `takeoverTimeout` plus a minute.
 
 Note that an **empty** tool list is not "no restrictions", it is "nothing
 allowed": the CLI is run without `--allowedTools`, and a headless turn on default

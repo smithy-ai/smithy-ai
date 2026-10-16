@@ -245,6 +245,9 @@ class RunTakeoverConcurrencyTest {
         // turn's — an unanswered request is a hung dashboard, not a long job.
         verify(agent).setTurnTimeout(Duration.ofMinutes(5));
         verify(environments).rememberAgentSession(container, agent);
+        // And it is told what kind of turn it is in, so it does not reach for
+        // the tools its last workflow turn had.
+        verify(agent).setAppendedSystemPrompt(contains("hand the session back"));
     }
 
     @Test
@@ -311,6 +314,6 @@ class RunTakeoverConcurrencyTest {
     }
 
     private static ClaudeAgentConfig agentConfig(String takeoverTimeout) {
-        return new ClaudeAgentConfig("claude-opus-5", null, null, null, takeoverTimeout, null);
+        return new ClaudeAgentConfig("claude-opus-5", null, null, null, takeoverTimeout, null, null);
     }
 }

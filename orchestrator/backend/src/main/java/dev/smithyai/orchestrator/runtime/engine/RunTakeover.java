@@ -85,6 +85,7 @@ public class RunTakeover {
     private final RunEngine engine;
     private final Duration turnTimeout;
     private final List<String> defaultTools;
+    private final String systemPrompt;
 
     /** Runs a person currently holds, with how many messages they have sent. */
     private final Map<String, AtomicInteger> active = new ConcurrentHashMap<>();
@@ -119,6 +120,15 @@ public class RunTakeover {
         this.engine = engine;
         this.turnTimeout = claude == null ? DEFAULT_TIMEOUT : claude.resolvedTakeoverTimeout().orElse(DEFAULT_TIMEOUT);
         this.defaultTools = claude == null ? DEFAULT_TOOLS : claude.resolvedTakeoverTools();
+        this.systemPrompt =
+            claude == null
+                ? dev.smithyai.orchestrator.config.AgentConfig.DEFAULT_TAKEOVER_SYSTEM_PROMPT
+                : claude.resolvedTakeoverSystemPrompt();
+    }
+
+    /** How long one human-driven turn may take; the dashboard waits this long plus a margin. */
+    public Duration turnBudget() {
+        return turnTimeout;
     }
 
     @PreDestroy
@@ -296,6 +306,7 @@ public class RunTakeover {
                 var container = environments.container(run);
                 var agent = environments.agent(run, toolsFor(tools));
                 agent.setTurnTimeout(turnTimeout);
+                agent.setAppendedSystemPrompt(systemPrompt);
                 String reply = agent.send(text);
                 environments.rememberAgentSession(container, agent);
                 store.appendEvent(run.id(), "takeover.message", Map.of("length", text.length()));
