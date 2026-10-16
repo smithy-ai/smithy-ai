@@ -311,7 +311,14 @@ public class DashboardController {
     public ResponseEntity<TakeoverDto> takeoverStatus(@PathVariable String containerName) {
         var run = runFor(containerName);
         if (run.isEmpty()) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(new TakeoverDto(takeover.isHeld(run.get().id()), null, canFinish(run.get())));
+        return ResponseEntity.ok(
+            new TakeoverDto(
+                takeover.isHeld(run.get().id()),
+                null,
+                canFinish(run.get()),
+                takeover.turnBudget().toSeconds()
+            )
+        );
     }
 
     @PostMapping("/dashboard/takeover/{containerName}")
@@ -322,7 +329,11 @@ public class DashboardController {
         // typing into the same agent session.
         return takeover
             .heartbeat(run.get().id())
-            .map(expiresAt -> ResponseEntity.ok(new TakeoverDto(true, expiresAt, canFinish(run.get()))))
+            .map(expiresAt ->
+                ResponseEntity.ok(
+                    new TakeoverDto(true, expiresAt, canFinish(run.get()), takeover.turnBudget().toSeconds())
+                )
+            )
             .orElseGet(() -> ResponseEntity.status(409).build());
     }
 

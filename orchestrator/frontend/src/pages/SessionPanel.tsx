@@ -21,6 +21,7 @@ import {
   takeoverHeartbeat,
   Instance,
 } from "../api/client";
+import ReactMarkdown from "react-markdown";
 import { parseSession } from "../lib/parseSession";
 import { groupTurns } from "../lib/groupTurns";
 import type { ToolResultContent } from "../lib/sessionTypes";
@@ -44,8 +45,15 @@ export function SessionPanel({
   const [takeoverError, setTakeoverError] = useState<string | null>(null);
   // Whether the workflow would act on a hand-back right now; the server says.
   const [canFinish, setCanFinish] = useState(false);
+  const [turnBudgetSeconds, setTurnBudgetSeconds] = useState(300);
   const [finishing, setFinishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // The agent's answer to the last message, shown the moment the server
+  // returns it: the transcript poll catches up a few seconds later.
+  const [lastReply, setLastReply] = useState<string | null>(null);
+  // React state is stale within one tick; a key-repeat of Ctrl+Enter could
+  // pass the `sending` check twice before the first render lands.
+  const inFlightRef = useRef(false);
   // Every turn starts collapsed; the list is an index you open into.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const controlledRef = useRef<string | null>(null);
@@ -61,7 +69,10 @@ export function SessionPanel({
     queryKey: ["session", selected],
     queryFn: () => fetchInstanceSession(selected as string),
     enabled: !!selected,
-    refetchInterval: 5000,
+    // Faster while a message is being answered, and never paused because the
+    // window lost focus: a person waiting on a turn looks away.
+    refetchInterval: sending ? 3000 : 5000,
+    refetchIntervalInBackground: true,
   });
 
   // Heartbeat loop while control is held; releases on unmount,
@@ -78,7 +89,10 @@ export function SessionPanel({
         .then((state) => {
           // The run moves while you hold it (a turn you sent may change its
           // state), so what hand-back means is re-read with every beat.
-          if (!cancelled) setCanFinish(state.canFinish);
+          if (!cancelled) {
+            setCanFinish(state.canFinish);
+            setTurnBudgetSeconds(state.turnBudgetSeconds);
+          }
         })
         .catch(() => {
           if (!cancelled) {
@@ -110,6 +124,7 @@ export function SessionPanel({
     }
     setExpanded(new Set());
     setNotice(null);
+    setLastReply(null);
   }, [selected]);
 
   async function handleTakeOver() {
@@ -119,6 +134,7 @@ export function SessionPanel({
     try {
       const state = await takeoverHeartbeat(selected);
       setCanFinish(state.canFinish);
+      setTurnBudgetSeconds(state.turnBudgetSeconds);
       setTakenOver(true);
     } catch {
       setTakeoverError(
@@ -150,16 +166,20 @@ export function SessionPanel({
   }
 
   async function handleSend() {
-    if (!selected || !draft.trim() || sending) return;
+    if (!selected || !draft.trim() || sending || inFlightRef.current) return;
     const text = draft.trim();
+    inFlightRef.current = true;
     setSending(true);
     setTakeoverError(null);
+    setLastReply(null);
     try {
-      await sendTakeoverMessage(selected, text);
+      const reply = await sendTakeoverMessage(selected, text, turnBudgetSeconds);
       setDraft("");
+      setLastReply(reply.trim() || "(no reply text)");
     } catch (e) {
       setTakeoverError(e instanceof Error ? e.message : "Failed to send message.");
     } finally {
+      inFlightRef.current = false;
       setSending(false);
       queryClient.invalidateQueries({ queryKey: ["session", selected] });
     }
@@ -288,6 +308,18 @@ export function SessionPanel({
             </ScrollArea.Autosize>
           )}
 
+          {takenOver && lastReply && (
+            <Alert
+              color="blue"
+              variant="light"
+              title="Reply"
+              withCloseButton
+              onClose={() => setLastReply(null)}
+            >
+              <ReactMarkdown>{lastReply}</ReactMarkdown>
+            </Alert>
+          )}
+
           {takenOver && (
             <Group align="flex-end" gap="sm">
               <Textarea
@@ -313,7 +345,9 @@ export function SessionPanel({
           )}
           {sending && (
             <Text size="sm" c="dimmed">
-              Claude is working on your message — the transcript above updates live.
+              Claude is working on your message (up to{" "}
+              {Math.max(1, Math.round(turnBudgetSeconds / 60))} minutes) — the transcript above
+              updates as it goes, and the reply shows here when it lands.
             </Text>
           )}
         </>

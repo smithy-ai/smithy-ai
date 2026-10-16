@@ -177,6 +177,8 @@ export interface TakeoverState {
   expiresAt: string | null;
   /** Whether the run's workflow would act on being handed back right now. */
   canFinish: boolean;
+  /** How long one human-driven turn may take on the server. */
+  turnBudgetSeconds: number;
 }
 
 export async function takeoverHeartbeat(containerName: string): Promise<TakeoverState> {
@@ -186,7 +188,7 @@ export async function takeoverHeartbeat(containerName: string): Promise<Takeover
   });
   if (res.status === 401 || res.status === 403) {
     redirectToLogin();
-    return { active: false, expiresAt: null, canFinish: false };
+    return { active: false, expiresAt: null, canFinish: false, turnBudgetSeconds: 300 };
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -220,18 +222,21 @@ export async function finishTakeover(containerName: string): Promise<void> {
 }
 
 /**
- * A turn is answered by the agent, so this is slow by nature — but not endless.
- * Without a deadline a request that never comes back leaves the composer stuck
- * with the draft still in it and no error, which reads as a prompt that was
- * never sent. Kept above the server's takeover budget so the server's own
- * message wins the race and says something useful.
+ * Head-room on top of the server's turn budget before the browser gives up.
+ * The server enforces the budget and answers with its own sentence when a
+ * turn overruns; waiting a little longer than it does lets that sentence win
+ * the race rather than a generic timeout here. Without any deadline a request
+ * that never comes back leaves the composer stuck with the draft still in it
+ * and no error, which reads as a prompt that was never sent.
  */
-const TAKEOVER_MESSAGE_TIMEOUT_MS = 6 * 60 * 1000;
+const TAKEOVER_MESSAGE_GRACE_MS = 60 * 1000;
 
 export async function sendTakeoverMessage(
   containerName: string,
   text: string,
+  turnBudgetSeconds: number,
 ): Promise<string> {
+  const budgetMinutes = Math.max(1, Math.round(turnBudgetSeconds / 60));
   let res: Response;
   try {
     res = await fetch(
@@ -240,13 +245,13 @@ export async function sendTakeoverMessage(
         method: "POST",
         headers: { "Content-Type": "application/json", ...csrfHeaders() },
         body: JSON.stringify({ text }),
-        signal: AbortSignal.timeout(TAKEOVER_MESSAGE_TIMEOUT_MS),
+        signal: AbortSignal.timeout(turnBudgetSeconds * 1000 + TAKEOVER_MESSAGE_GRACE_MS),
       },
     );
   } catch (e) {
     if (e instanceof DOMException && e.name === "TimeoutError") {
       throw new Error(
-        "The agent did not reply within 6 minutes. It may still be working — " +
+        `The agent did not reply within its ${budgetMinutes}-minute budget. It may still be working — ` +
           "check the transcript before sending again.",
       );
     }

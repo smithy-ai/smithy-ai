@@ -82,6 +82,7 @@ public class ClaudeSession {
     private List<String> addDirs = List.of();
     private boolean started = false;
     private Duration sessionTurnTimeout;
+    private String appendedSystemPrompt;
 
     public ClaudeSession(ContainerSession container, List<String> tools) {
         this(container, tools, null, null);
@@ -138,6 +139,15 @@ public class ClaudeSession {
         if (timeout != null && !timeout.isZero() && !timeout.isNegative()) {
             this.sessionTurnTimeout = timeout;
         }
+    }
+
+    /**
+     * Text appended to Claude's system prompt for this session's turns. Used
+     * for human-driven turns, which otherwise arrive with no idea that they
+     * are one; a workflow turn says what it needs in its own prompt.
+     */
+    public void setAppendedSystemPrompt(String text) {
+        this.appendedSystemPrompt = text == null || text.isBlank() ? null : text;
     }
 
     private String model() {
@@ -265,6 +275,11 @@ public class ClaudeSession {
         command.add(permissionMode);
         command.add("--max-turns");
         command.add("200");
+
+        if (appendedSystemPrompt != null) {
+            command.add("--append-system-prompt");
+            command.add(appendedSystemPrompt);
+        }
 
         if (tools != null && !tools.isEmpty()) {
             command.add("--allowedTools");

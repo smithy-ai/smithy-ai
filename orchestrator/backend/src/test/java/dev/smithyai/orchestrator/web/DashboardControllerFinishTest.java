@@ -87,11 +87,13 @@ class DashboardControllerFinishTest {
         when(store.findByEnvironment(RunRecorder.CONTAINER, "box")).thenReturn(Optional.of(RUN));
         when(takeover.isHeld("run-1")).thenReturn(true);
         when(engine.handlesNow(RUN, "signal:" + RunTakeover.FINISHED)).thenReturn(true);
+        when(takeover.turnBudget()).thenReturn(java.time.Duration.ofMinutes(5));
 
         var status = controller.takeoverStatus("box").getBody();
 
         assertNotNull(status);
         assertTrue(status.active());
         assertTrue(status.canFinish());
+        assertEquals(300, status.turnBudgetSeconds());
     }
 }
