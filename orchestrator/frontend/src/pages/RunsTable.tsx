@@ -163,6 +163,15 @@ function RunRow({
               {run.status}
             </Badge>
             {run.live && <Badge color="green">live</Badge>}
+            {run.webhookMissing && (
+              <Badge
+                color="red"
+                variant="light"
+                title="A pull request this run opened is in a repository whose webhook events never reached the orchestrator. Nothing said there is heard until a webhook is added; see the run's timeline for which one."
+              >
+                no webhook
+              </Badge>
+            )}
             {waits.map((wait) => (
               <Badge key={wait.id} color="yellow" variant="light">
                 waiting: {wait.waitKey}

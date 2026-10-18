@@ -308,7 +308,17 @@ class LiveEndToEndIT {
                 issueActions.issueAssignAction(trackers),
                 issueActions.issueLabelAction(trackers),
                 issueActions.issueReadAction(trackers),
-                prActions.prCreateAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
+                // No webhook reaches this test, and that is not what it exercises.
+                prActions.prCreateAction(
+                    new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs),
+                    new dev.smithyai.orchestrator.web.WebhookArrivals() {
+                        @Override
+                        public boolean awaitPullRequest(String owner, String repo, int number, java.time.Duration p) {
+                            return true;
+                        }
+                    },
+                    store
+                ),
                 prActions.prCommentAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 prActions.prRequestReviewAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),
                 prActions.prReadAction(new dev.smithyai.orchestrator.service.vcs.VcsClients(vcs)),

@@ -5,6 +5,7 @@ import dev.smithyai.orchestrator.runtime.engine.RunEngine;
 import dev.smithyai.orchestrator.runtime.store.RunRecorder;
 import dev.smithyai.orchestrator.runtime.store.RunStore;
 import dev.smithyai.orchestrator.service.docker.ContainerService;
+import dev.smithyai.orchestrator.web.WebhookArrivals;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -26,20 +27,26 @@ public class WorkflowService {
     private final RunStore runStore;
     private final RunEngine engine;
     private final IgnoredEventExplainer explainer;
+    private final WebhookArrivals arrivals;
 
     public WorkflowService(
         ContainerService containerService,
         RunStore runStore,
         RunEngine engine,
-        IgnoredEventExplainer explainer
+        IgnoredEventExplainer explainer,
+        WebhookArrivals arrivals
     ) {
         this.containerService = containerService;
         this.runStore = runStore;
         this.engine = engine;
         this.explainer = explainer;
+        this.arrivals = arrivals;
     }
 
     public void onEvent(WorkflowEvent event) {
+        // Before the engine, which may block on a run whose current step is
+        // the one waiting to hear this.
+        arrivals.note(event);
         var outcomes = engine.handle(event);
         // A human gesture nothing reacted to gets an explanation, not silence.
         if (explainer != null) explainer.explainIfIgnored(event, outcomes);

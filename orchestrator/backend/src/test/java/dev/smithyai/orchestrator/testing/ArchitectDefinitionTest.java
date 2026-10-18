@@ -129,7 +129,7 @@ class ArchitectDefinitionTest {
                 new IssueActions().issueAssignAction(trackers),
                 new IssueActions().issueLabelAction(trackers),
                 new IssueActions().issueReadAction(trackers),
-                new PullRequestActions().prCreateAction(vcs.asRegistry()),
+                new PullRequestActions().prCreateAction(vcs.asRegistry(), vcs.arrivals, store),
                 new PullRequestActions().prCommentAction(vcs.asRegistry()),
                 new PullRequestActions().prRequestReviewAction(vcs.asRegistry()),
                 new PullRequestActions().prReadAction(vcs.asRegistry()),

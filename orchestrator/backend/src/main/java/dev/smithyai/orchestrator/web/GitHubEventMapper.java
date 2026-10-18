@@ -196,6 +196,7 @@ public class GitHubEventMapper {
     private WorkflowEvent mapPullRequest(JsonNode payload) {
         String action = payload.path("action").asText("");
         return switch (action) {
+            case "opened" -> new WorkflowEvent.PrOpened(extractPr(repoInfo(payload), payload.path("pull_request")));
             case "review_requested" -> mapReviewRequested(payload);
             case "ready_for_review" -> mapPrReadyForReview(payload);
             case "closed" -> mapPrClosed(payload);

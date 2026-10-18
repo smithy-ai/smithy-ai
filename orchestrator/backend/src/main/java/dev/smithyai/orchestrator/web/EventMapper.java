@@ -187,6 +187,7 @@ public class EventMapper {
 
     public WorkflowEvent mapPullRequest(String action, JsonNode payload) {
         return switch (action) {
+            case "opened" -> new WorkflowEvent.PrOpened(extractPr(repoInfo(payload), payload.path("pull_request")));
             case "review_requested" -> mapReviewRequested(payload);
             case "edited" -> mapPrEdited(payload);
             case "closed" -> mapPrClosed(payload);

@@ -56,6 +56,17 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     /** Repositories that exist; anything not listed is reported missing. */
     public final List<String> existingRepos = new ArrayList<>(List.of("acme/app", "acme/app-context"));
 
+    /**
+     * Where this stub's webhook deliveries land. A pull request it opens is
+     * announced here the way a provider with a working webhook would, so a
+     * flow under test is not held for a delivery that is never coming.
+     */
+    public final dev.smithyai.orchestrator.web.WebhookArrivals arrivals =
+        new dev.smithyai.orchestrator.web.WebhookArrivals();
+
+    /** False for a repository whose events never reach the orchestrator. */
+    public boolean deliversWebhooks = true;
+
     private final AtomicInteger nextPrNumber = new AtomicInteger(100);
 
     // ── IssueTrackerClient ───────────────────────────────────
@@ -126,6 +137,7 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     ) {
         var pr = new PrData(nextPrNumber.getAndIncrement(), title, body, false, head, base, List.of());
         createdPrs.add(pr);
+        if (deliversWebhooks) arrivals.pullRequestOpened(owner, repo, pr.number());
         return pr;
     }
 

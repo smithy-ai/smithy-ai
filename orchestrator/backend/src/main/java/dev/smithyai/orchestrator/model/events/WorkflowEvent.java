@@ -167,6 +167,21 @@ public interface WorkflowEvent {
         }
     }
 
+    /**
+     * A pull request was opened, by anyone.
+     *
+     * <p>Not something the built-in workflows react to. It exists so the
+     * orchestrator can tell that a repository's events reach it at all: a
+     * step that opens a pull request waits for this to arrive, and its absence
+     * is what says nothing said on that pull request ever will.
+     */
+    record PrOpened(PrContext prc) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.opened";
+        }
+    }
+
     record PrFinalized(PrContext prc) implements PrScoped {
         @Override
         public String name() {

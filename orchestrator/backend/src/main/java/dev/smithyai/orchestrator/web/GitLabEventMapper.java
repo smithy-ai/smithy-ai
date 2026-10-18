@@ -317,6 +317,7 @@ public class GitLabEventMapper {
         String action = attrs.path("action").asText("");
 
         return switch (action) {
+            case "open" -> new WorkflowEvent.PrOpened(extractPrFromMr(repoInfo(payload), attrs));
             case "update" -> mapMrUpdate(payload, attrs);
             case "close" -> mapMrClose(payload, attrs);
             case "merge" -> mapMrMerge(payload, attrs);

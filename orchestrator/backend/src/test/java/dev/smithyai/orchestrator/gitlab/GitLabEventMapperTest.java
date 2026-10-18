@@ -69,11 +69,11 @@ class GitLabEventMapperTest {
         // at any log level.
         for (String payload : new String[] {
             """
-            {"object_kind": "build", "project": {"path_with_namespace": "acme/app"}}""",
+                {"object_kind": "build", "project": {"path_with_namespace": "acme/app"}}""",
             """
-            {"object_kind": "build", "project_name": "Acme / App"}""",
+                {"object_kind": "build", "project_name": "Acme / App"}""",
             """
-            {"object_kind": "build", "project": null}""",
+                {"object_kind": "build", "project": null}""",
             "{}",
         }) {
             assertNull(mapper().map("Job Hook", json.readTree(payload)), payload);
@@ -109,6 +109,31 @@ class GitLabEventMapperTest {
           "assignees": [{"username": "%s"}]
         }
         """.formatted(username);
+    }
+
+    @Test
+    void aMergeRequestBeingOpenedIsReportedWhoeverOpenedIt() throws Exception {
+        // How the orchestrator learns a project's events reach it at all: the
+        // step that opened the merge request waits for exactly this.
+        String payload = """
+            {
+              "object_kind": "merge_request",
+              "user": {"username": "smithy-bot"},
+              "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                          "web_url": "https://gitlab.invalid/acme/app"},
+              "object_attributes": {"iid": 41, "title": "Add a thing", "description": "", "action": "open",
+                                    "state": "opened", "source_branch": "smithy/7-a-thing", "target_branch": "main"}
+            }
+            """;
+
+        var event = mapper().map("Merge Request Hook", json.readTree(payload));
+
+        var opened = assertInstanceOf(WorkflowEvent.PrOpened.class, event);
+        assertEquals("pr.opened", opened.name());
+        assertEquals(41, opened.prc().number());
+        assertEquals("acme", opened.prc().info().owner());
+        assertEquals("app", opened.prc().info().repo());
+        assertEquals("smithy/7-a-thing", opened.prc().headBranch());
     }
 
     private GitLabEventMapper mapper() {
