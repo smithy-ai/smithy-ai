@@ -113,6 +113,11 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public void deleteIssueComment(String owner, String repo, String issueRef, long commentId) {
+        delete("/projects/%s/issues/%s/notes/%d", projectId(owner, repo), issueRef, commentId);
+    }
+
+    @Override
     public IssueData createIssue(String owner, String repo, String title, String body, List<String> labels) {
         var payload = new HashMap<String, Object>();
         payload.put("title", title);
@@ -603,6 +608,25 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
             return mapper.readTree(response.body());
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException("GitLab API request failed: POST " + path, e);
+        }
+    }
+
+    private void delete(String pathTemplate, Object... args) {
+        String path = pathTemplate.formatted(args);
+        try {
+            var request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/api/v4" + path))
+                .header(authHeaderName, authHeaderValue)
+                .DELETE()
+                .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                throw new RuntimeException(
+                    "GitLab API error %d on DELETE %s: %s".formatted(response.statusCode(), path, response.body())
+                );
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("GitLab API request failed: DELETE " + path, e);
         }
     }
 

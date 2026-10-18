@@ -37,6 +37,7 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
             Capability.PR_REVIEW_INLINE,
             Capability.PR_REQUEST_REVIEW,
             Capability.ISSUE_COMMENT,
+            Capability.ISSUE_COMMENT_DELETE,
             Capability.ISSUE_ASSIGN,
             Capability.ISSUE_CREATE,
             Capability.ISSUE_LABEL,
@@ -134,6 +135,11 @@ public class ForgejoClient implements VcsClient, IssueTrackerClient {
             issueApi.issueCreateComment(owner, repo, number, new CreateIssueCommentOption().body(body))
         );
         return toCommentEntry(comment);
+    }
+
+    @Override
+    public void deleteIssueComment(String owner, String repo, String issueRef, long commentId) {
+        apiVoid(() -> issueApi.issueDeleteComment(owner, repo, commentId));
     }
 
     @Override
