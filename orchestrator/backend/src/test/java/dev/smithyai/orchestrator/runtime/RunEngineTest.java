@@ -84,6 +84,8 @@ class RunEngineTest {
                   - uses: metrics.record
                     with:
                       name: plan_approved
+                  # Whatever a test wants to happen mid-transition.
+                  - uses: test.hook
               pr.commented:
                 steps:
                   - uses: state.var
@@ -117,6 +119,9 @@ class RunEngineTest {
     private RunStore store;
     private RunEngine engine;
 
+    /** Runs inside the approval transition, at its test.hook step. */
+    private Runnable hook = () -> {};
+
     @BeforeEach
     void setUp() throws Exception {
         var dataSource = new DriverManagerDataSource("jdbc:sqlite:" + tempDir.resolve("runs.db") + "?foreign_keys=on");
@@ -140,7 +145,27 @@ class RunEngineTest {
                 new SignalEmitAction(store, null),
                 state.stateSetAction(store),
                 state.stateVarAction(store),
-                state.metricsRecordAction(store)
+                state.metricsRecordAction(store),
+                new WorkflowAction() {
+                    @Override
+                    public String type() {
+                        return "test.hook";
+                    }
+
+                    @Override
+                    public boolean idempotent() {
+                        return true;
+                    }
+
+                    @Override
+                    public java.util.Map<String, Object> execute(
+                        ActionContext context,
+                        java.util.Map<String, Object> input
+                    ) {
+                        hook.run();
+                        return java.util.Map.of();
+                    }
+                }
             )
         );
 
@@ -307,6 +332,45 @@ class RunEngineTest {
         assertFalse(outcome.handled());
         assertFalse(outcome.failed(), "ignoring an event is not failing on it");
         assertEquals("planning", store.find(started.runId()).orElseThrow().state());
+    }
+
+    /**
+     * Observed live: a Jira automation unassigned the coordinator twenty minutes
+     * into its fan-out, which cancels the run without waiting for the
+     * transition. When the transition ended it wrote "waiting" over
+     * "cancelled", and the run sat half-alive: the signals its children sent
+     * meanwhile had been ignored, and nothing would ever finish it.
+     */
+    @Test
+    void aRunCancelledWhileItsTransitionRunsStaysCancelled() {
+        var run = engine.handle(assigned()).getFirst();
+        hook = () -> engine.handle(unassigned());
+
+        engine.handle(approved());
+
+        assertEquals(RunStatus.CANCELLED, store.find(run.runId()).orElseThrow().status());
+        var history = store.findEvents(run.runId()).stream().map(RunEvent::type).toList();
+        assertTrue(history.contains("run.closed"), "the cancellation is in the history: " + history);
+        assertTrue(history.contains("transition.after_close"), "and so is the transition ending after it: " + history);
+    }
+
+    /** What reached the run after it closed is visible in its history, not only in a debug log. */
+    @Test
+    void anEventForAFinishedRunIsRecordedAsIgnored() {
+        var run = engine.handle(assigned()).getFirst();
+        engine.handle(unassigned());
+
+        var outcome = engine.handle(commented()).getFirst();
+
+        assertFalse(outcome.handled());
+        var ignored = store
+            .findEvents(run.runId())
+            .stream()
+            .filter(event -> event.type().equals("event.ignored"))
+            .toList();
+        assertEquals(1, ignored.size());
+        assertEquals("issue.commented", ignored.getFirst().payload().get("event"));
+        assertEquals("run cancelled", ignored.getFirst().payload().get("reason"));
     }
 
     /**

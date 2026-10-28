@@ -144,6 +144,33 @@ public class RunStore {
             .update();
     }
 
+    /**
+     * Set a live run's status, leaving a closed one as it was closed.
+     *
+     * <p>For the end of a transition: a run can be cancelled while one of its
+     * transitions is still running (an unassignment is not serialized behind
+     * it), and writing {@code waiting} over {@code cancelled} brought the run
+     * back to life half-finished. One statement, so nothing closes it between
+     * a check and the write.
+     *
+     * @return whether the run was still open and its status was written
+     */
+    @Transactional
+    public boolean updateStatusUnlessClosed(String runId, RunStatus status) {
+        String now = iso(Instant.now());
+        String terminalAt = status.isTerminal() ? now : null;
+        return (
+            db
+                .sql(
+                    "UPDATE runs SET status = ?, updated_at = ?, terminal_at = COALESCE(?, terminal_at) " +
+                        "WHERE id = ? AND status NOT IN ('completed', 'failed', 'cancelled')"
+                )
+                .params(status.value(), now, terminalAt, runId)
+                .update() >
+            0
+        );
+    }
+
     /** Replaces the whole variable map; callers read-modify-write under a lease. */
     @Transactional
     public void updateVars(String runId, Map<String, Object> vars) {
