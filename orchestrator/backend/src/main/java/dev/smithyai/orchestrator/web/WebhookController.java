@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.smithyai.orchestrator.config.ConnectorRegistry;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
+import dev.smithyai.orchestrator.runtime.engine.RunEngine;
 import dev.smithyai.orchestrator.workflow.WorkflowService;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -72,19 +73,31 @@ public class WebhookController {
 
         // After the signature check, so an attacker cannot pre-poison the seen
         // set; before the mapping, so a duplicate costs nothing downstream.
-        if (!deduplicator.firstDelivery(deliveryKeys(provider, connectorId, body, headers))) {
+        var delivery = deliveryKeys(provider, connectorId, body, headers);
+        if (!deduplicator.firstDelivery(delivery)) {
             log.info("Dropping duplicate {} webhook delivery for connector {}", provider, connectorId);
             return ResponseEntity.ok("Duplicate delivery ignored");
         }
 
+        boolean failed = true;
         try {
             JsonNode payload = mapper.readTree(body);
             WorkflowEvent event = eventMappers.map(connectorId, eventType, payload);
-            if (event != null) workflowService.onEvent(event);
+            var outcomes = event == null ? java.util.List.<RunEngine.Outcome>of() : workflowService.onEvent(event);
+            // A workflow that failed on it left its run where it was, and
+            // resending the event is how that is fixed: let the resend through.
+            failed = outcomes.stream().anyMatch(RunEngine.Outcome::failed);
             return ResponseEntity.ok("");
         } catch (Exception e) {
             log.error("Failed to process {} webhook for connector {}", provider, connectorId, e);
             return ResponseEntity.internalServerError().body("Error");
+        } finally {
+            // Whatever happened, the delivery is no longer in flight.
+            if (failed) {
+                deduplicator.failed(delivery);
+            } else {
+                deduplicator.processed(delivery);
+            }
         }
     }
 
@@ -137,7 +150,7 @@ public class WebhookController {
      * Both are scoped to the connector — two connectors may legitimately
      * receive the same payload.
      */
-    private static java.util.List<String> deliveryKeys(
+    private static WebhookDeduplicator.Delivery deliveryKeys(
         String provider,
         String connectorId,
         byte[] body,
@@ -153,7 +166,7 @@ public class WebhookController {
             }
             default -> "";
         };
-        return java.util.List.of(
+        return new WebhookDeduplicator.Delivery(
             deliveryId.isBlank() ? "" : connectorId + "|id|" + deliveryId,
             connectorId + "|body|" + sha256(body)
         );

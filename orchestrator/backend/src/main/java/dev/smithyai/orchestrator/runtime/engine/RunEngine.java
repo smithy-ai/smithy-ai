@@ -67,10 +67,30 @@ public class RunEngine implements SignalDelivery {
         this.locks = locks;
     }
 
-    /** What an event did, for logs and for the tests that assert on routing. */
-    public record Outcome(String workflowName, String runId, String fromState, String toState, boolean handled) {
+    /**
+     * What an event did, for logs and for the tests that assert on routing.
+     *
+     * @param failed a workflow threw while acting on the event, so a redelivery
+     *               of it is a retry worth running rather than a duplicate
+     */
+    public record Outcome(
+        String workflowName,
+        String runId,
+        String fromState,
+        String toState,
+        boolean handled,
+        boolean failed
+    ) {
+        public Outcome(String workflowName, String runId, String fromState, String toState, boolean handled) {
+            this(workflowName, runId, fromState, toState, handled, false);
+        }
+
         static Outcome ignored(String workflowName) {
             return new Outcome(workflowName, null, null, null, false);
+        }
+
+        static Outcome failed(String workflowName) {
+            return new Outcome(workflowName, null, null, null, false, true);
         }
     }
 
@@ -86,7 +106,7 @@ public class RunEngine implements SignalDelivery {
                 outcomes.add(apply(decision, event));
             } catch (RuntimeException e) {
                 log.error("Workflow {} failed on {}", decision.workflowName(), event.name(), e);
-                outcomes.add(Outcome.ignored(decision.workflowName()));
+                outcomes.add(Outcome.failed(decision.workflowName()));
             }
         }
         if (outcomes.isEmpty()) {

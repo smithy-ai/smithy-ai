@@ -39,10 +39,11 @@ public class WorkflowService {
         this.explainer = explainer;
     }
 
-    public void onEvent(WorkflowEvent event) {
+    public java.util.List<RunEngine.Outcome> onEvent(WorkflowEvent event) {
         var outcomes = engine.handle(event);
         // A human gesture nothing reacted to gets an explanation, not silence.
         if (explainer != null) explainer.explainIfIgnored(event, outcomes);
+        return outcomes;
     }
 
     /**

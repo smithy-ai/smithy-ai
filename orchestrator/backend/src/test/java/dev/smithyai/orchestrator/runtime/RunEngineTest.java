@@ -91,6 +91,12 @@ class RunEngineTest {
                       lastPrComment: "{{ event.commentBody }}"
           executing:
             on:
+              # Broken on purpose: state.set without a state throws.
+              issue.plan_approved:
+                steps:
+                  - uses: state.set
+                    with:
+                      unrelated: value
               issue.commented:
                 to: done
                 debounce: 150ms
@@ -299,7 +305,25 @@ class RunEngineTest {
         var outcome = engine.handle(commented()).getFirst();
 
         assertFalse(outcome.handled());
+        assertFalse(outcome.failed(), "ignoring an event is not failing on it");
         assertEquals("planning", store.find(started.runId()).orElseThrow().state());
+    }
+
+    /**
+     * A failed transition leaves the run where it was, and resending the event
+     * is how that gets fixed. The webhook layer can only let that resend
+     * through if it is told the first attempt failed, rather than that it was
+     * merely ignored.
+     */
+    @Test
+    void aWorkflowThatFailsOnAnEventSaysSoRatherThanThatItIgnoredIt() {
+        engine.handle(assigned());
+        engine.handle(approved());
+
+        var outcome = engine.handle(approved()).getFirst();
+
+        assertTrue(outcome.failed());
+        assertFalse(outcome.handled());
     }
 
     /**
