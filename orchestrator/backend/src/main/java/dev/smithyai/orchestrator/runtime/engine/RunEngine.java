@@ -67,10 +67,31 @@ public class RunEngine implements SignalDelivery {
         this.locks = locks;
     }
 
-    /** What an event did, for logs and for the tests that assert on routing. */
-    public record Outcome(String workflowName, String runId, String fromState, String toState, boolean handled) {
+    /**
+     * What an event did, for logs and for the tests that assert on routing.
+     *
+     * @param failed this workflow threw while acting on the event, so a
+     *               redelivery of it is a retry this workflow should run, while
+     *               to the others that acted on it, it is a duplicate
+     */
+    public record Outcome(
+        String workflowName,
+        String runId,
+        String fromState,
+        String toState,
+        boolean handled,
+        boolean failed
+    ) {
+        public Outcome(String workflowName, String runId, String fromState, String toState, boolean handled) {
+            this(workflowName, runId, fromState, toState, handled, false);
+        }
+
         static Outcome ignored(String workflowName) {
             return new Outcome(workflowName, null, null, null, false);
+        }
+
+        static Outcome failed(String workflowName) {
+            return new Outcome(workflowName, null, null, null, false, true);
         }
     }
 
@@ -80,13 +101,25 @@ public class RunEngine implements SignalDelivery {
      * same pull request — so this returns every outcome rather than the first.
      */
     public java.util.List<Outcome> handle(WorkflowEvent event) {
+        return handle(event, null);
+    }
+
+    /**
+     * Offer an event to some definitions only: a redelivery is owed to the
+     * workflows that failed on an earlier copy, and the ones that acted on that
+     * copy must not act twice.
+     *
+     * @param only the workflows that may act on it; null for every one
+     */
+    public java.util.List<Outcome> handle(WorkflowEvent event, java.util.Set<String> only) {
         var outcomes = new java.util.ArrayList<Outcome>();
         for (var decision : router.route(event, candidates(event))) {
+            if (only != null && !only.contains(decision.workflowName())) continue;
             try {
                 outcomes.add(apply(decision, event));
             } catch (RuntimeException e) {
                 log.error("Workflow {} failed on {}", decision.workflowName(), event.name(), e);
-                outcomes.add(Outcome.ignored(decision.workflowName()));
+                outcomes.add(Outcome.failed(decision.workflowName()));
             }
         }
         if (outcomes.isEmpty()) {
@@ -458,7 +491,15 @@ public class RunEngine implements SignalDelivery {
             return Outcome.ignored(definition.metadata().name());
         }
         if (run.isTerminal()) {
-            log.debug("Run {} is {}, ignoring {}", run.id(), run.status().value(), event.name());
+            // Recorded, not only logged at debug: a child's signal reaching a
+            // parent that was cancelled under it vanished without a trace, and
+            // the parent looked stuck for no reason anyone could see.
+            log.info("Run {} is {}, ignoring {}", run.id(), run.status().value(), event.name());
+            store.appendEvent(
+                run.id(),
+                "event.ignored",
+                Map.of("event", event.name(), "reason", "run " + run.status().value())
+            );
             return Outcome.ignored(definition.metadata().name());
         }
 
@@ -472,7 +513,7 @@ public class RunEngine implements SignalDelivery {
             // history says what happened without every later event repeating it.
             log.warn("Run {} is in state '{}', which {} no longer defines", run.id(), run.state(), run.workflowName());
             recordOnce(run.id(), "state.undefined", Map.of("state", run.state()));
-            store.updateStatus(run.id(), RunStatus.WAITING);
+            store.updateStatusUnlessClosed(run.id(), RunStatus.WAITING);
             return Outcome.ignored(definition.metadata().name());
         }
 
@@ -494,7 +535,7 @@ public class RunEngine implements SignalDelivery {
                     new WorkflowEvent.Batch(events.getLast(), events)
                 )
             );
-            store.updateStatus(run.id(), RunStatus.WAITING);
+            store.updateStatusUnlessClosed(run.id(), RunStatus.WAITING);
             return new Outcome(definition.metadata().name(), run.id(), run.state(), run.state(), false);
         }
 
@@ -507,7 +548,7 @@ public class RunEngine implements SignalDelivery {
         } catch (RuntimeException e) {
             // A failed transition leaves the run where it was, so the fix is to
             // resend the event rather than to reconstruct state by hand.
-            store.updateStatus(run.id(), RunStatus.WAITING);
+            store.updateStatusUnlessClosed(run.id(), RunStatus.WAITING);
             store.appendEvent(run.id(), "transition.failed", failure(transitionId, e));
             throw e;
         }
@@ -517,10 +558,22 @@ public class RunEngine implements SignalDelivery {
         if (to != null && !to.equals(from)) {
             store.updateState(run.id(), to);
         }
-        if (to != null && to.equals(definition.state().getTerminal())) {
-            close(store.find(run.id()).orElseThrow(), RunStatus.COMPLETED);
+        var after = store.find(run.id()).orElseThrow();
+        if (after.isTerminal()) {
+            // Closed while this transition ran: unassigning cancels a run
+            // without waiting for its turn, and a fan-out can run for most of
+            // an hour. The steps that ran stand; the close stands too, rather
+            // than this transition reopening the run as waiting.
+            log.info("Run {} was {} while {} ran; leaving it so", run.id(), after.status().value(), transitionId);
+            store.appendEvent(
+                run.id(),
+                "transition.after_close",
+                Map.of("transition", transitionId, "status", after.status().value())
+            );
+        } else if (to != null && to.equals(definition.state().getTerminal())) {
+            close(after, RunStatus.COMPLETED);
         } else {
-            store.updateStatus(run.id(), RunStatus.WAITING);
+            store.updateStatusUnlessClosed(run.id(), RunStatus.WAITING);
         }
         return new Outcome(definition.metadata().name(), run.id(), from, to == null ? from : to, true);
     }
@@ -572,6 +625,9 @@ public class RunEngine implements SignalDelivery {
     private Outcome close(Run run, RunStatus status) {
         environments.destroyContainer(run);
         store.updateStatus(run.id(), status);
+        // In the history too: a cancellation that only reached the log made a
+        // run that stopped listening look like one that was still working.
+        store.appendEvent(run.id(), "run.closed", Map.of("status", status.value()));
         log.info("Run {} ({}) finished: {}", run.id(), run.workflowName(), status.value());
         notifyParent(run);
         return new Outcome(run.workflowName(), run.id(), run.state(), run.state(), true);
