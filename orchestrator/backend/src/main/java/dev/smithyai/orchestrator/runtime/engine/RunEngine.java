@@ -70,8 +70,9 @@ public class RunEngine implements SignalDelivery {
     /**
      * What an event did, for logs and for the tests that assert on routing.
      *
-     * @param failed a workflow threw while acting on the event, so a redelivery
-     *               of it is a retry worth running rather than a duplicate
+     * @param failed this workflow threw while acting on the event, so a
+     *               redelivery of it is a retry this workflow should run, while
+     *               to the others that acted on it, it is a duplicate
      */
     public record Outcome(
         String workflowName,
@@ -100,8 +101,20 @@ public class RunEngine implements SignalDelivery {
      * same pull request — so this returns every outcome rather than the first.
      */
     public java.util.List<Outcome> handle(WorkflowEvent event) {
+        return handle(event, null);
+    }
+
+    /**
+     * Offer an event to some definitions only: a redelivery is owed to the
+     * workflows that failed on an earlier copy, and the ones that acted on that
+     * copy must not act twice.
+     *
+     * @param only the workflows that may act on it; null for every one
+     */
+    public java.util.List<Outcome> handle(WorkflowEvent event, java.util.Set<String> only) {
         var outcomes = new java.util.ArrayList<Outcome>();
         for (var decision : router.route(event, candidates(event))) {
+            if (only != null && !only.contains(decision.workflowName())) continue;
             try {
                 outcomes.add(apply(decision, event));
             } catch (RuntimeException e) {

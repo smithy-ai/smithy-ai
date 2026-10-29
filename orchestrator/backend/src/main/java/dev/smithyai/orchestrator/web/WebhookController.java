@@ -73,30 +73,40 @@ public class WebhookController {
 
         // After the signature check, so an attacker cannot pre-poison the seen
         // set; before the mapping, so a duplicate costs nothing downstream.
-        var delivery = deliveryKeys(provider, connectorId, body, headers);
-        if (!deduplicator.firstDelivery(delivery)) {
+        var claim = deduplicator.claim(deliveryKeys(provider, connectorId, body, headers)).orElse(null);
+        if (claim == null) {
             log.info("Dropping duplicate {} webhook delivery for connector {}", provider, connectorId);
             return ResponseEntity.ok("Duplicate delivery ignored");
         }
+        if (claim.repeat()) {
+            log.info("Redelivered {} webhook for connector {}: retrying {}", provider, connectorId, claim.owed());
+        }
 
-        boolean failed = true;
+        // Null until the event reached the workflows: a delivery nothing acted on.
+        java.util.Set<String> failed = null;
         try {
             JsonNode payload = mapper.readTree(body);
             WorkflowEvent event = eventMappers.map(connectorId, eventType, payload);
-            var outcomes = event == null ? java.util.List.<RunEngine.Outcome>of() : workflowService.onEvent(event);
+            var outcomes =
+                event == null ? java.util.List.<RunEngine.Outcome>of() : workflowService.onEvent(event, claim.owed());
             // A workflow that failed on it left its run where it was, and
-            // resending the event is how that is fixed: let the resend through.
-            failed = outcomes.stream().anyMatch(RunEngine.Outcome::failed);
+            // resending the event is how that is fixed: let the resend through
+            // to that workflow, and to no other.
+            failed = outcomes
+                .stream()
+                .filter(RunEngine.Outcome::failed)
+                .map(RunEngine.Outcome::workflowName)
+                .collect(java.util.stream.Collectors.toSet());
             return ResponseEntity.ok("");
         } catch (Exception e) {
             log.error("Failed to process {} webhook for connector {}", provider, connectorId, e);
             return ResponseEntity.internalServerError().body("Error");
         } finally {
             // Whatever happened, the delivery is no longer in flight.
-            if (failed) {
-                deduplicator.failed(delivery);
+            if (failed == null) {
+                deduplicator.failed(claim);
             } else {
-                deduplicator.processed(delivery);
+                deduplicator.processed(claim, failed);
             }
         }
     }

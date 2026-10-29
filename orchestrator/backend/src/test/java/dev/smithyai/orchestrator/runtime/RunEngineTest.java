@@ -391,6 +391,21 @@ class RunEngineTest {
     }
 
     /**
+     * A redelivery is owed only to the workflows that failed on the first copy;
+     * one that acted on it must not act on it twice.
+     */
+    @Test
+    void anEventOfferedToOtherWorkflowsOnlyLeavesThisOneAlone() {
+        var run = engine.handle(assigned()).getFirst();
+
+        assertTrue(engine.handle(approved(), java.util.Set.of("implementer")).isEmpty());
+        assertEquals("planning", store.find(run.runId()).orElseThrow().state());
+
+        var outcome = engine.handle(approved(), java.util.Set.of("feature-coordinator")).getFirst();
+        assertTrue(outcome.handled());
+    }
+
+    /**
      * A person holding the run does not lose the approval that lands while the
      * tab is open: it waits, and runs once they let go — through the same
      * transition it would have taken, against the state the run is in then.

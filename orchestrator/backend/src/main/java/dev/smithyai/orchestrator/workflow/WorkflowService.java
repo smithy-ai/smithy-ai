@@ -40,9 +40,16 @@ public class WorkflowService {
     }
 
     public java.util.List<RunEngine.Outcome> onEvent(WorkflowEvent event) {
-        var outcomes = engine.handle(event);
+        return onEvent(event, null);
+    }
+
+    /** @param only the workflows that may act on it; null for every one */
+    public java.util.List<RunEngine.Outcome> onEvent(WorkflowEvent event, java.util.Set<String> only) {
+        var outcomes = engine.handle(event, only);
         // A human gesture nothing reacted to gets an explanation, not silence.
-        if (explainer != null) explainer.explainIfIgnored(event, outcomes);
+        // Not on a redelivery: the first copy was already explained, or
+        // another workflow already reacted to it.
+        if (explainer != null && only == null) explainer.explainIfIgnored(event, outcomes);
         return outcomes;
     }
 
