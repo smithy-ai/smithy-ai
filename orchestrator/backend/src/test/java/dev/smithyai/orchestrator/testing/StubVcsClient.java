@@ -73,15 +73,27 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
         );
     }
 
+    /** What an issue's discussion looks like, for flows that read it back. Empty unless a test says otherwise. */
+    public final List<CommentEntry> existingIssueComments = new ArrayList<>();
+
+    /** Comment ids a flow asked to remove, in order. */
+    public final List<Long> deletedIssueComments = new ArrayList<>();
+
     @Override
     public List<CommentEntry> getIssueComments(String owner, String repo, String issueRef) {
-        return List.of();
+        return List.copyOf(existingIssueComments);
     }
 
     @Override
     public CommentEntry createIssueComment(String owner, String repo, String issueRef, String body) {
         issueComments.add(body);
         return new CommentEntry(issueComments.size(), "smithy", body, OffsetDateTime.now());
+    }
+
+    @Override
+    public void deleteIssueComment(String owner, String repo, String issueRef, long commentId) {
+        deletedIssueComments.add(commentId);
+        existingIssueComments.removeIf(comment -> comment.id() == commentId);
     }
 
     @Override

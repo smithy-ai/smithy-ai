@@ -31,6 +31,7 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
             Capability.PR_REVIEW_INLINE,
             Capability.PR_REQUEST_REVIEW,
             Capability.ISSUE_COMMENT,
+            Capability.ISSUE_COMMENT_DELETE,
             Capability.ISSUE_ASSIGN
         );
     }
@@ -77,6 +78,11 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
     public CommentEntry createIssueComment(String owner, String repo, String issueRef, String body) {
         var node = post("/repos/%s/%s/issues/%s/comments", Map.of("body", body), owner, repo, issueRef);
         return toCommentEntry(node);
+    }
+
+    @Override
+    public void deleteIssueComment(String owner, String repo, String issueRef, long commentId) {
+        delete("/repos/%s/%s/issues/comments/%d", owner, repo, commentId);
     }
 
     @Override
@@ -358,6 +364,21 @@ public class GitHubClient implements VcsClient, IssueTrackerClient {
             return mapper.readTree(response.body());
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException("GitHub API request failed: POST " + path, e);
+        }
+    }
+
+    private void delete(String pathTemplate, Object... args) {
+        String path = pathTemplate.formatted(args);
+        try {
+            var request = buildRequest(apiUrl + path).DELETE().build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                throw new RuntimeException(
+                    "GitHub API error %d on DELETE %s: %s".formatted(response.statusCode(), path, response.body())
+                );
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("GitHub API request failed: DELETE " + path, e);
         }
     }
 
