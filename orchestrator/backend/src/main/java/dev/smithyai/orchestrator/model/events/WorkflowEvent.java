@@ -188,6 +188,13 @@ public interface WorkflowEvent {
         }
     }
 
+    record ReviewWithdrawn(PrContext prc) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.review_withdrawn";
+        }
+    }
+
     record PrMerged(PrContext prc) implements PrScoped {
         @Override
         public String name() {

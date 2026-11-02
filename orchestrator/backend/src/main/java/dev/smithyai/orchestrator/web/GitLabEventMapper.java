@@ -329,20 +329,17 @@ public class GitLabEventMapper {
         var changes = payload.path("changes");
         var info = repoInfo(payload);
 
-        // Reviewer added
+        // Reviewer added or removed: only a change in whether the architect is a reviewer counts
         if (changes.has("reviewers")) {
-            var currentReviewers = payload.path("reviewers");
-            if (currentReviewers.isArray()) {
-                for (var r : currentReviewers) {
-                    if (
-                        java.util.Objects.equals(
-                            actorUsers.get(VcsProviderConfig.ARCHITECT),
-                            r.path("username").asText("")
-                        )
-                    ) {
-                        var prc = extractPrFromMr(info, attrs);
-                        return new WorkflowEvent.ReviewRequested(prc);
-                    }
+            String architect = actorUsers.get(VcsProviderConfig.ARCHITECT);
+            if (architect != null) {
+                boolean wasReviewer = isUserInArray(changes.path("reviewers").path("previous"), architect);
+                boolean isReviewer = isUserInArray(changes.path("reviewers").path("current"), architect);
+                if (isReviewer && !wasReviewer) {
+                    return new WorkflowEvent.ReviewRequested(extractPrFromMr(info, attrs));
+                }
+                if (wasReviewer && !isReviewer) {
+                    return new WorkflowEvent.ReviewWithdrawn(extractPrFromMr(info, attrs));
                 }
             }
         }

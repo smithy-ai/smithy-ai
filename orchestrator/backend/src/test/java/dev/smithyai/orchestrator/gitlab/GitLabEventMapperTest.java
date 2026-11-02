@@ -81,6 +81,47 @@ class GitLabEventMapperTest {
         assertNull(mapper().map("Job Hook", null));
     }
 
+    @Test
+    void addingTheReviewerBotAsksForAReview() throws Exception {
+        var event = mapper().map(
+            "Merge Request Hook",
+            json.readTree(reviewersChanged("[]", "[{\"username\": \"architect-bot\"}]"))
+        );
+        assertEquals(41, assertInstanceOf(WorkflowEvent.ReviewRequested.class, event).prc().number());
+    }
+
+    @Test
+    void addingAnotherReviewerWhileTheBotStaysDoesNotReviewAgain() throws Exception {
+        String withBot = "[{\"username\": \"architect-bot\"}]";
+        String withBotAndHuman = "[{\"username\": \"architect-bot\"}, {\"username\": \"b.human\"}]";
+        assertNull(mapper().map("Merge Request Hook", json.readTree(reviewersChanged(withBot, withBotAndHuman))));
+    }
+
+    @Test
+    void removingTheReviewerBotWithdrawsTheReview() throws Exception {
+        var event = mapper().map(
+            "Merge Request Hook",
+            json.readTree(reviewersChanged("[{\"username\": \"architect-bot\"}]", "[]"))
+        );
+        var withdrawn = assertInstanceOf(WorkflowEvent.ReviewWithdrawn.class, event);
+        assertEquals("pr.review_withdrawn", withdrawn.name());
+        assertEquals("FVS-1608", withdrawn.prc().headBranch());
+    }
+
+    private static String reviewersChanged(String previous, String current) {
+        return """
+        {
+          "object_kind": "merge_request",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "object_attributes": {"iid": 41, "title": "A change", "description": "", "state": "opened",
+                                "action": "update", "source_branch": "FVS-1608", "target_branch": "main"},
+          "reviewers": %2$s,
+          "changes": {"reviewers": {"previous": %1$s, "current": %2$s}}
+        }
+        """.formatted(previous, current);
+    }
+
     private static String diffNote(String sourceBranch) {
         return """
         {
