@@ -8,6 +8,7 @@ import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.web.GitLabEventMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class GitLabEventMapperTest {
@@ -48,17 +49,37 @@ class GitLabEventMapperTest {
     }
 
     @Test
-    void aDiffNoteOnAHumansMergeRequestIsNotForTheAgent() throws Exception {
-        // A human MR from a human branch: review conversation among humans.
-        // Forwarding it let a correlated run answer and push on a merge
-        // request the bot was never assigned to.
-        assertNull(mapper().map("Note Hook", json.readTree(diffNote("FVS-1608"))));
+    void aDiffNoteOnAnyMergeRequestIsAReviewComment() throws Exception {
+        for (String branch : List.of("FVS-1608", "smithy/7-a-thing")) {
+            var review = assertInstanceOf(
+                WorkflowEvent.PrReviewComment.class,
+                mapper().map("Note Hook", json.readTree(diffNote(branch)))
+            );
+            assertEquals(41, review.prc().number());
+            assertEquals("please fix", review.comments().getFirst().body());
+            assertEquals("", review.commentActor());
+        }
+    }
 
-        // The agent's own MR still gets its review comments.
-        var own = mapper().map("Note Hook", json.readTree(diffNote("smithy/7-a-thing")));
-        var review = assertInstanceOf(WorkflowEvent.PrReviewComment.class, own);
-        assertEquals(41, review.prc().number());
-        assertEquals("please fix", review.comments().getFirst().body());
+    @Test
+    void aPlainNoteOnAHumanBranchIsAConversationComment() throws Exception {
+        var event = mapper().map("Note Hook", json.readTree(plainNote("FVS-1608", "b.human")));
+        var comment = assertInstanceOf(WorkflowEvent.PrConversationComment.class, event);
+        assertEquals("d1", comment.discussionId());
+        assertEquals("", comment.commentActor());
+    }
+
+    @Test
+    void aNoteByABotCarriesItsActor() throws Exception {
+        var event = mapper().map("Note Hook", json.readTree(plainNote("FVS-1608", "smithy-bot")));
+        assertEquals("smithy", assertInstanceOf(WorkflowEvent.PrConversationComment.class, event).commentActor());
+        var diff = mapper().map("Note Hook", json.readTree(diffNote("FVS-1608").replace("b.human", "architect-bot")));
+        assertEquals("architect", assertInstanceOf(WorkflowEvent.PrReviewComment.class, diff).commentActor());
+    }
+
+    @Test
+    void aNoteByABotOnAnIssueIsStillIgnored() throws Exception {
+        assertNull(mapper().map("Note Hook", json.readTree(issueNote("smithy-bot"))));
     }
 
     @Test
@@ -137,6 +158,35 @@ class GitLabEventMapperTest {
                             "source_branch": "%s", "target_branch": "main"}
         }
         """.formatted(sourceBranch);
+    }
+
+    private static String plainNote(String sourceBranch, String author) {
+        return """
+        {
+          "object_kind": "note",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "user": {"username": "%2$s"},
+          "object_attributes": {"id": 99, "note": "please fix", "noteable_type": "MergeRequest",
+                                "discussion_id": "d1", "author": {"username": "%2$s"}},
+          "merge_request": {"iid": 41, "title": "A change", "description": "", "state": "opened",
+                            "source_branch": "%1$s", "target_branch": "main"}
+        }
+        """.formatted(sourceBranch, author);
+    }
+
+    private static String issueNote(String author) {
+        return """
+        {
+          "object_kind": "note",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "user": {"username": "%s"},
+          "object_attributes": {"id": 99, "note": "a comment", "noteable_type": "Issue",
+                                "author": {"username": "%s"}},
+          "issue": {"iid": 7, "title": "A thing", "description": "", "state": "opened"}
+        }
+        """.formatted(author, author);
     }
 
     private static String opened(String username) {

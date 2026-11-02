@@ -297,7 +297,7 @@ class ArchitectDefinitionTest {
             store.findByCorrelation(CorrelationKind.PR, "platform/shared-guidelines!100").orElseThrow().id()
         );
 
-        engine.handle(new WorkflowEvent.PrConversationComment(proposal, "alice", "Please clarify this.", 9, ""));
+        engine.handle(new WorkflowEvent.PrConversationComment(proposal, "alice", "Please clarify this.", 9, "", ""));
 
         var reply = vcs.postedPrComments.getLast();
         assertEquals("platform", reply.owner());

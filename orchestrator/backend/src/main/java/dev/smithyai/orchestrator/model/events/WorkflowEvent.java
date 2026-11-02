@@ -70,6 +70,11 @@ public interface WorkflowEvent {
         }
     }
 
+    /** A comment event that says which logical actor wrote it; empty when a human did. */
+    interface Authored {
+        String commentActor();
+    }
+
     // ── IssueScoped ─────────────────────────────
     record IssueAssigned(IssueContext ctx, String repoHtmlUrl) implements IssueScoped {
         @Override
@@ -125,8 +130,9 @@ public interface WorkflowEvent {
         String commentUser,
         String commentBody,
         long commentId,
-        String discussionId
-    ) implements PrScoped {
+        String discussionId,
+        String commentActor
+    ) implements PrScoped, Authored {
         @Override
         public String identity() {
             return String.valueOf(commentId);
@@ -142,8 +148,9 @@ public interface WorkflowEvent {
         PrContext prc,
         List<CommentData> comments,
         long commentId,
-        String discussionId
-    ) implements PrScoped {
+        String discussionId,
+        String commentActor
+    ) implements PrScoped, Authored {
         @Override
         public String identity() {
             return String.valueOf(commentId);

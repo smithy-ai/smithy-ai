@@ -103,8 +103,8 @@ on it is how a feature for the coordinator is told from a task for the agent.
 
 | Name | Extra fields |
 |---|---|
-| `pr.commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `commentBody`, `commentUser`, `commentId`, `discussionId` |
-| `pr.review_commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `comments`, `commentId`, `discussionId` |
+| `pr.commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `commentBody`, `commentUser`, `commentId`, `discussionId`, `commentActor` |
+| `pr.review_commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `comments`, `commentId`, `discussionId`, `commentActor` |
 | `pr.review_submitted` | `prNumber`, …, `reviewId`, `reviewBody`, `reviewer` |
 | `pr.review_requested` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`; emitted when the reviewer actor is added to the reviewers |
 | `pr.review_withdrawn` | as above; the reviewer actor was removed from the reviewers |
@@ -112,6 +112,8 @@ on it is how a feature for the coordinator is told from a task for the agent.
 | `pr.unassigned` | as above |
 | `pr.merged` | as above |
 | `pr.closed` | `prNumber`, `headBranch` |
+
+GitLab emits `pr.commented` and `pr.review_commented` for every merge request, whoever wrote the note; a note by one of the configured bot accounts carries that bot's actor in `commentActor`, a human's is empty. A run never receives a comment written by its own actor (see Routing). Forgejo and GitHub emit review comments only for work branches.
 
 ### Push and CI
 

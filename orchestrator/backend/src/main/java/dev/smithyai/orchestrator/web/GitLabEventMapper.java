@@ -208,11 +208,11 @@ public class GitLabEventMapper {
             .path("author")
             .path("username")
             .asText(payload.path("user").path("username").asText(""));
-        if (actors.contains(commentUser)) return null;
-
         return switch (noteableType) {
-            case "Issue" -> mapIssueNote(payload, attrs, commentUser);
-            case "MergeRequest" -> mapMrNote(payload, attrs, commentUser);
+            // A bot's own notes on an issue are not for any workflow; on a merge
+            // request they carry the bot's actor so routing can tell who spoke.
+            case "Issue" -> actors.contains(commentUser) ? null : mapIssueNote(payload, attrs, commentUser);
+            case "MergeRequest" -> mapMrNote(payload, attrs, commentUser, actorOf(commentUser));
             default -> null;
         };
     }
@@ -225,7 +225,7 @@ public class GitLabEventMapper {
         return new WorkflowEvent.IssueComment(ctx, commentBody);
     }
 
-    private WorkflowEvent mapMrNote(JsonNode payload, JsonNode attrs, String commentUser) {
+    private WorkflowEvent mapMrNote(JsonNode payload, JsonNode attrs, String commentUser, String commentActor) {
         var info = repoInfo(payload);
         var mr = payload.path("merge_request");
         var prc = extractPrFromMr(info, mr);
@@ -234,56 +234,35 @@ public class GitLabEventMapper {
         String type = attrs.path("type").asText("");
         long noteId = attrs.path("id").asLong(0);
 
-        // DiffNote → review comment. Gated like conversation notes below: a
-        // diff comment on a human's merge request is review conversation among
-        // humans, not something addressed to an agent. Forwarding those gave
-        // any run that happened to correlate a licence to answer and push on
-        // merge requests the bot was never assigned to.
+        String discussionId = attrs.path("discussion_id").asText("");
+
         if ("DiffNote".equals(type)) {
-            if (!isWorkBranch(prc.headBranch()) && !Naming.isArchitectBranch(prc.headBranch())) {
-                log.debug(
-                    "Ignoring diff note on {}!{}: branch '{}' is not an agent work branch",
-                    info.repo(),
-                    prc.number(),
-                    prc.headBranch()
-                );
-                return null;
-            }
             var position = attrs.path("position");
             String path = position.path("new_path").asText("");
             int line = position.path("new_line").asInt(0);
             var cd = new CommentData(commentUser, commentBody, path, line);
-            return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, attrs.path("discussion_id").asText(""));
+            return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, discussionId, commentActor);
         }
 
-        // Regular note → conversation comment. Comments on the architect's own
-        // context MR route back to its learn session; keying on the branch
-        // rather than a "<repo>-context" name lets that repo be named anything.
-        if (
-            Naming.isArchitectBranch(prc.headBranch()) &&
-            !commentUser.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))
-        ) {
-            return new WorkflowEvent.PrConversationComment(
-                prc,
-                commentUser,
-                commentBody,
-                noteId,
-                attrs.path("discussion_id").asText("")
-            );
-        }
+        return new WorkflowEvent.PrConversationComment(
+            prc,
+            commentUser,
+            commentBody,
+            noteId,
+            discussionId,
+            commentActor
+        );
+    }
 
-        String headBranch = mr.path("source_branch").asText("");
-        if (isWorkBranch(headBranch)) {
-            return new WorkflowEvent.PrConversationComment(
-                prc,
-                commentUser,
-                commentBody,
-                noteId,
-                attrs.path("discussion_id").asText("")
-            );
-        }
-
-        return null;
+    /** The logical actor (smithy, architect, coordinator) whose bot account is this user, or "". */
+    private String actorOf(String username) {
+        return actorUsers
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().equals(username))
+            .map(java.util.Map.Entry::getKey)
+            .findFirst()
+            .orElse("");
     }
 
     // ── Push Hook ───────────────────────────────

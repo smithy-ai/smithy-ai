@@ -156,6 +156,7 @@ public class EventMapper {
             commentUser,
             payload.path("comment").path("body").asText(""),
             payload.path("comment").path("id").asLong(0),
+            "",
             ""
         );
     }
@@ -281,7 +282,7 @@ public class EventMapper {
         if (Naming.isArchitectBranch(headBranch) && !commentUser.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))) {
             var prc = extractPr(info, pr);
             var cd = commentFromPayload(payload);
-            return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body(), commentId, "");
+            return new WorkflowEvent.PrConversationComment(prc, commentUser, cd.body(), commentId, "", "");
         }
 
         // Smithy: review comment on smithy branch PR
@@ -290,7 +291,7 @@ public class EventMapper {
             if (issueRef != null) {
                 var prc = extractPr(info, pr);
                 var cd = commentFromPayload(payload);
-                return new WorkflowEvent.PrReviewComment(prc, List.of(cd), commentId, "");
+                return new WorkflowEvent.PrReviewComment(prc, List.of(cd), commentId, "", "");
             }
         }
 

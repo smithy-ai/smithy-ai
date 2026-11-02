@@ -226,11 +226,13 @@ public class ExpressionRenderer {
                         view.put("commentUser", c.commentUser());
                         view.put("commentId", c.commentId());
                         view.put("discussionId", nullToEmpty(c.discussionId()));
+                        view.put("commentActor", nullToEmpty(c.commentActor()));
                     }
                     case WorkflowEvent.PrReviewComment c -> {
                         view.put("comments", c.comments().stream().map(CommentData::toMap).toList());
                         view.put("commentId", c.commentId());
                         view.put("discussionId", nullToEmpty(c.discussionId()));
+                        view.put("commentActor", nullToEmpty(c.commentActor()));
                     }
                     case WorkflowEvent.ReviewSubmitted r -> {
                         view.put("reviewId", r.reviewId());
