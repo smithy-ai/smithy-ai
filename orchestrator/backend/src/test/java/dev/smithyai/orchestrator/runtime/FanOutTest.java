@@ -158,6 +158,47 @@ class FanOutTest {
     }
 
     @Test
+    void aForeachInsideACompositeSeesTheCompositesInputs() {
+        var definition = new WorkflowDefinitionParser().parse(
+            "composite.yml",
+            """
+            apiVersion: smithy.ai/v1alpha1
+            kind: Workflow
+            metadata:
+              name: composite-fanout
+            actions:
+              openIssues:
+                steps:
+                  - uses: foreach
+                    with:
+                      items: "{{ vars.plan }}"
+                    steps:
+                      - uses: issue.create
+                        with:
+                          repo: "{{ vars.owner }}/{{ item }}"
+            state:
+              initial: planning
+              planning:
+                on:
+                  issue.plan_approved:
+                    steps:
+                      - uses: openIssues
+                        with:
+                          owner: acme
+              done:
+                on: {}
+            """
+        );
+        var run = coordinatorWithPlan(List.of("api", "web"));
+        var steps = definition.state().getStages().get("planning").on().get("issue.plan_approved").steps();
+
+        // `owner` exists only as the composite's input, never as a run var.
+        executor.execute(run, approved(), "planning:issue.plan_approved", steps, Map.of(), definition.actions());
+
+        assertEquals(List.of("acme/api", "acme/web"), createdIssues);
+    }
+
+    @Test
     void eachChildCarriesItsOwnTaskAsVariables() {
         var definition = new WorkflowDefinitionParser().parse("coordinator.yml", COORDINATOR);
         var run = coordinatorWithPlan(List.of("acme/api", "acme/web"));
