@@ -81,6 +81,22 @@ class GitLabEventMapperTest {
     }
 
     @Test
+    void anIssueAssignedToAnAccountSeveralActorsShareGoesToTheSameActorEveryTime() throws Exception {
+        var shared = mapper(
+            new BotConfig(
+                new BotConfig.BotEntry("shared-bot", "shared@example.com"),
+                new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+                new BotConfig.BotEntry("shared-bot", "shared@example.com")
+            )
+        );
+        // Several times, because the actor map has no iteration order to rely on.
+        for (int i = 0; i < 5; i++) {
+            var event = shared.map("Issue Hook", json.readTree(opened("shared-bot")));
+            assertEquals("smithy", assertInstanceOf(WorkflowEvent.IssueAssigned.class, event).ctx().assignee());
+        }
+    }
+
+    @Test
     void aNoteByAnAccountSeveralActorsShareCarriesEveryOneOfThem() throws Exception {
         var shared = mapper(
             new BotConfig(

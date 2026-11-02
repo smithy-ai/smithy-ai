@@ -167,8 +167,9 @@ public class GitLabEventMapper {
 
     /** Which of this deployment's actors the issue is handed to, if any. */
     private String assignedActor(JsonNode assignees) {
-        for (var actor : actorUsers.entrySet()) {
-            if (isUserInArray(assignees, actor.getValue())) return actor.getKey();
+        for (var actor : ACTOR_ORDER) {
+            String username = actorUsers.get(actor);
+            if (username != null && isUserInArray(assignees, username)) return actor;
         }
         return null;
     }
@@ -259,12 +260,18 @@ public class GitLabEventMapper {
      * empty for a human. Several actors may share one account, and a note by it
      * is by all of them.
      */
+    /**
+     * The actors in a fixed order. The actor map has none, so an account that
+     * several actors share would otherwise resolve differently on every start.
+     */
+    private static final List<String> ACTOR_ORDER = List.of(
+        VcsProviderConfig.SMITHY,
+        VcsProviderConfig.ARCHITECT,
+        VcsProviderConfig.COORDINATOR
+    );
+
     private List<String> actorsOf(String username) {
-        return java.util.stream.Stream.of(
-            VcsProviderConfig.SMITHY,
-            VcsProviderConfig.ARCHITECT,
-            VcsProviderConfig.COORDINATOR
-        )
+        return ACTOR_ORDER.stream()
             .filter(actor -> username.equals(actorUsers.get(actor)))
             .toList();
     }

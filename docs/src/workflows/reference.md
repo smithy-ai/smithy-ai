@@ -313,6 +313,10 @@ the other providers render markdown as is.
 | `signal.emit` | `signal` | `to` (`parent` default, or a run id), plus any keys as payload | `signal`, `to`, `released`, `handled` |
 | `correlate` | `kind` (`issue`/`pr`/`branch`/`container`/`key`), `ref` | `run` (defaults to this run) | `kind`, `ref`, `run` |
 
+`foreach` runs its nested steps once per item with `item` and `index` set. Inside
+a composite action the nested steps also see the composite's `with:` inputs as
+`vars.*`, so a loop can post with the owner and repository its caller passed.
+
 `run.wave` reads each child's `index` and `dependsOn` vars and releases those
 whose dependencies have completed. A cancelled child does not satisfy a
 dependency, and `complete` is true only when every child completed.
