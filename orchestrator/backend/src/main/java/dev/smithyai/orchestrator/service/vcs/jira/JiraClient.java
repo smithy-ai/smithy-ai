@@ -59,7 +59,9 @@ public class JiraClient implements IssueTrackerClient {
         } else {
             this.authHeaderValue = "Bearer " + config.apiToken();
         }
-        this.http = HttpClient.newBuilder().build();
+        // Jira Cloud serves attachment bytes from a pre-signed media URL and
+        // answers the attachment's own URL with a 303 to it.
+        this.http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
         this.mapper = new ObjectMapper();
         this.mapper.registerModule(new JavaTimeModule());
     }
