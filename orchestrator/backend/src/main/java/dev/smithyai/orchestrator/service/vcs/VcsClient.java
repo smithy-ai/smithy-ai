@@ -59,6 +59,10 @@ public interface VcsClient extends ProviderClient {
 
     LatestReviewResult getLatestReviewComments(String owner, String repo, int prNumber, String reviewer);
 
+    default List<DiscussionEntry> getPrDiscussions(String owner, String repo, int prNumber) {
+        return List.of();
+    }
+
     // PR assignees & reviewers
     void setPrAssignees(String owner, String repo, int prNumber, List<String> assignees);
 

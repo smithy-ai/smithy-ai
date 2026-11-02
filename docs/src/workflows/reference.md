@@ -254,7 +254,7 @@ on.
 | `pr.resolve` | `owner`, `repo`, `number`, `discussion` | none | `resolved` |
 | `pr.review` | `owner`, `repo`, `number` | `summary`, `comments[]` (`path`, `line`, `body`), `event` | `posted`, `comments` |
 | `pr.reviewComments` | `owner`, `repo`, `number` | `reviewId`, `reviewer`, `body` | `comments`, `count` |
-| `pr.conversation` | `owner`, `repo`, `number` | none | `entries`, `count` |
+| `pr.conversation` | `owner`, `repo`, `number` | none | `entries` (`user`, `body`, `type`, `created_at`; on GitLab also `discussion`, `resolved`, `path`, `line`, `reply`), `count` |
 | `pr.read` | `owner`, `repo`, `number` | none | `number`, `title`, `body`, `merged`, `headRef`, `baseRef`, `assignees` |
 | `pr.findByHead` | `owner`, `repo`, `head` | none | `found`, `number`, `title`, `merged`, `assignees` |
 | `pr.isAssigned` | `owner`, `repo`, `number`, `assignedActor` | none | `assigned`, `actor`, `username` |

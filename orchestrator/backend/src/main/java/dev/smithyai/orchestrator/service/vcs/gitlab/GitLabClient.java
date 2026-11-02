@@ -341,6 +341,47 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public List<DiscussionEntry> getPrDiscussions(String owner, String repo, int prNumber) {
+        var nodes = getList(
+            "/projects/%s/merge_requests/%d/discussions?per_page=100",
+            projectId(owner, repo),
+            prNumber
+        );
+        var result = new ArrayList<DiscussionEntry>();
+        for (var node : nodes) {
+            var notes = new ArrayList<DiscussionNote>();
+            JsonNode first = null;
+            for (var n : node.path("notes")) {
+                if (n.path("system").asBoolean(false)) continue;
+                if (first == null) first = n;
+                var position = n.path("position");
+                String path = position.path("new_path").asText(position.path("old_path").asText(""));
+                long line = position.path("new_line").asLong(position.path("old_line").asLong(0));
+                notes.add(
+                    new DiscussionNote(
+                        n.path("id").asLong(),
+                        n.path("author").path("username").asText(""),
+                        n.path("body").asText(""),
+                        path,
+                        line,
+                        parseDateTime(n.path("created_at").asText(""))
+                    )
+                );
+            }
+            if (first == null) continue;
+            result.add(
+                new DiscussionEntry(
+                    node.path("id").asText(""),
+                    first.path("resolvable").asBoolean(false),
+                    first.path("resolved").asBoolean(false),
+                    notes
+                )
+            );
+        }
+        return result;
+    }
+
+    @Override
     public List<ReviewCommentEntry> getReviewComments(String owner, String repo, int prNumber, long reviewId) {
         // In GitLab, reviewId maps to a note ID. Return it as a single-element list.
         try {

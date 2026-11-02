@@ -2,6 +2,7 @@ package dev.smithyai.orchestrator.runtime.actions;
 
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.VcsClients;
+import dev.smithyai.orchestrator.service.vcs.dto.DiscussionEntry;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -48,10 +49,45 @@ public class PrConversationAction implements WorkflowAction {
         int number = intInput(input, "number", 0);
 
         var entries = new ArrayList<Map<String, Object>>();
-        addComments(vcs, entries, owner, repo, number);
-        addReviews(vcs, entries, owner, repo, number);
+        var discussions = readDiscussions(vcs, owner, repo, number);
+        if (discussions.isEmpty()) {
+            addComments(vcs, entries, owner, repo, number);
+            addReviews(vcs, entries, owner, repo, number);
+        } else {
+            addDiscussions(discussions, entries);
+        }
         entries.sort(Comparator.comparing(entry -> String.valueOf(entry.getOrDefault("created_at", ""))));
         return Map.of("entries", entries, "count", entries.size());
+    }
+
+    private List<DiscussionEntry> readDiscussions(VcsClient vcs, String owner, String repo, int number) {
+        try {
+            return vcs.getPrDiscussions(owner, repo, number);
+        } catch (RuntimeException e) {
+            log.warn("Could not read discussions on PR #{}", number, e);
+            return List.of();
+        }
+    }
+
+    private void addDiscussions(List<DiscussionEntry> discussions, List<Map<String, Object>> entries) {
+        for (var discussion : discussions) {
+            for (int i = 0; i < discussion.notes().size(); i++) {
+                var note = discussion.notes().get(i);
+                boolean positioned = note.path() != null && !note.path().isEmpty();
+                var entry = entry(
+                    note.userLogin(),
+                    note.body(),
+                    positioned ? "review_comment" : "comment",
+                    String.valueOf(note.createdAt())
+                );
+                entry.put("discussion", discussion.id());
+                entry.put("resolved", discussion.resolved());
+                entry.put("path", note.path() == null ? "" : note.path());
+                entry.put("line", note.line());
+                entry.put("reply", i > 0);
+                entries.add(entry);
+            }
+        }
     }
 
     private void addComments(VcsClient vcs, List<Map<String, Object>> entries, String owner, String repo, int number) {
