@@ -53,6 +53,8 @@ state:                             # required unless `extends` is set
 | `destroy` | End the run as **cancelled**. Work waiting on it keeps waiting, and a later `create` for the same key picks it back up |
 | `ignore` | Match and stop, so a later rule cannot claim it |
 
+A comment written by a definition's own actor (`event.commentActor`) is never routed to that definition, so two agents can talk in one thread without answering themselves.
+
 ## Expression context
 
 | Name | Contents |

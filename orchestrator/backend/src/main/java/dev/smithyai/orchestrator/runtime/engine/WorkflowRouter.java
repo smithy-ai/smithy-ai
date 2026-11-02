@@ -1,5 +1,6 @@
 package dev.smithyai.orchestrator.runtime.engine;
 
+import dev.smithyai.orchestrator.config.DefaultsConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.actions.ActionContext;
 import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinition;
@@ -43,6 +44,16 @@ public class WorkflowRouter {
         var decisions = new ArrayList<Decision>();
 
         for (var definition : definitions) {
+            // A comment its own actor wrote is never for this definition, so a
+            // reviewer and an author can share a thread without answering themselves.
+            if (
+                event instanceof WorkflowEvent.Authored authored &&
+                !authored.commentActor().isBlank() &&
+                authored.commentActor().equals(actorOf(definition))
+            ) {
+                log.debug("{}: {} skipped — written by its own actor", definition.metadata().name(), event.name());
+                continue;
+            }
             // The definition's own vars, because a routing rule's whole job can
             // be to ask a question about them — "do I have a repository catalog
             // to fan out to?" — and there is no run yet to read them from.
@@ -71,5 +82,10 @@ public class WorkflowRouter {
             }
         }
         return decisions;
+    }
+
+    private static String actorOf(WorkflowDefinition definition) {
+        var actor = definition.vars().get("actor");
+        return actor != null ? actor.toString() : DefaultsConfig.DEFAULT_ACTOR;
     }
 }
