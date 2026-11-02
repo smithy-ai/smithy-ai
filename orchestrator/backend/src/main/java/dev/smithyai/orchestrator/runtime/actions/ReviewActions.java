@@ -108,7 +108,11 @@ public class ReviewActions {
         };
     }
 
-    /** Close a review thread once its finding is fixed. */
+    /**
+     * Close a review thread once its finding is fixed. Best-effort: a thread the
+     * provider will not resolve (a plain comment, say) is reported as
+     * {@code resolved: false} rather than failing the transition around it.
+     */
     @Bean
     public WorkflowAction prResolveAction(VcsClients clients) {
         return new WorkflowAction() {
@@ -125,12 +129,23 @@ public class ReviewActions {
             @Override
             public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
                 var vcs = Vcs.pick(this, context, input, clients);
-                vcs.resolvePrDiscussion(
-                    required(input, "owner"),
-                    required(input, "repo"),
-                    intInput(input, "number", 0),
-                    required(input, "discussion")
-                );
+                String owner = required(input, "owner");
+                String repo = required(input, "repo");
+                int number = intInput(input, "number", 0);
+                String discussion = required(input, "discussion");
+                try {
+                    vcs.resolvePrDiscussion(owner, repo, number, discussion);
+                } catch (RuntimeException e) {
+                    log.warn(
+                        "pr.resolve: could not resolve discussion {} on {}/{}!{}: {}",
+                        discussion,
+                        owner,
+                        repo,
+                        number,
+                        e.getMessage()
+                    );
+                    return Map.of("resolved", false);
+                }
                 return Map.of("resolved", true);
             }
         };

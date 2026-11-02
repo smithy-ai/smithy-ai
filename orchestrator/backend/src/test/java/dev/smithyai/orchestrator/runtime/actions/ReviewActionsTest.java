@@ -9,6 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 class ReviewActionsTest {
 
@@ -38,6 +41,21 @@ class ReviewActionsTest {
 
         assertEquals(true, output.get("resolved"));
         verify(vcs).resolvePrDiscussion("acme", "api", 7, "d9");
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aThreadTheProviderWillNotResolveIsReportedAndLeftOpen(CapturedOutput output) {
+        doThrow(new IllegalStateException("422 not resolvable")).when(vcs).resolvePrDiscussion("acme", "api", 7, "d9");
+
+        var result = new ReviewActions()
+            .prResolveAction(vcsClients)
+            .execute(CONTEXT, Map.of("owner", "acme", "repo", "api", "number", 7, "discussion", "d9"));
+
+        assertEquals(false, result.get("resolved"));
+        assertTrue(output.getOut().contains("acme/api!7"), output.getOut());
+        assertTrue(output.getOut().contains("d9"), output.getOut());
+        assertTrue(output.getOut().contains("422 not resolvable"), output.getOut());
     }
 
     @Test
