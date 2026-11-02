@@ -251,6 +251,7 @@ on.
 | `pr.create` | `owner`, `repo`, `title`, `head`, `base` | `body`, `draft` | `number`, `title`, `headRef`, `baseRef`, `reused` |
 | `pr.comment` | `owner`, `repo`, `number`, `body` | none | `number` |
 | `pr.reply` | `owner`, `repo`, `number`, `body` | `discussion` | `posted`, `threaded` |
+| `pr.resolve` | `owner`, `repo`, `number`, `discussion` | none | `resolved` |
 | `pr.review` | `owner`, `repo`, `number` | `summary`, `comments[]` (`path`, `line`, `body`), `event` | `posted`, `comments` |
 | `pr.reviewComments` | `owner`, `repo`, `number` | `reviewId`, `reviewer`, `body` | `comments`, `count` |
 | `pr.conversation` | `owner`, `repo`, `number` | none | `entries`, `count` |
@@ -337,6 +338,8 @@ the capability.
 | Forgejo | pull requests, issue comment/assign/create/label, file read |
 | GitHub | pull requests, issue comment/assign |
 | Jira | issue comment, issue assign |
+
+`pr.resolve` needs `discussion.resolve`, which only GitLab has.
 
 ## Where definitions come from
 

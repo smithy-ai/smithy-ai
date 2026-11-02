@@ -36,6 +36,11 @@ public interface VcsClient extends ProviderClient {
         createPrComment(owner, repo, prNumber, body);
     }
 
+    /** Mark a PR discussion thread resolved. */
+    default void resolvePrDiscussion(String owner, String repo, int prNumber, String discussionId) {
+        throw new UnsupportedOperationException("resolvePrDiscussion not supported by " + getClass().getSimpleName());
+    }
+
     // Reviews
     void createPullReview(
         String owner,

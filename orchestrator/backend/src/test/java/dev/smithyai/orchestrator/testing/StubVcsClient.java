@@ -40,6 +40,10 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     public record PostedPrComment(String owner, String repo, int number, String body) {}
 
     public final List<PostedPrComment> postedPrComments = new ArrayList<>();
+
+    public record ResolvedDiscussion(String owner, String repo, int number, String discussionId) {}
+
+    public final List<ResolvedDiscussion> resolvedDiscussions = new ArrayList<>();
     public final List<PrData> createdPrs = new ArrayList<>();
 
     /** A review as posted: the summary plus whatever it anchored to lines. */
@@ -151,6 +155,11 @@ public class StubVcsClient implements VcsClient, IssueTrackerClient {
     public void createPrComment(String owner, String repo, int prNumber, String body) {
         prComments.add(body);
         postedPrComments.add(new PostedPrComment(owner, repo, prNumber, body));
+    }
+
+    @Override
+    public void resolvePrDiscussion(String owner, String repo, int prNumber, String discussionId) {
+        resolvedDiscussions.add(new ResolvedDiscussion(owner, repo, prNumber, discussionId));
     }
 
     @Override
