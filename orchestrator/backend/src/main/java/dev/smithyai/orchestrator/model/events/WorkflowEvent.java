@@ -70,9 +70,13 @@ public interface WorkflowEvent {
         }
     }
 
-    /** A comment event that says which logical actor wrote it; empty when a human did. */
+    /**
+     * A comment event that says which logical actors wrote it: every actor whose
+     * bot account is the author, since several actors may share one account.
+     * Never null; empty when a human wrote it.
+     */
     interface Authored {
-        String commentActor();
+        List<String> commentActors();
     }
 
     // ── IssueScoped ─────────────────────────────
@@ -131,7 +135,7 @@ public interface WorkflowEvent {
         String commentBody,
         long commentId,
         String discussionId,
-        String commentActor
+        List<String> commentActors
     ) implements PrScoped, Authored {
         @Override
         public String identity() {
@@ -149,7 +153,7 @@ public interface WorkflowEvent {
         List<CommentData> comments,
         long commentId,
         String discussionId,
-        String commentActor
+        List<String> commentActors
     ) implements PrScoped, Authored {
         @Override
         public String identity() {

@@ -235,4 +235,36 @@ class DefinitionAndExpressionTest {
         assertTrue(renderer.isTruthy("{{ event.source.id == 'gitlab' }}", context));
         assertEquals("run-1", renderer.render("{{ event.child }}", context), "payload still reads as fields");
     }
+
+    @Test
+    void aCommentShowsEveryActorItsAuthorIsAndTheFirstOneOnItsOwn() {
+        var prc = new dev.smithyai.orchestrator.model.PrContext(REPO, 41, "A change", "", false, "feature/x", "main");
+        var shared = contextFor(
+            new WorkflowEvent.PrConversationComment(
+                prc,
+                "shared-bot",
+                "done",
+                1,
+                "d1",
+                List.of("smithy", "coordinator")
+            ),
+            Map.of()
+        );
+        assertEquals("smithy", renderer.render("{{ event.commentActor }}", shared));
+        assertEquals("smithy,coordinator", renderer.render("{{ event.commentActors | join(',') }}", shared));
+        assertTrue(renderer.isTruthy("{{ 'coordinator' in event.commentActors }}", shared));
+
+        var human = contextFor(
+            new WorkflowEvent.PrReviewComment(
+                prc,
+                List.of(new dev.smithyai.orchestrator.model.CommentData("b.human", "why?", "src/App.java", 3)),
+                2,
+                "d1",
+                List.of()
+            ),
+            Map.of()
+        );
+        assertEquals("", renderer.render("{{ event.commentActor }}", human));
+        assertTrue(renderer.isTruthy("{{ event.commentActors | length == 0 }}", human));
+    }
 }

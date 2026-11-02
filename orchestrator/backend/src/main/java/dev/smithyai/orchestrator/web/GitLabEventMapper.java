@@ -210,9 +210,9 @@ public class GitLabEventMapper {
             .asText(payload.path("user").path("username").asText(""));
         return switch (noteableType) {
             // A bot's own notes on an issue are not for any workflow; on a merge
-            // request they carry the bot's actor so routing can tell who spoke.
+            // request they carry the bot's actors so routing can tell who spoke.
             case "Issue" -> actors.contains(commentUser) ? null : mapIssueNote(payload, attrs, commentUser);
-            case "MergeRequest" -> mapMrNote(payload, attrs, commentUser, actorOf(commentUser));
+            case "MergeRequest" -> mapMrNote(payload, attrs, commentUser, actorsOf(commentUser));
             default -> null;
         };
     }
@@ -225,7 +225,7 @@ public class GitLabEventMapper {
         return new WorkflowEvent.IssueComment(ctx, commentBody);
     }
 
-    private WorkflowEvent mapMrNote(JsonNode payload, JsonNode attrs, String commentUser, String commentActor) {
+    private WorkflowEvent mapMrNote(JsonNode payload, JsonNode attrs, String commentUser, List<String> commentActors) {
         var info = repoInfo(payload);
         var mr = payload.path("merge_request");
         var prc = extractPrFromMr(info, mr);
@@ -241,7 +241,7 @@ public class GitLabEventMapper {
             String path = position.path("new_path").asText("");
             int line = position.path("new_line").asInt(0);
             var cd = new CommentData(commentUser, commentBody, path, line);
-            return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, discussionId, commentActor);
+            return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, discussionId, commentActors);
         }
 
         return new WorkflowEvent.PrConversationComment(
@@ -250,19 +250,23 @@ public class GitLabEventMapper {
             commentBody,
             noteId,
             discussionId,
-            commentActor
+            commentActors
         );
     }
 
-    /** The logical actor (smithy, architect, coordinator) whose bot account is this user, or "". */
-    private String actorOf(String username) {
-        return actorUsers
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().equals(username))
-            .map(java.util.Map.Entry::getKey)
-            .findFirst()
-            .orElse("");
+    /**
+     * Every logical actor whose bot account is this user, in a fixed order;
+     * empty for a human. Several actors may share one account, and a note by it
+     * is by all of them.
+     */
+    private List<String> actorsOf(String username) {
+        return java.util.stream.Stream.of(
+            VcsProviderConfig.SMITHY,
+            VcsProviderConfig.ARCHITECT,
+            VcsProviderConfig.COORDINATOR
+        )
+            .filter(actor -> username.equals(actorUsers.get(actor)))
+            .toList();
     }
 
     // ── Push Hook ───────────────────────────────

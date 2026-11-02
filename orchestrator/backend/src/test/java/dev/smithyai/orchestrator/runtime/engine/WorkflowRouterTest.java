@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.runtime.engine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
@@ -27,6 +28,10 @@ class WorkflowRouterTest {
         "actor: smithy",
         "actor: architect"
     );
+    private static final String COORDINATOR = AUTHOR.replace("name: author", "name: coordinator").replace(
+        "actor: smithy",
+        "actor: coordinator"
+    );
 
     private static PrContext prContext() {
         return new PrContext(
@@ -48,7 +53,7 @@ class WorkflowRouterTest {
         var prc = prContext();
 
         var byTheAuthorAgent = router.route(
-            new WorkflowEvent.PrConversationComment(prc, "smithy-bot", "done", 1, "d1", "smithy"),
+            new WorkflowEvent.PrConversationComment(prc, "smithy-bot", "done", 1, "d1", List.of("smithy")),
             definitions
         );
         assertEquals(
@@ -57,7 +62,59 @@ class WorkflowRouterTest {
         );
 
         var byAHuman = router.route(
-            new WorkflowEvent.PrConversationComment(prc, "b.human", "why?", 2, "d1", ""),
+            new WorkflowEvent.PrConversationComment(prc, "b.human", "why?", 2, "d1", List.of()),
+            definitions
+        );
+        assertEquals(
+            List.of("author", "reviewer"),
+            byAHuman.stream().map(WorkflowRouter.Decision::workflowName).toList()
+        );
+    }
+
+    @Test
+    void aCommentByAnAccountSeveralActorsShareIsRoutedToNoneOfThem() {
+        var parser = new WorkflowDefinitionParser();
+        var definitions = List.of(
+            parser.parse("author.yml", AUTHOR),
+            parser.parse("coordinator.yml", COORDINATOR),
+            parser.parse("reviewer.yml", REVIEWER)
+        );
+        var decisions = new WorkflowRouter(new ExpressionRenderer()).route(
+            new WorkflowEvent.PrConversationComment(
+                prContext(),
+                "shared-bot",
+                "done",
+                1,
+                "d1",
+                List.of("smithy", "coordinator")
+            ),
+            definitions
+        );
+        assertEquals(List.of("reviewer"), decisions.stream().map(WorkflowRouter.Decision::workflowName).toList());
+    }
+
+    @Test
+    void aReviewCommentIsNotRoutedToTheActorThatWroteIt() {
+        var parser = new WorkflowDefinitionParser();
+        var onReviewComments = AUTHOR.replace("event: pr.commented", "event: pr.review_commented");
+        var definitions = List.of(
+            parser.parse("author.yml", onReviewComments),
+            parser.parse(
+                "reviewer.yml",
+                onReviewComments.replace("name: author", "name: reviewer").replace("actor: smithy", "actor: architect")
+            )
+        );
+        var router = new WorkflowRouter(new ExpressionRenderer());
+        var comments = List.of(new CommentData("architect-bot", "please fix", "src/App.java", 12));
+
+        var byTheReviewer = router.route(
+            new WorkflowEvent.PrReviewComment(prContext(), comments, 1, "d1", List.of("architect")),
+            definitions
+        );
+        assertEquals(List.of("author"), byTheReviewer.stream().map(WorkflowRouter.Decision::workflowName).toList());
+
+        var byAHuman = router.route(
+            new WorkflowEvent.PrReviewComment(prContext(), comments, 2, "d1", List.of()),
             definitions
         );
         assertEquals(
@@ -70,7 +127,7 @@ class WorkflowRouterTest {
     void aDefinitionWithoutAnActorIsTheDefaultActor() {
         var noActor = new WorkflowDefinitionParser().parse("plain.yml", AUTHOR.replace("vars: {actor: smithy}\n", ""));
         var decisions = new WorkflowRouter(new ExpressionRenderer()).route(
-            new WorkflowEvent.PrConversationComment(prContext(), "smithy-bot", "done", 1, "d1", "smithy"),
+            new WorkflowEvent.PrConversationComment(prContext(), "smithy-bot", "done", 1, "d1", List.of("smithy")),
             List.of(noActor)
         );
         assertTrue(decisions.isEmpty());

@@ -53,7 +53,7 @@ state:                             # required unless `extends` is set
 | `destroy` | End the run as **cancelled**. Work waiting on it keeps waiting, and a later `create` for the same key picks it back up |
 | `ignore` | Match and stop, so a later rule cannot claim it |
 
-A comment written by a definition's own actor (`event.commentActor`) is never routed to that definition, so two agents can talk in one thread without answering themselves.
+A comment written by a definition's own actor is never routed to that definition, so two agents can talk in one thread without answering themselves. When several actors share the author's account, the comment counts as written by every one of them (`event.commentActors`) and none of their definitions receives it.
 
 ## Expression context
 
@@ -105,8 +105,8 @@ on it is how a feature for the coordinator is told from a task for the agent.
 
 | Name | Extra fields |
 |---|---|
-| `pr.commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `commentBody`, `commentUser`, `commentId`, `discussionId`, `commentActor` |
-| `pr.review_commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `comments`, `commentId`, `discussionId`, `commentActor` |
+| `pr.commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `commentBody`, `commentUser`, `commentId`, `discussionId`, `commentActor`, `commentActors` |
+| `pr.review_commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `comments`, `commentId`, `discussionId`, `commentActor`, `commentActors` |
 | `pr.review_submitted` | `prNumber`, …, `reviewId`, `reviewBody`, `reviewer` |
 | `pr.review_requested` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`; emitted when the reviewer actor is added, or the MR is opened with it as reviewer (GitLab) |
 | `pr.review_withdrawn` | as above; the reviewer actor was removed from the reviewers |
@@ -115,7 +115,7 @@ on it is how a feature for the coordinator is told from a task for the agent.
 | `pr.merged` | as above |
 | `pr.closed` | `prNumber`, `headBranch` |
 
-GitLab emits `pr.commented` and `pr.review_commented` for every merge request, whoever wrote the note; a note by one of the configured bot accounts carries that bot's actor in `commentActor`, a human's is empty. A run never receives a comment written by its own actor (see Routing). Forgejo and GitHub emit review comments only for work branches.
+GitLab emits `pr.commented` and `pr.review_commented` for every merge request, whoever wrote the note; a note by one of the configured bot accounts carries every actor configured with that account in `commentActors` (in the order smithy, architect, coordinator) and the first of them in `commentActor`; a human's are empty. A note by an account that several actors share carries all of them and is withheld from every one of their workflows. A run never receives a comment written by its own actor (see Routing). Forgejo and GitHub emit review comments only for work branches.
 
 ### Push and CI
 

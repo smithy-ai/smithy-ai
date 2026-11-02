@@ -57,7 +57,7 @@ class GitLabEventMapperTest {
             );
             assertEquals(41, review.prc().number());
             assertEquals("please fix", review.comments().getFirst().body());
-            assertEquals("", review.commentActor());
+            assertEquals(List.of(), review.commentActors());
         }
     }
 
@@ -66,15 +66,42 @@ class GitLabEventMapperTest {
         var event = mapper().map("Note Hook", json.readTree(plainNote("FVS-1608", "b.human")));
         var comment = assertInstanceOf(WorkflowEvent.PrConversationComment.class, event);
         assertEquals("d1", comment.discussionId());
-        assertEquals("", comment.commentActor());
+        assertEquals(List.of(), comment.commentActors());
     }
 
     @Test
     void aNoteByABotCarriesItsActor() throws Exception {
         var event = mapper().map("Note Hook", json.readTree(plainNote("FVS-1608", "smithy-bot")));
-        assertEquals("smithy", assertInstanceOf(WorkflowEvent.PrConversationComment.class, event).commentActor());
+        assertEquals(
+            List.of("smithy"),
+            assertInstanceOf(WorkflowEvent.PrConversationComment.class, event).commentActors()
+        );
         var diff = mapper().map("Note Hook", json.readTree(diffNote("FVS-1608").replace("b.human", "architect-bot")));
-        assertEquals("architect", assertInstanceOf(WorkflowEvent.PrReviewComment.class, diff).commentActor());
+        assertEquals(List.of("architect"), assertInstanceOf(WorkflowEvent.PrReviewComment.class, diff).commentActors());
+    }
+
+    @Test
+    void aNoteByAnAccountSeveralActorsShareCarriesEveryOneOfThem() throws Exception {
+        var shared = mapper(
+            new BotConfig(
+                new BotConfig.BotEntry("shared-bot", "shared@example.com"),
+                new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+                new BotConfig.BotEntry("shared-bot", "shared@example.com")
+            )
+        );
+        // Several times, because the actor map has no iteration order to rely on.
+        for (int i = 0; i < 5; i++) {
+            var note = shared.map("Note Hook", json.readTree(plainNote("feature/x", "shared-bot")));
+            assertEquals(
+                List.of("smithy", "coordinator"),
+                assertInstanceOf(WorkflowEvent.PrConversationComment.class, note).commentActors()
+            );
+            var diff = shared.map("Note Hook", json.readTree(diffNote("feature/x").replace("b.human", "shared-bot")));
+            assertEquals(
+                List.of("smithy", "coordinator"),
+                assertInstanceOf(WorkflowEvent.PrReviewComment.class, diff).commentActors()
+            );
+        }
     }
 
     @Test
@@ -235,11 +262,16 @@ class GitLabEventMapperTest {
     }
 
     private GitLabEventMapper mapper() {
-        var bots = new BotConfig(
-            new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),
-            new BotConfig.BotEntry("architect-bot", "architect@example.com"),
-            new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
+        return mapper(
+            new BotConfig(
+                new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),
+                new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+                new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
+            )
         );
+    }
+
+    private GitLabEventMapper mapper(BotConfig bots) {
         var gitlab = new VcsProviderConfig.GitLabProviderConfig(
             "https://gitlab.invalid",
             "https://gitlab.invalid",

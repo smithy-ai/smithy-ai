@@ -226,13 +226,13 @@ public class ExpressionRenderer {
                         view.put("commentUser", c.commentUser());
                         view.put("commentId", c.commentId());
                         view.put("discussionId", nullToEmpty(c.discussionId()));
-                        view.put("commentActor", nullToEmpty(c.commentActor()));
+                        putCommentActors(view, c.commentActors());
                     }
                     case WorkflowEvent.PrReviewComment c -> {
                         view.put("comments", c.comments().stream().map(CommentData::toMap).toList());
                         view.put("commentId", c.commentId());
                         view.put("discussionId", nullToEmpty(c.discussionId()));
-                        view.put("commentActor", nullToEmpty(c.commentActor()));
+                        putCommentActors(view, c.commentActors());
                     }
                     case WorkflowEvent.ReviewSubmitted r -> {
                         view.put("reviewId", r.reviewId());
@@ -255,6 +255,15 @@ public class ExpressionRenderer {
             }
         }
         return view;
+    }
+
+    /**
+     * Every actor that wrote the comment, and the first of them on its own for
+     * a template that only asks "was this a bot, and which?".
+     */
+    private static void putCommentActors(Map<String, Object> view, List<String> actors) {
+        view.put("commentActor", actors.isEmpty() ? "" : actors.getFirst());
+        view.put("commentActors", actors);
     }
 
     /** Null renders as the four letters "null", which is never what a template meant. */

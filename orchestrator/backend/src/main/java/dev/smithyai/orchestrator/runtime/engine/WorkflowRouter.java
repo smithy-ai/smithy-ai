@@ -46,10 +46,11 @@ public class WorkflowRouter {
         for (var definition : definitions) {
             // A comment its own actor wrote is never for this definition, so a
             // reviewer and an author can share a thread without answering themselves.
+            // Every actor sharing the author's account counts as the author: one
+            // of them answering the others would answer itself.
             if (
                 event instanceof WorkflowEvent.Authored authored &&
-                !authored.commentActor().isBlank() &&
-                authored.commentActor().equals(actorOf(definition))
+                authored.commentActors().contains(actorOf(definition))
             ) {
                 log.debug("{}: {} skipped — written by its own actor", definition.metadata().name(), event.name());
                 continue;
