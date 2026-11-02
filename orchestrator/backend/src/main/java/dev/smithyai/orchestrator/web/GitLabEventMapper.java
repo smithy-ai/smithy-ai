@@ -296,12 +296,20 @@ public class GitLabEventMapper {
         String action = attrs.path("action").asText("");
 
         return switch (action) {
+            case "open" -> mapMrOpen(payload, attrs);
             case "update" -> mapMrUpdate(payload, attrs);
             case "close" -> mapMrClose(payload, attrs);
             case "merge" -> mapMrMerge(payload, attrs);
             case "approved" -> mapMrApproved(payload, attrs);
             default -> null;
         };
+    }
+
+    /** An MR opened with the architect already a reviewer is asked for a review as it opens. */
+    private WorkflowEvent mapMrOpen(JsonNode payload, JsonNode attrs) {
+        String architect = actorUsers.get(VcsProviderConfig.ARCHITECT);
+        if (architect == null || !isUserInArray(payload.path("reviewers"), architect)) return null;
+        return new WorkflowEvent.ReviewRequested(extractPrFromMr(repoInfo(payload), attrs));
     }
 
     private WorkflowEvent mapMrUpdate(JsonNode payload, JsonNode attrs) {

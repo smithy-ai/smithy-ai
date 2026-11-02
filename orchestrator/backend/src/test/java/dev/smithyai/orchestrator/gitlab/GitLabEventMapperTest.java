@@ -112,6 +112,25 @@ class GitLabEventMapperTest {
     }
 
     @Test
+    void openingAMergeRequestWithTheReviewerBotAsksForAReview() throws Exception {
+        var event = mapper().map(
+            "Merge Request Hook",
+            json.readTree(openedWithReviewers("[{\"username\": \"architect-bot\"}]"))
+        );
+        var requested = assertInstanceOf(WorkflowEvent.ReviewRequested.class, event);
+        assertEquals(41, requested.prc().number());
+        assertEquals("feature/review-me", requested.prc().headBranch());
+    }
+
+    @Test
+    void openingAMergeRequestWithoutTheReviewerBotIsNotAReviewRequest() throws Exception {
+        assertNull(
+            mapper().map("Merge Request Hook", json.readTree(openedWithReviewers("[{\"username\": \"b.human\"}]")))
+        );
+        assertNull(mapper().map("Merge Request Hook", json.readTree(openedWithReviewers("[]"))));
+    }
+
+    @Test
     void addingAnotherReviewerWhileTheBotStaysDoesNotReviewAgain() throws Exception {
         String withBot = "[{\"username\": \"architect-bot\"}]";
         String withBotAndHuman = "[{\"username\": \"architect-bot\"}, {\"username\": \"b.human\"}]";
@@ -141,6 +160,19 @@ class GitLabEventMapperTest {
           "changes": {"reviewers": {"previous": %1$s, "current": %2$s}}
         }
         """.formatted(previous, current);
+    }
+
+    private static String openedWithReviewers(String reviewers) {
+        return """
+        {
+          "object_kind": "merge_request",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "object_attributes": {"iid": 41, "title": "A change", "description": "", "state": "opened",
+                                "action": "open", "source_branch": "feature/review-me", "target_branch": "main"},
+          "reviewers": %s
+        }
+        """.formatted(reviewers);
     }
 
     private static String diffNote(String sourceBranch) {

@@ -108,7 +108,7 @@ on it is how a feature for the coordinator is told from a task for the agent.
 | `pr.commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `commentBody`, `commentUser`, `commentId`, `discussionId`, `commentActor` |
 | `pr.review_commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `comments`, `commentId`, `discussionId`, `commentActor` |
 | `pr.review_submitted` | `prNumber`, …, `reviewId`, `reviewBody`, `reviewer` |
-| `pr.review_requested` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`; emitted when the reviewer actor is added to the reviewers |
+| `pr.review_requested` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`; emitted when the reviewer actor is added, or the MR is opened with it as reviewer (GitLab) |
 | `pr.review_withdrawn` | as above; the reviewer actor was removed from the reviewers |
 | `pr.ready_for_review` | as above; emitted when a draft or WIP marker is removed |
 | `pr.unassigned` | as above |
