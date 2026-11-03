@@ -3,12 +3,15 @@ package dev.smithyai.orchestrator.runtime.engine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.smithyai.orchestrator.config.DefaultsConfig;
+import dev.smithyai.orchestrator.config.OrchestratorConfig;
 import dev.smithyai.orchestrator.model.CommentData;
 import dev.smithyai.orchestrator.model.PrContext;
 import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinitionParser;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class WorkflowRouterTest {
@@ -131,5 +134,45 @@ class WorkflowRouterTest {
             List.of(noActor)
         );
         assertTrue(decisions.isEmpty());
+    }
+
+    @Test
+    void aDefinitionWithoutAnActorIsTheDeploymentsDefaultActor() {
+        var config = new OrchestratorConfig(
+            OrchestratorConfig.API_VERSION,
+            OrchestratorConfig.KIND,
+            null,
+            null,
+            null,
+            null,
+            Map.of(),
+            new DefaultsConfig(null, null, "architect"),
+            null,
+            Map.of(),
+            null,
+            null,
+            null
+        );
+        var noActor = new WorkflowDefinitionParser().parse("plain.yml", AUTHOR.replace("vars: {actor: smithy}\n", ""));
+        var router = new WorkflowRouter(new ExpressionRenderer(), config);
+
+        var byTheDefaultActor = router.route(
+            new WorkflowEvent.PrConversationComment(
+                prContext(),
+                "architect-bot",
+                "done",
+                1,
+                "d1",
+                List.of("architect")
+            ),
+            List.of(noActor)
+        );
+        var bySmithy = router.route(
+            new WorkflowEvent.PrConversationComment(prContext(), "smithy-bot", "done", 1, "d1", List.of("smithy")),
+            List.of(noActor)
+        );
+
+        assertTrue(byTheDefaultActor.isEmpty());
+        assertEquals(List.of("author"), bySmithy.stream().map(WorkflowRouter.Decision::workflowName).toList());
     }
 }
