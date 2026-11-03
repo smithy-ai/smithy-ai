@@ -28,6 +28,12 @@ routing:
     action: dispatch
     by: pr
 
+  # The pull request merged or closed: nobody is left to answer, so the
+  # container kept for the conversation goes too.
+  - event: [pr.merged, pr.closed]
+    action: destroy
+    by: pr
+
 state:
   initial: new
   terminal: done
