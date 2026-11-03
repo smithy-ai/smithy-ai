@@ -354,16 +354,14 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
             for (var n : node.path("notes")) {
                 if (n.path("system").asBoolean(false)) continue;
                 if (first == null) first = n;
-                var position = n.path("position");
-                String path = position.path("new_path").asText(position.path("old_path").asText(""));
-                long line = position.path("new_line").asLong(position.path("old_line").asLong(0));
+                var position = GitLabNotePosition.of(n.path("position"));
                 notes.add(
                     new DiscussionNote(
                         n.path("id").asLong(),
                         n.path("author").path("username").asText(""),
                         n.path("body").asText(""),
-                        path,
-                        line,
+                        position.path(),
+                        position.line(),
                         parseDateTime(n.path("created_at").asText(""))
                     )
                 );
@@ -440,16 +438,16 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
             OffsetDateTime noteDate = parseDateTime(firstNote.path("created_at").asText(""));
             if (reviewNoteDate != null && noteDate != null && noteDate.isBefore(reviewNoteDate)) continue;
 
-            String path = position.path("new_path").asText("");
-            if (path.isEmpty()) {
-                path = position.path("old_path").asText("");
-            }
-            int line = position.path("new_line").asInt(0);
-            if (line == 0) {
-                line = position.path("old_line").asInt(0);
-            }
-
-            comments.add(new ReviewCommentEntry(noteAuthor, firstNote.path("body").asText(""), path, line, noteDate));
+            var notePosition = GitLabNotePosition.of(position);
+            comments.add(
+                new ReviewCommentEntry(
+                    noteAuthor,
+                    firstNote.path("body").asText(""),
+                    notePosition.path(),
+                    notePosition.line(),
+                    noteDate
+                )
+            );
         }
 
         return new LatestReviewResult(comments, reviewBody);

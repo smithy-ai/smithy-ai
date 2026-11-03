@@ -9,6 +9,7 @@ import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.PrData;
+import dev.smithyai.orchestrator.service.vcs.gitlab.GitLabNotePosition;
 import dev.smithyai.orchestrator.util.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -238,10 +239,8 @@ public class GitLabEventMapper {
         String discussionId = attrs.path("discussion_id").asText("");
 
         if ("DiffNote".equals(type)) {
-            var position = attrs.path("position");
-            String path = position.path("new_path").asText("");
-            int line = position.path("new_line").asInt(0);
-            var cd = new CommentData(commentUser, commentBody, path, line);
+            var position = GitLabNotePosition.of(attrs.path("position"));
+            var cd = new CommentData(commentUser, commentBody, position.path(), (int) position.line());
             return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, discussionId, commentActors);
         }
 

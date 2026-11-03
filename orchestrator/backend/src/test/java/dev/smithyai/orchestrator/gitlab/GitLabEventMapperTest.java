@@ -62,6 +62,22 @@ class GitLabEventMapperTest {
     }
 
     @Test
+    void aDiffNoteOnADeletedLineCarriesTheOldPathAndLine() throws Exception {
+        String payload = diffNote("feature/x").replace(
+            "{\"new_path\": \"src/App.java\", \"new_line\": 12}",
+            "{\"old_path\": \"src/Gone.java\", \"old_line\": 7}"
+        );
+
+        var review = assertInstanceOf(
+            WorkflowEvent.PrReviewComment.class,
+            mapper().map("Note Hook", json.readTree(payload))
+        );
+
+        assertEquals("src/Gone.java", review.comments().getFirst().path());
+        assertEquals(7, review.comments().getFirst().line());
+    }
+
+    @Test
     void aPlainNoteOnAHumanBranchIsAConversationComment() throws Exception {
         var event = mapper().map("Note Hook", json.readTree(plainNote("FVS-1608", "b.human")));
         var comment = assertInstanceOf(WorkflowEvent.PrConversationComment.class, event);
