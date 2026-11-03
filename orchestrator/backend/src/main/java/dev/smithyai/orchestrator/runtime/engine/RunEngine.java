@@ -170,7 +170,7 @@ public class RunEngine implements SignalDelivery {
         var owner = ownerOf(event);
         var existing = (
             decision.by() != null
-                ? byCorrelation(decision.by(), event)
+                ? byCorrelation(decision.by(), event).filter(run -> isOwnRun(run, name))
                 : store.findByCorrelation(CorrelationKind.KEY, key)
         ).or(() -> owner.filter(run -> run.workflowName().equals(name)));
 
@@ -210,6 +210,18 @@ public class RunEngine implements SignalDelivery {
                 .orElseGet(() -> Outcome.ignored(decision.workflowName()));
             case ignore -> Outcome.ignored(decision.workflowName());
         };
+    }
+
+    /**
+     * Whether a run found through a correlation belongs to this workflow.
+     * There is one correlation per pull request, issue or branch, so another
+     * workflow's {@code by:} rule finds the run that registered it, and must
+     * not evaluate its own stages against that run's state.
+     */
+    private static boolean isOwnRun(Run run, String workflowName) {
+        if (run.workflowName().equals(workflowName)) return true;
+        log.debug("{}: correlated run {} belongs to {}", workflowName, run.id(), run.workflowName());
+        return false;
     }
 
     /**
