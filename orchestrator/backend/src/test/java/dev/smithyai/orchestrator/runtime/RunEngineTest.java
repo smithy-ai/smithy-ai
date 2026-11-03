@@ -621,6 +621,23 @@ class RunEngineTest {
         assertEquals(before.status(), after.status());
         var types = store.findEvents(started.runId()).stream().map(RunEvent::type).toList();
         assertFalse(types.contains("state.undefined"), "no foreign stages were evaluated: " + types);
+
+        // The reviewer correlates the same pull request for a run of its own:
+        // each workflow's rule now reaches its own run, and neither loses the
+        // handle to the other.
+        var reviewing = store.create("pr-reviewer", null, "reviewing", null);
+        store.updateStatus(reviewing.id(), RunStatus.RUNNING);
+        store.correlate(CorrelationKind.PR, RunRecorder.prRef("acme", "platform", 41), reviewing.id());
+
+        var both = engine
+            .handle(prComment(41, "and this?"))
+            .stream()
+            .collect(java.util.stream.Collectors.toMap(RunEngine.Outcome::workflowName, outcome -> outcome));
+
+        assertTrue(both.get("pr-reviewer").handled(), "the reviewer's own run");
+        assertTrue(both.get("feature-coordinator").handled(), "the coordinator keeps its run");
+        assertEquals("and this?", store.find(reviewing.id()).orElseThrow().vars().get("reviewed"));
+        assertEquals("and this?", store.find(started.runId()).orElseThrow().vars().get("lastPrComment"));
     }
 
     private static WorkflowEvent prComment(int number, String body) {

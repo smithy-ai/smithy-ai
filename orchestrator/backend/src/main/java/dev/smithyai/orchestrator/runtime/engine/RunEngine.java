@@ -170,7 +170,7 @@ public class RunEngine implements SignalDelivery {
         var owner = ownerOf(event);
         var existing = (
             decision.by() != null
-                ? byCorrelation(decision.by(), event).filter(run -> isOwnRun(run, name))
+                ? byCorrelation(decision.by(), event, name)
                 : store.findByCorrelation(CorrelationKind.KEY, key)
         ).or(() -> owner.filter(run -> run.workflowName().equals(name)));
 
@@ -210,18 +210,6 @@ public class RunEngine implements SignalDelivery {
                 .orElseGet(() -> Outcome.ignored(decision.workflowName()));
             case ignore -> Outcome.ignored(decision.workflowName());
         };
-    }
-
-    /**
-     * Whether a run found through a correlation belongs to this workflow.
-     * There is one correlation per pull request, issue or branch, so another
-     * workflow's {@code by:} rule finds the run that registered it, and must
-     * not evaluate its own stages against that run's state.
-     */
-    private static boolean isOwnRun(Run run, String workflowName) {
-        if (run.workflowName().equals(workflowName)) return true;
-        log.debug("{}: correlated run {} belongs to {}", workflowName, run.id(), run.workflowName());
-        return false;
     }
 
     /**
@@ -277,7 +265,7 @@ public class RunEngine implements SignalDelivery {
     /** The run that already owns the thing this event is about, whatever workflow it belongs to. */
     private Optional<Run> ownerOf(WorkflowEvent event) {
         for (String by : List.of("issue", "pr", "branch")) {
-            var run = byCorrelation(by, event);
+            var run = byCorrelation(by, event, null);
             if (run.isPresent()) return run;
         }
         return Optional.empty();
@@ -290,39 +278,60 @@ public class RunEngine implements SignalDelivery {
      * recovered one by parsing it out of the branch name, which is how a flow's
      * naming convention ended up inside the provider adapters. The run recorded
      * what it opened; this reads that back.
+     *
+     * <p>A handle is held by one run per workflow, so a {@code by:} rule asks
+     * for its own workflow's run; a null workflow name asks for whichever run
+     * holds the handle, which is what standing aside needs to know.
      */
-    private Optional<Run> byCorrelation(String by, WorkflowEvent event) {
+    private Optional<Run> byCorrelation(String by, WorkflowEvent event, String workflowName) {
+        var handle = handleOf(by, event);
+        if (handle.isEmpty()) return Optional.empty();
+        var kind = handle.get().kind();
+        var ref = handle.get().ref();
+        return workflowName == null
+            ? store.findByCorrelation(kind, ref)
+            : store.findByCorrelation(kind, ref, workflowName);
+    }
+
+    private record Handle(CorrelationKind kind, String ref) {}
+
+    private static Optional<Handle> handleOf(String by, WorkflowEvent event) {
         return switch (by) {
             case "pr" -> switch (event) {
-                case WorkflowEvent.PrScoped pr -> store.findByCorrelation(
-                    CorrelationKind.PR,
-                    RunRecorder.prRef(pr.prc().info().owner(), pr.prc().info().repo(), pr.prc().number())
+                case WorkflowEvent.PrScoped pr -> Optional.of(
+                    new Handle(
+                        CorrelationKind.PR,
+                        RunRecorder.prRef(pr.prc().info().owner(), pr.prc().info().repo(), pr.prc().number())
+                    )
                 );
                 // Not PR-scoped — a closed PR carries no PrContext — but it
                 // still names the pull request it is about.
-                case WorkflowEvent.PrClosed closed -> store.findByCorrelation(
-                    CorrelationKind.PR,
-                    RunRecorder.prRef(closed.info().owner(), closed.info().repo(), closed.prNumber())
+                case WorkflowEvent.PrClosed closed -> Optional.of(
+                    new Handle(
+                        CorrelationKind.PR,
+                        RunRecorder.prRef(closed.info().owner(), closed.info().repo(), closed.prNumber())
+                    )
                 );
                 default -> Optional.empty();
             };
             case "issue" -> event instanceof WorkflowEvent.IssueScoped issue
-                ? store.findByCorrelation(
-                      CorrelationKind.ISSUE,
-                      RunRecorder.issueRef(
-                          issue.ctx().info().owner(),
-                          issue.ctx().info().repo(),
-                          issue.ctx().issueRef()
+                ? Optional.of(
+                      new Handle(
+                          CorrelationKind.ISSUE,
+                          RunRecorder.issueRef(
+                              issue.ctx().info().owner(),
+                              issue.ctx().info().repo(),
+                              issue.ctx().issueRef()
+                          )
                       )
                   )
                 : Optional.empty();
-            case "branch" -> branchOf(event).flatMap(branch ->
-                store.findByCorrelation(
+            case "branch" -> branchOf(event).map(branch ->
+                new Handle(
                     CorrelationKind.BRANCH,
                     RunRecorder.branchRef(event.info().owner(), event.info().repo(), branch)
                 )
             );
-            case "container" -> Optional.empty();
             default -> Optional.empty();
         };
     }

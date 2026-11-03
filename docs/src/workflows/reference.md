@@ -53,7 +53,7 @@ state:                             # required unless `extends` is set
 | `destroy` | End the run as **cancelled**. Work waiting on it keeps waiting, and a later `create` for the same key picks it back up |
 | `ignore` | Match and stop, so a later rule cannot claim it |
 
-A comment written by a definition's own actor is never routed to that definition, so two agents can talk in one thread without answering themselves. When several actors share the author's account, the comment counts as written by every one of them (`event.commentActors`) and none of their definitions receives it.
+A rule with `by:` finds the run of its own workflow that holds the handle; another workflow's run holding the same pull request or issue is never reached. A comment written by a definition's own actor is never routed to that definition, so two agents can talk in one thread without answering themselves. When several actors share the author's account, the comment counts as written by every one of them (`event.commentActors`) and none of their definitions receives it.
 
 ## Expression context
 
@@ -316,6 +316,11 @@ the other providers render markdown as is.
 `foreach` runs its nested steps once per item with `item` and `index` set. Inside
 a composite action the nested steps also see the composite's `with:` inputs as
 `vars.*`, so a loop can post with the owner and repository its caller passed.
+
+`correlate` points a handle at a run. A handle is held by one run per workflow:
+a newer run of the same workflow takes it over, while another workflow's run
+keeps its own, so an author's run and a reviewer's run can both answer to the
+same pull request, each through its own `by:` rules.
 
 `run.wave` reads each child's `index` and `dependsOn` vars and releases those
 whose dependencies have completed. A cancelled child does not satisfy a

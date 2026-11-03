@@ -202,22 +202,50 @@ public class RunStore {
     // ── Correlations ─────────────────────────────────────────
 
     /**
-     * Point an external handle at a run. Re-pointing an existing handle is
-     * allowed — a branch or PR can be taken over by a newer run.
+     * Point an external handle at a run. A handle is held by one run per
+     * workflow: a newer run of the same workflow takes it over, while another
+     * workflow's run keeps its own — the author's run and the reviewer's run
+     * both answer to the same pull request.
      */
     @Transactional
     public void correlate(CorrelationKind kind, String ref, String runId) {
         db
             .sql(
                 """
-                INSERT INTO run_correlations (kind, ref, run_id, created_at) VALUES (?, ?, ?, ?)
-                ON CONFLICT (kind, ref) DO UPDATE SET run_id = excluded.run_id, created_at = excluded.created_at
+                DELETE FROM run_correlations
+                WHERE kind = ? AND ref = ? AND run_id IN (
+                    SELECT id FROM runs WHERE workflow_name = (SELECT workflow_name FROM runs WHERE id = ?)
+                )
                 """
             )
+            .params(kind.value(), ref, runId)
+            .update();
+        db
+            .sql("INSERT INTO run_correlations (kind, ref, run_id, created_at) VALUES (?, ?, ?, ?)")
             .params(kind.value(), ref, runId, iso(Instant.now()))
             .update();
     }
 
+    /** The run of the given workflow that holds this handle, if any. */
+    public Optional<Run> findByCorrelation(CorrelationKind kind, String ref, String workflowName) {
+        return db
+            .sql(
+                """
+                SELECT r.* FROM runs r
+                JOIN run_correlations c ON c.run_id = r.id
+                WHERE c.kind = ? AND c.ref = ? AND r.workflow_name = ?
+                """
+            )
+            .params(kind.value(), ref, workflowName)
+            .query(RUN_MAPPER)
+            .optional();
+    }
+
+    /**
+     * Whichever run holds this handle, the most recently correlated first —
+     * for a reader that wants the thing's run without saying which workflow,
+     * such as the container to open for a pull request.
+     */
     public Optional<Run> findByCorrelation(CorrelationKind kind, String ref) {
         return db
             .sql(
@@ -225,6 +253,8 @@ public class RunStore {
                 SELECT r.* FROM runs r
                 JOIN run_correlations c ON c.run_id = r.id
                 WHERE c.kind = ? AND c.ref = ?
+                ORDER BY c.created_at DESC, c.rowid DESC
+                LIMIT 1
                 """
             )
             .params(kind.value(), ref)

@@ -107,6 +107,47 @@ class RunStoreTest {
     }
 
     @Test
+    void eachWorkflowHoldsItsOwnCorrelationToTheSameHandle() {
+        var author = store.create("smithy-development", "v1", "build", null);
+        var reviewer = store.create("architect-review", "v1", "reviewing", null);
+
+        store.correlate(CorrelationKind.PR, "acme/app!41", author.id());
+        store.correlate(CorrelationKind.PR, "acme/app!41", reviewer.id());
+
+        assertEquals(
+            author.id(),
+            store.findByCorrelation(CorrelationKind.PR, "acme/app!41", "smithy-development").orElseThrow().id()
+        );
+        assertEquals(
+            reviewer.id(),
+            store.findByCorrelation(CorrelationKind.PR, "acme/app!41", "architect-review").orElseThrow().id()
+        );
+        assertTrue(store.findByCorrelation(CorrelationKind.PR, "acme/app!41", "feature-coordinator").isEmpty());
+        // A reader that wants one holder gets the one that correlated last.
+        assertEquals(reviewer.id(), store.findByCorrelation(CorrelationKind.PR, "acme/app!41").orElseThrow().id());
+    }
+
+    @Test
+    void aNewerRunTakesOverOnlyItsOwnWorkflowsHandle() {
+        var reviewer = store.create("architect-review", "v1", "reviewing", null);
+        var first = store.create("smithy-development", "v1", "build", null);
+        var second = store.create("smithy-development", "v1", "build", null);
+
+        store.correlate(CorrelationKind.PR, "acme/app!41", reviewer.id());
+        store.correlate(CorrelationKind.PR, "acme/app!41", first.id());
+        store.correlate(CorrelationKind.PR, "acme/app!41", second.id());
+
+        assertEquals(
+            second.id(),
+            store.findByCorrelation(CorrelationKind.PR, "acme/app!41", "smithy-development").orElseThrow().id()
+        );
+        assertEquals(
+            reviewer.id(),
+            store.findByCorrelation(CorrelationKind.PR, "acme/app!41", "architect-review").orElseThrow().id()
+        );
+    }
+
+    @Test
     void childRunsShareTheirParentsRoot() {
         var parent = store.create("feature-coordinator", "v1", "planning", null);
         var child = store.create("smithy-development", "v1", "refine", parent.id());
