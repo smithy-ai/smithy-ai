@@ -109,9 +109,10 @@ public class ReviewActions {
     }
 
     /**
-     * Close a review thread once its finding is fixed. Best-effort: a thread the
-     * provider will not resolve (a plain comment, say) is reported as
-     * {@code resolved: false} rather than failing the transition around it.
+     * Close a review thread once its finding is fixed. Best-effort: a missing
+     * discussion id, or a thread the provider will not resolve (a plain comment,
+     * say), is reported as {@code resolved: false} rather than failing the
+     * transition around it.
      */
     @Bean
     public WorkflowAction prResolveAction(VcsClients clients) {
@@ -132,7 +133,11 @@ public class ReviewActions {
                 String owner = required(input, "owner");
                 String repo = required(input, "repo");
                 int number = intInput(input, "number", 0);
-                String discussion = required(input, "discussion");
+                String discussion = optional(input, "discussion", null);
+                if (discussion == null) {
+                    log.warn("pr.resolve: no discussion to resolve on {}/{}!{}", owner, repo, number);
+                    return Map.of("resolved", false);
+                }
                 try {
                     vcs.resolvePrDiscussion(owner, repo, number, discussion);
                 } catch (RuntimeException e) {

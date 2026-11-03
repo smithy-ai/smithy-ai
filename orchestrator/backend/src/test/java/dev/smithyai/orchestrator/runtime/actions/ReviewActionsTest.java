@@ -59,6 +59,18 @@ class ReviewActionsTest {
     }
 
     @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aBlankDiscussionIsReportedWithoutCallingTheProvider(CapturedOutput output) {
+        var result = new ReviewActions()
+            .prResolveAction(vcsClients)
+            .execute(CONTEXT, Map.of("owner", "acme", "repo", "api", "number", 7, "discussion", " "));
+
+        assertEquals(false, result.get("resolved"));
+        verify(vcs, never()).resolvePrDiscussion(anyString(), anyString(), anyInt(), anyString());
+        assertTrue(output.getOut().contains("acme/api!7"), output.getOut());
+    }
+
+    @Test
     void resolveRequiresTheResolveCapability() {
         assertEquals(Set.of(Capability.DISCUSSION_RESOLVE), new ReviewActions().prResolveAction(vcsClients).requires());
     }
