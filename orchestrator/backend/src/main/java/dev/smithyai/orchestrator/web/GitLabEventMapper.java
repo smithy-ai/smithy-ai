@@ -255,11 +255,6 @@ public class GitLabEventMapper {
     }
 
     /**
-     * Every logical actor whose bot account is this user, in a fixed order;
-     * empty for a human. Several actors may share one account, and a note by it
-     * is by all of them.
-     */
-    /**
      * The actors in a fixed order. The actor map has none, so an account that
      * several actors share would otherwise resolve differently on every start.
      */
@@ -269,6 +264,11 @@ public class GitLabEventMapper {
         VcsProviderConfig.COORDINATOR
     );
 
+    /**
+     * Every logical actor whose bot account is this user, in a fixed order;
+     * empty for a human. Several actors may share one account, and a note by it
+     * is by all of them.
+     */
     private List<String> actorsOf(String username) {
         return ACTOR_ORDER.stream()
             .filter(actor -> username.equals(actorUsers.get(actor)))
