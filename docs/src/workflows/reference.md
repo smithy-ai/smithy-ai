@@ -53,6 +53,8 @@ state:                             # required unless `extends` is set
 | `destroy` | End the run as **cancelled**. Work waiting on it keeps waiting, and a later `create` for the same key picks it back up |
 | `ignore` | Match and stop, so a later rule cannot claim it |
 
+A rule with `by:` finds the run of its own workflow that holds the handle; another workflow's run holding the same pull request or issue is never reached. A comment written by a definition's own actor is never routed to that definition, so two agents can talk in one thread without answering themselves. When several actors share the author's account, the comment counts as written by every one of them (`event.commentActors`) and none of their definitions receives it.
+
 ## Expression context
 
 | Name | Contents |
@@ -103,14 +105,17 @@ on it is how a feature for the coordinator is told from a task for the agent.
 
 | Name | Extra fields |
 |---|---|
-| `pr.commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `commentBody`, `commentUser`, `commentId`, `discussionId` |
-| `pr.review_commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `comments`, `commentId`, `discussionId` |
+| `pr.commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `commentBody`, `commentUser`, `commentId`, `discussionId`, `commentActor`, `commentActors` |
+| `pr.review_commented` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`, `comments`, `commentId`, `discussionId`, `commentActor`, `commentActors` |
 | `pr.review_submitted` | `prNumber`, …, `reviewId`, `reviewBody`, `reviewer` |
-| `pr.review_requested` | `prNumber`, `prTitle`, `headBranch`, `baseBranch` |
+| `pr.review_requested` | `prNumber`, `prTitle`, `headBranch`, `baseBranch`; emitted when the reviewer actor is added, or the MR is opened with it as reviewer (GitLab) |
+| `pr.review_withdrawn` | as above; the reviewer actor was removed from the reviewers (GitLab only: GitHub's `review_request_removed` is not mapped) |
 | `pr.ready_for_review` | as above; emitted when a draft or WIP marker is removed |
 | `pr.unassigned` | as above |
 | `pr.merged` | as above |
 | `pr.closed` | `prNumber`, `headBranch` |
+
+GitLab emits `pr.commented` and `pr.review_commented` for every merge request, whoever wrote the note; a note by one of the configured bot accounts carries every actor configured with that account in `commentActors` (in the order smithy, architect, coordinator) and the first of them in `commentActor`; a human's are empty. A note by an account that several actors share carries all of them and is withheld from every one of their workflows. A run never receives a comment written by its own actor (see Routing). Forgejo and GitHub emit review comments only for work branches.
 
 ### Push and CI
 
@@ -246,9 +251,10 @@ on.
 | `pr.create` | `owner`, `repo`, `title`, `head`, `base` | `body`, `draft` | `number`, `title`, `headRef`, `baseRef`, `reused` |
 | `pr.comment` | `owner`, `repo`, `number`, `body` | none | `number` |
 | `pr.reply` | `owner`, `repo`, `number`, `body` | `discussion` | `posted`, `threaded` |
+| `pr.resolve` | `owner`, `repo`, `number`, `discussion` | none | `resolved` (false when the provider refused, e.g. a thread that is not resolvable) |
 | `pr.review` | `owner`, `repo`, `number` | `summary`, `comments[]` (`path`, `line`, `body`), `event` | `posted`, `comments` |
 | `pr.reviewComments` | `owner`, `repo`, `number` | `reviewId`, `reviewer`, `body` | `comments`, `count` |
-| `pr.conversation` | `owner`, `repo`, `number` | none | `entries`, `count` |
+| `pr.conversation` | `owner`, `repo`, `number` | none | `entries` (`user`, `body`, `type`, `created_at`; on GitLab also `discussion`, `resolved`, `path`, `line`, `reply`), `count` |
 | `pr.read` | `owner`, `repo`, `number` | none | `number`, `title`, `body`, `merged`, `headRef`, `baseRef`, `assignees` |
 | `pr.findByHead` | `owner`, `repo`, `head` | none | `found`, `number`, `title`, `merged`, `assignees` |
 | `pr.isAssigned` | `owner`, `repo`, `number`, `assignedActor` | none | `assigned`, `actor`, `username` |
@@ -307,6 +313,15 @@ the other providers render markdown as is.
 | `signal.emit` | `signal` | `to` (`parent` default, or a run id), plus any keys as payload | `signal`, `to`, `released`, `handled` |
 | `correlate` | `kind` (`issue`/`pr`/`branch`/`container`/`key`), `ref` | `run` (defaults to this run) | `kind`, `ref`, `run` |
 
+`foreach` runs its nested steps once per item with `item` and `index` set. Inside
+a composite action the nested steps also see the composite's `with:` inputs as
+`vars.*`, so a loop can post with the owner and repository its caller passed.
+
+`correlate` points a handle at a run. A handle is held by one run per workflow:
+a newer run of the same workflow takes it over, while another workflow's run
+keeps its own, so an author's run and a reviewer's run can both answer to the
+same pull request, each through its own `by:` rules.
+
 `run.wave` reads each child's `index` and `dependsOn` vars and releases those
 whose dependencies have completed. A cancelled child does not satisfy a
 dependency, and `complete` is true only when every child completed.
@@ -332,6 +347,8 @@ the capability.
 | Forgejo | pull requests, issue comment/assign/create/label, file read |
 | GitHub | pull requests, issue comment/assign |
 | Jira | issue comment, issue assign |
+
+`pr.resolve` needs `discussion.resolve`, which only GitLab has.
 
 ## Where definitions come from
 

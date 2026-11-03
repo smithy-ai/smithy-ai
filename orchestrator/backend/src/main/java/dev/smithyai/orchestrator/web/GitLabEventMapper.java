@@ -9,6 +9,7 @@ import dev.smithyai.orchestrator.model.RepoInfo;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.service.vcs.VcsClient;
 import dev.smithyai.orchestrator.service.vcs.dto.PrData;
+import dev.smithyai.orchestrator.service.vcs.gitlab.GitLabNotePosition;
 import dev.smithyai.orchestrator.util.Naming;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -167,8 +168,9 @@ public class GitLabEventMapper {
 
     /** Which of this deployment's actors the issue is handed to, if any. */
     private String assignedActor(JsonNode assignees) {
-        for (var actor : actorUsers.entrySet()) {
-            if (isUserInArray(assignees, actor.getValue())) return actor.getKey();
+        for (var actor : ACTOR_ORDER) {
+            String username = actorUsers.get(actor);
+            if (username != null && isUserInArray(assignees, username)) return actor;
         }
         return null;
     }
@@ -208,11 +210,11 @@ public class GitLabEventMapper {
             .path("author")
             .path("username")
             .asText(payload.path("user").path("username").asText(""));
-        if (actors.contains(commentUser)) return null;
-
         return switch (noteableType) {
-            case "Issue" -> mapIssueNote(payload, attrs, commentUser);
-            case "MergeRequest" -> mapMrNote(payload, attrs, commentUser);
+            // A bot's own notes on an issue are not for any workflow; on a merge
+            // request they carry the bot's actors so routing can tell who spoke.
+            case "Issue" -> actors.contains(commentUser) ? null : mapIssueNote(payload, attrs, commentUser);
+            case "MergeRequest" -> mapMrNote(payload, attrs, commentUser, actorsOf(commentUser));
             default -> null;
         };
     }
@@ -225,7 +227,7 @@ public class GitLabEventMapper {
         return new WorkflowEvent.IssueComment(ctx, commentBody);
     }
 
-    private WorkflowEvent mapMrNote(JsonNode payload, JsonNode attrs, String commentUser) {
+    private WorkflowEvent mapMrNote(JsonNode payload, JsonNode attrs, String commentUser, List<String> commentActors) {
         var info = repoInfo(payload);
         var mr = payload.path("merge_request");
         var prc = extractPrFromMr(info, mr);
@@ -234,56 +236,43 @@ public class GitLabEventMapper {
         String type = attrs.path("type").asText("");
         long noteId = attrs.path("id").asLong(0);
 
-        // DiffNote → review comment. Gated like conversation notes below: a
-        // diff comment on a human's merge request is review conversation among
-        // humans, not something addressed to an agent. Forwarding those gave
-        // any run that happened to correlate a licence to answer and push on
-        // merge requests the bot was never assigned to.
+        String discussionId = attrs.path("discussion_id").asText("");
+
         if ("DiffNote".equals(type)) {
-            if (!isWorkBranch(prc.headBranch()) && !Naming.isArchitectBranch(prc.headBranch())) {
-                log.debug(
-                    "Ignoring diff note on {}!{}: branch '{}' is not an agent work branch",
-                    info.repo(),
-                    prc.number(),
-                    prc.headBranch()
-                );
-                return null;
-            }
-            var position = attrs.path("position");
-            String path = position.path("new_path").asText("");
-            int line = position.path("new_line").asInt(0);
-            var cd = new CommentData(commentUser, commentBody, path, line);
-            return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, attrs.path("discussion_id").asText(""));
+            var position = GitLabNotePosition.of(attrs.path("position"));
+            var cd = new CommentData(commentUser, commentBody, position.path(), (int) position.line());
+            return new WorkflowEvent.PrReviewComment(prc, List.of(cd), noteId, discussionId, commentActors);
         }
 
-        // Regular note → conversation comment. Comments on the architect's own
-        // context MR route back to its learn session; keying on the branch
-        // rather than a "<repo>-context" name lets that repo be named anything.
-        if (
-            Naming.isArchitectBranch(prc.headBranch()) &&
-            !commentUser.equals(actorUsers.get(VcsProviderConfig.ARCHITECT))
-        ) {
-            return new WorkflowEvent.PrConversationComment(
-                prc,
-                commentUser,
-                commentBody,
-                noteId,
-                attrs.path("discussion_id").asText("")
-            );
-        }
+        return new WorkflowEvent.PrConversationComment(
+            prc,
+            commentUser,
+            commentBody,
+            noteId,
+            discussionId,
+            commentActors
+        );
+    }
 
-        String headBranch = mr.path("source_branch").asText("");
-        if (isWorkBranch(headBranch)) {
-            return new WorkflowEvent.PrConversationComment(
-                prc,
-                commentUser,
-                commentBody,
-                noteId,
-                attrs.path("discussion_id").asText("")
-            );
-        }
+    /**
+     * The actors in a fixed order. The actor map has none, so an account that
+     * several actors share would otherwise resolve differently on every start.
+     */
+    private static final List<String> ACTOR_ORDER = List.of(
+        VcsProviderConfig.SMITHY,
+        VcsProviderConfig.ARCHITECT,
+        VcsProviderConfig.COORDINATOR
+    );
 
-        return null;
+    /**
+     * Every logical actor whose bot account is this user, in a fixed order;
+     * empty for a human. Several actors may share one account, and a note by it
+     * is by all of them.
+     */
+    private List<String> actorsOf(String username) {
+        return ACTOR_ORDER.stream()
+            .filter(actor -> username.equals(actorUsers.get(actor)))
+            .toList();
     }
 
     // ── Push Hook ───────────────────────────────
@@ -317,6 +306,7 @@ public class GitLabEventMapper {
         String action = attrs.path("action").asText("");
 
         return switch (action) {
+            case "open" -> mapMrOpen(payload, attrs);
             case "update" -> mapMrUpdate(payload, attrs);
             case "close" -> mapMrClose(payload, attrs);
             case "merge" -> mapMrMerge(payload, attrs);
@@ -325,24 +315,28 @@ public class GitLabEventMapper {
         };
     }
 
+    /** An MR opened with the architect already a reviewer is asked for a review as it opens. */
+    private WorkflowEvent mapMrOpen(JsonNode payload, JsonNode attrs) {
+        String architect = actorUsers.get(VcsProviderConfig.ARCHITECT);
+        if (architect == null || !isUserInArray(payload.path("reviewers"), architect)) return null;
+        return new WorkflowEvent.ReviewRequested(extractPrFromMr(repoInfo(payload), attrs));
+    }
+
     private WorkflowEvent mapMrUpdate(JsonNode payload, JsonNode attrs) {
         var changes = payload.path("changes");
         var info = repoInfo(payload);
 
-        // Reviewer added
+        // Reviewer added or removed: only a change in whether the architect is a reviewer counts
         if (changes.has("reviewers")) {
-            var currentReviewers = payload.path("reviewers");
-            if (currentReviewers.isArray()) {
-                for (var r : currentReviewers) {
-                    if (
-                        java.util.Objects.equals(
-                            actorUsers.get(VcsProviderConfig.ARCHITECT),
-                            r.path("username").asText("")
-                        )
-                    ) {
-                        var prc = extractPrFromMr(info, attrs);
-                        return new WorkflowEvent.ReviewRequested(prc);
-                    }
+            String architect = actorUsers.get(VcsProviderConfig.ARCHITECT);
+            if (architect != null) {
+                boolean wasReviewer = isUserInArray(changes.path("reviewers").path("previous"), architect);
+                boolean isReviewer = isUserInArray(changes.path("reviewers").path("current"), architect);
+                if (isReviewer && !wasReviewer) {
+                    return new WorkflowEvent.ReviewRequested(extractPrFromMr(info, attrs));
+                }
+                if (wasReviewer && !isReviewer) {
+                    return new WorkflowEvent.ReviewWithdrawn(extractPrFromMr(info, attrs));
                 }
             }
         }

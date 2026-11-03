@@ -36,6 +36,11 @@ public interface VcsClient extends ProviderClient {
         createPrComment(owner, repo, prNumber, body);
     }
 
+    /** Mark a PR discussion thread resolved. */
+    default void resolvePrDiscussion(String owner, String repo, int prNumber, String discussionId) {
+        throw new UnsupportedOperationException("resolvePrDiscussion not supported by " + getClass().getSimpleName());
+    }
+
     // Reviews
     void createPullReview(
         String owner,
@@ -53,6 +58,10 @@ public interface VcsClient extends ProviderClient {
     List<ReviewCommentEntry> getReviewComments(String owner, String repo, int prNumber, long reviewId);
 
     LatestReviewResult getLatestReviewComments(String owner, String repo, int prNumber, String reviewer);
+
+    default List<DiscussionEntry> getPrDiscussions(String owner, String repo, int prNumber) {
+        return List.of();
+    }
 
     // PR assignees & reviewers
     void setPrAssignees(String owner, String repo, int prNumber, List<String> assignees);

@@ -108,6 +108,54 @@ public class ReviewActions {
         };
     }
 
+    /**
+     * Close a review thread once its finding is fixed. Best-effort: a missing
+     * discussion id, or a thread the provider will not resolve (a plain comment,
+     * say), is reported as {@code resolved: false} rather than failing the
+     * transition around it.
+     */
+    @Bean
+    public WorkflowAction prResolveAction(VcsClients clients) {
+        return new WorkflowAction() {
+            @Override
+            public String type() {
+                return "pr.resolve";
+            }
+
+            @Override
+            public Set<Capability> requires() {
+                return Set.of(Capability.DISCUSSION_RESOLVE);
+            }
+
+            @Override
+            public Map<String, Object> execute(ActionContext context, Map<String, Object> input) {
+                var vcs = Vcs.pick(this, context, input, clients);
+                String owner = required(input, "owner");
+                String repo = required(input, "repo");
+                int number = intInput(input, "number", 0);
+                String discussion = optional(input, "discussion", null);
+                if (discussion == null) {
+                    log.warn("pr.resolve: no discussion to resolve on {}/{}!{}", owner, repo, number);
+                    return Map.of("resolved", false);
+                }
+                try {
+                    vcs.resolvePrDiscussion(owner, repo, number, discussion);
+                } catch (RuntimeException e) {
+                    log.warn(
+                        "pr.resolve: could not resolve discussion {} on {}/{}!{}: {}",
+                        discussion,
+                        owner,
+                        repo,
+                        number,
+                        e.getMessage()
+                    );
+                    return Map.of("resolved", false);
+                }
+                return Map.of("resolved", true);
+            }
+        };
+    }
+
     /** Whether the bot is still assigned — a human unassigning it is how they take over. */
     @Bean
     public WorkflowAction prIsAssignedAction(VcsClients clients) {

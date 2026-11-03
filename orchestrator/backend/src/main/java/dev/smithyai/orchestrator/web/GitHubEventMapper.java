@@ -162,7 +162,8 @@ public class GitHubEventMapper {
             commentUser,
             commentBody,
             payload.path("comment").path("id").asLong(0),
-            ""
+            "",
+            java.util.List.of()
         );
     }
 
@@ -306,7 +307,8 @@ public class GitHubEventMapper {
                 commentUser,
                 comment.path("body").asText(""),
                 comment.path("id").asLong(0),
-                ""
+                "",
+                java.util.List.of()
             );
         }
 

@@ -70,6 +70,15 @@ public interface WorkflowEvent {
         }
     }
 
+    /**
+     * A comment event that says which logical actors wrote it: every actor whose
+     * bot account is the author, since several actors may share one account.
+     * Never null; empty when a human wrote it.
+     */
+    interface Authored {
+        List<String> commentActors();
+    }
+
     // ── IssueScoped ─────────────────────────────
     record IssueAssigned(IssueContext ctx, String repoHtmlUrl) implements IssueScoped {
         @Override
@@ -125,8 +134,9 @@ public interface WorkflowEvent {
         String commentUser,
         String commentBody,
         long commentId,
-        String discussionId
-    ) implements PrScoped {
+        String discussionId,
+        List<String> commentActors
+    ) implements PrScoped, Authored {
         @Override
         public String identity() {
             return String.valueOf(commentId);
@@ -142,8 +152,9 @@ public interface WorkflowEvent {
         PrContext prc,
         List<CommentData> comments,
         long commentId,
-        String discussionId
-    ) implements PrScoped {
+        String discussionId,
+        List<String> commentActors
+    ) implements PrScoped, Authored {
         @Override
         public String identity() {
             return String.valueOf(commentId);
@@ -185,6 +196,13 @@ public interface WorkflowEvent {
         @Override
         public String name() {
             return "pr.review_requested";
+        }
+    }
+
+    record ReviewWithdrawn(PrContext prc) implements PrScoped {
+        @Override
+        public String name() {
+            return "pr.review_withdrawn";
         }
     }
 

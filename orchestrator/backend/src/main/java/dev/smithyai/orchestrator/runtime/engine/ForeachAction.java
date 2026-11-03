@@ -3,6 +3,7 @@ package dev.smithyai.orchestrator.runtime.engine;
 import dev.smithyai.orchestrator.runtime.actions.ActionContext;
 import dev.smithyai.orchestrator.runtime.actions.WorkflowAction;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Lazy;
@@ -59,17 +60,15 @@ public class ForeachAction implements WorkflowAction {
         var results = new ArrayList<Map<String, Map<String, Object>>>();
 
         for (int i = 0; i < list.size(); i++) {
+            // The nested steps see the vars the foreach step itself sees: inside
+            // a composite those include its inputs, which the run's own vars do
+            // not.
+            var vars = new LinkedHashMap<String, Object>(context.vars());
+            vars.put("item", list.get(i));
+            vars.put("index", i);
             // Each iteration gets its own transition id, so a resume skips the
             // items already done rather than repeating their side effects.
-            results.add(
-                executor.execute(
-                    context.run(),
-                    context.event(),
-                    transitionId + "[" + i + "]",
-                    nested,
-                    Map.of("item", list.get(i), "index", i)
-                )
-            );
+            results.add(executor.execute(context.run(), context.event(), transitionId + "[" + i + "]", nested, vars));
         }
         return Map.of("count", list.size(), "results", results);
     }

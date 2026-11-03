@@ -8,6 +8,7 @@ import dev.smithyai.orchestrator.config.VcsProviderConfig;
 import dev.smithyai.orchestrator.config.WorkflowPolicyConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.web.GitLabEventMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class GitLabEventMapperTest {
@@ -48,17 +49,96 @@ class GitLabEventMapperTest {
     }
 
     @Test
-    void aDiffNoteOnAHumansMergeRequestIsNotForTheAgent() throws Exception {
-        // A human MR from a human branch: review conversation among humans.
-        // Forwarding it let a correlated run answer and push on a merge
-        // request the bot was never assigned to.
-        assertNull(mapper().map("Note Hook", json.readTree(diffNote("FVS-1608"))));
+    void aDiffNoteOnAnyMergeRequestIsAReviewComment() throws Exception {
+        for (String branch : List.of("FVS-1608", "smithy/7-a-thing")) {
+            var review = assertInstanceOf(
+                WorkflowEvent.PrReviewComment.class,
+                mapper().map("Note Hook", json.readTree(diffNote(branch)))
+            );
+            assertEquals(41, review.prc().number());
+            assertEquals("please fix", review.comments().getFirst().body());
+            assertEquals(List.of(), review.commentActors());
+        }
+    }
 
-        // The agent's own MR still gets its review comments.
-        var own = mapper().map("Note Hook", json.readTree(diffNote("smithy/7-a-thing")));
-        var review = assertInstanceOf(WorkflowEvent.PrReviewComment.class, own);
-        assertEquals(41, review.prc().number());
-        assertEquals("please fix", review.comments().getFirst().body());
+    @Test
+    void aDiffNoteOnADeletedLineCarriesTheOldPathAndLine() throws Exception {
+        String payload = diffNote("feature/x").replace(
+            "{\"new_path\": \"src/App.java\", \"new_line\": 12}",
+            "{\"old_path\": \"src/Gone.java\", \"old_line\": 7}"
+        );
+
+        var review = assertInstanceOf(
+            WorkflowEvent.PrReviewComment.class,
+            mapper().map("Note Hook", json.readTree(payload))
+        );
+
+        assertEquals("src/Gone.java", review.comments().getFirst().path());
+        assertEquals(7, review.comments().getFirst().line());
+    }
+
+    @Test
+    void aPlainNoteOnAHumanBranchIsAConversationComment() throws Exception {
+        var event = mapper().map("Note Hook", json.readTree(plainNote("FVS-1608", "b.human")));
+        var comment = assertInstanceOf(WorkflowEvent.PrConversationComment.class, event);
+        assertEquals("d1", comment.discussionId());
+        assertEquals(List.of(), comment.commentActors());
+    }
+
+    @Test
+    void aNoteByABotCarriesItsActor() throws Exception {
+        var event = mapper().map("Note Hook", json.readTree(plainNote("FVS-1608", "smithy-bot")));
+        assertEquals(
+            List.of("smithy"),
+            assertInstanceOf(WorkflowEvent.PrConversationComment.class, event).commentActors()
+        );
+        var diff = mapper().map("Note Hook", json.readTree(diffNote("FVS-1608").replace("b.human", "architect-bot")));
+        assertEquals(List.of("architect"), assertInstanceOf(WorkflowEvent.PrReviewComment.class, diff).commentActors());
+    }
+
+    @Test
+    void anIssueAssignedToAnAccountSeveralActorsShareGoesToTheSameActorEveryTime() throws Exception {
+        var shared = mapper(
+            new BotConfig(
+                new BotConfig.BotEntry("shared-bot", "shared@example.com"),
+                new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+                new BotConfig.BotEntry("shared-bot", "shared@example.com")
+            )
+        );
+        // Several times, because the actor map has no iteration order to rely on.
+        for (int i = 0; i < 5; i++) {
+            var event = shared.map("Issue Hook", json.readTree(opened("shared-bot")));
+            assertEquals("smithy", assertInstanceOf(WorkflowEvent.IssueAssigned.class, event).ctx().assignee());
+        }
+    }
+
+    @Test
+    void aNoteByAnAccountSeveralActorsShareCarriesEveryOneOfThem() throws Exception {
+        var shared = mapper(
+            new BotConfig(
+                new BotConfig.BotEntry("shared-bot", "shared@example.com"),
+                new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+                new BotConfig.BotEntry("shared-bot", "shared@example.com")
+            )
+        );
+        // Several times, because the actor map has no iteration order to rely on.
+        for (int i = 0; i < 5; i++) {
+            var note = shared.map("Note Hook", json.readTree(plainNote("feature/x", "shared-bot")));
+            assertEquals(
+                List.of("smithy", "coordinator"),
+                assertInstanceOf(WorkflowEvent.PrConversationComment.class, note).commentActors()
+            );
+            var diff = shared.map("Note Hook", json.readTree(diffNote("feature/x").replace("b.human", "shared-bot")));
+            assertEquals(
+                List.of("smithy", "coordinator"),
+                assertInstanceOf(WorkflowEvent.PrReviewComment.class, diff).commentActors()
+            );
+        }
+    }
+
+    @Test
+    void aNoteByABotOnAnIssueIsStillIgnored() throws Exception {
+        assertNull(mapper().map("Note Hook", json.readTree(issueNote("smithy-bot"))));
     }
 
     @Test
@@ -81,6 +161,79 @@ class GitLabEventMapperTest {
         assertNull(mapper().map("Job Hook", null));
     }
 
+    @Test
+    void addingTheReviewerBotAsksForAReview() throws Exception {
+        var event = mapper().map(
+            "Merge Request Hook",
+            json.readTree(reviewersChanged("[]", "[{\"username\": \"architect-bot\"}]"))
+        );
+        assertEquals(41, assertInstanceOf(WorkflowEvent.ReviewRequested.class, event).prc().number());
+    }
+
+    @Test
+    void openingAMergeRequestWithTheReviewerBotAsksForAReview() throws Exception {
+        var event = mapper().map(
+            "Merge Request Hook",
+            json.readTree(openedWithReviewers("[{\"username\": \"architect-bot\"}]"))
+        );
+        var requested = assertInstanceOf(WorkflowEvent.ReviewRequested.class, event);
+        assertEquals(41, requested.prc().number());
+        assertEquals("feature/review-me", requested.prc().headBranch());
+    }
+
+    @Test
+    void openingAMergeRequestWithoutTheReviewerBotIsNotAReviewRequest() throws Exception {
+        assertNull(
+            mapper().map("Merge Request Hook", json.readTree(openedWithReviewers("[{\"username\": \"b.human\"}]")))
+        );
+        assertNull(mapper().map("Merge Request Hook", json.readTree(openedWithReviewers("[]"))));
+    }
+
+    @Test
+    void addingAnotherReviewerWhileTheBotStaysDoesNotReviewAgain() throws Exception {
+        String withBot = "[{\"username\": \"architect-bot\"}]";
+        String withBotAndHuman = "[{\"username\": \"architect-bot\"}, {\"username\": \"b.human\"}]";
+        assertNull(mapper().map("Merge Request Hook", json.readTree(reviewersChanged(withBot, withBotAndHuman))));
+    }
+
+    @Test
+    void removingTheReviewerBotWithdrawsTheReview() throws Exception {
+        var event = mapper().map(
+            "Merge Request Hook",
+            json.readTree(reviewersChanged("[{\"username\": \"architect-bot\"}]", "[]"))
+        );
+        var withdrawn = assertInstanceOf(WorkflowEvent.ReviewWithdrawn.class, event);
+        assertEquals("pr.review_withdrawn", withdrawn.name());
+        assertEquals("FVS-1608", withdrawn.prc().headBranch());
+    }
+
+    private static String reviewersChanged(String previous, String current) {
+        return """
+        {
+          "object_kind": "merge_request",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "object_attributes": {"iid": 41, "title": "A change", "description": "", "state": "opened",
+                                "action": "update", "source_branch": "FVS-1608", "target_branch": "main"},
+          "reviewers": %2$s,
+          "changes": {"reviewers": {"previous": %1$s, "current": %2$s}}
+        }
+        """.formatted(previous, current);
+    }
+
+    private static String openedWithReviewers(String reviewers) {
+        return """
+        {
+          "object_kind": "merge_request",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "object_attributes": {"iid": 41, "title": "A change", "description": "", "state": "opened",
+                                "action": "open", "source_branch": "feature/review-me", "target_branch": "main"},
+          "reviewers": %s
+        }
+        """.formatted(reviewers);
+    }
+
     private static String diffNote(String sourceBranch) {
         return """
         {
@@ -98,6 +251,35 @@ class GitLabEventMapperTest {
         """.formatted(sourceBranch);
     }
 
+    private static String plainNote(String sourceBranch, String author) {
+        return """
+        {
+          "object_kind": "note",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "user": {"username": "%2$s"},
+          "object_attributes": {"id": 99, "note": "please fix", "noteable_type": "MergeRequest",
+                                "discussion_id": "d1", "author": {"username": "%2$s"}},
+          "merge_request": {"iid": 41, "title": "A change", "description": "", "state": "opened",
+                            "source_branch": "%1$s", "target_branch": "main"}
+        }
+        """.formatted(sourceBranch, author);
+    }
+
+    private static String issueNote(String author) {
+        return """
+        {
+          "object_kind": "note",
+          "project": {"path_with_namespace": "acme/app", "git_http_url": "https://gitlab.invalid/acme/app.git",
+                      "web_url": "https://gitlab.invalid/acme/app"},
+          "user": {"username": "%s"},
+          "object_attributes": {"id": 99, "note": "a comment", "noteable_type": "Issue",
+                                "author": {"username": "%s"}},
+          "issue": {"iid": 7, "title": "A thing", "description": "", "state": "opened"}
+        }
+        """.formatted(author, author);
+    }
+
     private static String opened(String username) {
         return """
         {
@@ -112,11 +294,16 @@ class GitLabEventMapperTest {
     }
 
     private GitLabEventMapper mapper() {
-        var bots = new BotConfig(
-            new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),
-            new BotConfig.BotEntry("architect-bot", "architect@example.com"),
-            new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
+        return mapper(
+            new BotConfig(
+                new BotConfig.BotEntry("smithy-bot", "smithy@example.com"),
+                new BotConfig.BotEntry("architect-bot", "architect@example.com"),
+                new BotConfig.BotEntry("coordinator-bot", "coordinator@example.com")
+            )
         );
+    }
+
+    private GitLabEventMapper mapper(BotConfig bots) {
         var gitlab = new VcsProviderConfig.GitLabProviderConfig(
             "https://gitlab.invalid",
             "https://gitlab.invalid",

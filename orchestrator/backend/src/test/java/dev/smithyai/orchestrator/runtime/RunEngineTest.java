@@ -118,6 +118,8 @@ class RunEngineTest {
 
     private RunStore store;
     private RunEngine engine;
+    private Path definitions;
+    private WorkflowRegistry workflows;
 
     /** Runs inside the approval transition, at its test.hook step. */
     private Runnable hook = () -> {};
@@ -129,7 +131,7 @@ class RunEngineTest {
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         store = new RunStore(JdbcClient.create((DataSource) dataSource), new ObjectMapper());
 
-        var definitions = Files.createDirectory(tempDir.resolve("workflows"));
+        definitions = Files.createDirectory(tempDir.resolve("workflows"));
         Files.writeString(definitions.resolve("feature-coordinator.yml"), COORDINATOR);
 
         var renderer = new ExpressionRenderer();
@@ -171,7 +173,7 @@ class RunEngineTest {
 
         var stubs = new StubVcsClient();
         var policy = new WorkflowPolicyConfig(null, null, definitions.toString());
-        var workflows = new WorkflowRegistry(
+        workflows = new WorkflowRegistry(
             new WorkflowDefinitionLoader(new WorkflowDefinitionParser()),
             new CapabilityValidator(actions),
             policy,
@@ -567,13 +569,85 @@ class RunEngineTest {
         assertEquals("looks good", store.find(started.runId()).orElseThrow().vars().get("lastPrComment"));
     }
 
+    /**
+     * There is one correlation per pull request, so another workflow's
+     * {@code by: pr} rule finds the run that registered it. That run is not
+     * its own: evaluating its stages against a state it never defined would
+     * strand the run.
+     */
+    @Test
+    void aCorrelatedDispatchOnlyReachesARunOfTheWorkflowThatDecided() throws Exception {
+        Files.writeString(
+            definitions.resolve("pr-reviewer.yml"),
+            """
+            apiVersion: smithy.ai/v1alpha1
+            kind: Workflow
+            metadata:
+              name: pr-reviewer
+            routing:
+              - event: pr.commented
+                action: dispatch
+                by: pr
+            state:
+              initial: reviewing
+              terminal: done
+              reviewing:
+                on:
+                  pr.commented:
+                    steps:
+                      - uses: state.var
+                        with:
+                          reviewed: "{{ event.commentBody }}"
+              done:
+                on: {}
+            """
+        );
+        workflows.loadAll();
+        var started = engine.handle(assigned()).getFirst();
+        store.correlate(CorrelationKind.PR, RunRecorder.prRef("acme", "platform", 41), started.runId());
+        var before = store.find(started.runId()).orElseThrow();
+
+        var outcomes = engine.handle(prComment(41, "looks good"));
+
+        var byWorkflow = outcomes
+            .stream()
+            .collect(java.util.stream.Collectors.toMap(RunEngine.Outcome::workflowName, outcome -> outcome));
+        assertFalse(byWorkflow.get("pr-reviewer").handled(), "the reviewer has no run of its own here");
+        assertTrue(byWorkflow.get("feature-coordinator").handled(), "the run's own workflow still reaches it");
+        var after = store.find(started.runId()).orElseThrow();
+        assertEquals("looks good", after.vars().get("lastPrComment"));
+        assertNull(after.vars().get("reviewed"));
+        assertEquals(before.state(), after.state());
+        assertEquals(before.status(), after.status());
+        var types = store.findEvents(started.runId()).stream().map(RunEvent::type).toList();
+        assertFalse(types.contains("state.undefined"), "no foreign stages were evaluated: " + types);
+
+        // The reviewer correlates the same pull request for a run of its own:
+        // each workflow's rule now reaches its own run, and neither loses the
+        // handle to the other.
+        var reviewing = store.create("pr-reviewer", null, "reviewing", null);
+        store.updateStatus(reviewing.id(), RunStatus.RUNNING);
+        store.correlate(CorrelationKind.PR, RunRecorder.prRef("acme", "platform", 41), reviewing.id());
+
+        var both = engine
+            .handle(prComment(41, "and this?"))
+            .stream()
+            .collect(java.util.stream.Collectors.toMap(RunEngine.Outcome::workflowName, outcome -> outcome));
+
+        assertTrue(both.get("pr-reviewer").handled(), "the reviewer's own run");
+        assertTrue(both.get("feature-coordinator").handled(), "the coordinator keeps its run");
+        assertEquals("and this?", store.find(reviewing.id()).orElseThrow().vars().get("reviewed"));
+        assertEquals("and this?", store.find(started.runId()).orElseThrow().vars().get("lastPrComment"));
+    }
+
     private static WorkflowEvent prComment(int number, String body) {
         return new WorkflowEvent.PrConversationComment(
             new PrContext(REPO, number, "ecd-9: a change", "", false, "ecd-9", "main"),
             "b.human",
             body,
             number * 100L,
-            "d" + number
+            "d" + number,
+            List.of()
         );
     }
 

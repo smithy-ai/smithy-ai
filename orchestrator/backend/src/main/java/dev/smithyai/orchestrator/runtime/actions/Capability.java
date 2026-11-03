@@ -23,6 +23,7 @@ public enum Capability {
     BRANCH_SEARCH("branch.search"),
     COMMENT_REACT("comment.react"),
     DISCUSSION_REPLY("discussion.reply"),
+    DISCUSSION_RESOLVE("discussion.resolve"),
     /** An execution environment — a task container the run owns. */
     ENVIRONMENT("environment"),
     /** An agent session inside that environment. */

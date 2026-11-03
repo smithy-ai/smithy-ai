@@ -245,6 +245,17 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public void resolvePrDiscussion(String owner, String repo, int prNumber, String discussionId) {
+        put(
+            "/projects/%s/merge_requests/%d/discussions/%s",
+            Map.of("resolved", true),
+            projectId(owner, repo),
+            prNumber,
+            discussionId
+        );
+    }
+
+    @Override
     public void reactToPrComment(String owner, String repo, int prNumber, long commentId, String reaction) {
         post(
             "/projects/%s/merge_requests/%d/notes/%d/award_emoji",
@@ -330,6 +341,45 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
     }
 
     @Override
+    public List<DiscussionEntry> getPrDiscussions(String owner, String repo, int prNumber) {
+        var nodes = getList(
+            "/projects/%s/merge_requests/%d/discussions?per_page=100",
+            projectId(owner, repo),
+            prNumber
+        );
+        var result = new ArrayList<DiscussionEntry>();
+        for (var node : nodes) {
+            var notes = new ArrayList<DiscussionNote>();
+            JsonNode first = null;
+            for (var n : node.path("notes")) {
+                if (n.path("system").asBoolean(false)) continue;
+                if (first == null) first = n;
+                var position = GitLabNotePosition.of(n.path("position"));
+                notes.add(
+                    new DiscussionNote(
+                        n.path("id").asLong(),
+                        n.path("author").path("username").asText(""),
+                        n.path("body").asText(""),
+                        position.path(),
+                        position.line(),
+                        parseDateTime(n.path("created_at").asText(""))
+                    )
+                );
+            }
+            if (first == null) continue;
+            result.add(
+                new DiscussionEntry(
+                    node.path("id").asText(""),
+                    first.path("resolvable").asBoolean(false),
+                    first.path("resolved").asBoolean(false),
+                    notes
+                )
+            );
+        }
+        return result;
+    }
+
+    @Override
     public List<ReviewCommentEntry> getReviewComments(String owner, String repo, int prNumber, long reviewId) {
         // In GitLab, reviewId maps to a note ID. Return it as a single-element list.
         try {
@@ -388,16 +438,16 @@ public class GitLabClient implements VcsClient, IssueTrackerClient {
             OffsetDateTime noteDate = parseDateTime(firstNote.path("created_at").asText(""));
             if (reviewNoteDate != null && noteDate != null && noteDate.isBefore(reviewNoteDate)) continue;
 
-            String path = position.path("new_path").asText("");
-            if (path.isEmpty()) {
-                path = position.path("old_path").asText("");
-            }
-            int line = position.path("new_line").asInt(0);
-            if (line == 0) {
-                line = position.path("old_line").asInt(0);
-            }
-
-            comments.add(new ReviewCommentEntry(noteAuthor, firstNote.path("body").asText(""), path, line, noteDate));
+            var notePosition = GitLabNotePosition.of(position);
+            comments.add(
+                new ReviewCommentEntry(
+                    noteAuthor,
+                    firstNote.path("body").asText(""),
+                    notePosition.path(),
+                    notePosition.line(),
+                    noteDate
+                )
+            );
         }
 
         return new LatestReviewResult(comments, reviewBody);

@@ -1,5 +1,7 @@
 package dev.smithyai.orchestrator.runtime.engine;
 
+import dev.smithyai.orchestrator.config.DefaultsConfig;
+import dev.smithyai.orchestrator.config.OrchestratorConfig;
 import dev.smithyai.orchestrator.model.events.WorkflowEvent;
 import dev.smithyai.orchestrator.runtime.actions.ActionContext;
 import dev.smithyai.orchestrator.runtime.definition.WorkflowDefinition;
@@ -8,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,9 +25,16 @@ import org.springframework.stereotype.Component;
 public class WorkflowRouter {
 
     private final ExpressionRenderer renderer;
+    private final OrchestratorConfig config;
+
+    @Autowired
+    public WorkflowRouter(ExpressionRenderer renderer, OrchestratorConfig config) {
+        this.renderer = renderer;
+        this.config = config;
+    }
 
     public WorkflowRouter(ExpressionRenderer renderer) {
-        this.renderer = renderer;
+        this(renderer, null);
     }
 
     /** What a matching rule decided: which workflow, which run key, what to do. */
@@ -43,6 +53,17 @@ public class WorkflowRouter {
         var decisions = new ArrayList<Decision>();
 
         for (var definition : definitions) {
+            // A comment its own actor wrote is never for this definition, so a
+            // reviewer and an author can share a thread without answering themselves.
+            // Every actor sharing the author's account counts as the author: one
+            // of them answering the others would answer itself.
+            if (
+                event instanceof WorkflowEvent.Authored authored &&
+                authored.commentActors().contains(actorOf(definition))
+            ) {
+                log.debug("{}: {} skipped — written by its own actor", definition.metadata().name(), event.name());
+                continue;
+            }
             // The definition's own vars, because a routing rule's whole job can
             // be to ask a question about them — "do I have a repository catalog
             // to fan out to?" — and there is no run yet to read them from.
@@ -71,5 +92,14 @@ public class WorkflowRouter {
             }
         }
         return decisions;
+    }
+
+    /** The actor a definition acts as: its own {@code vars.actor}, else the deployment's default. */
+    private String actorOf(WorkflowDefinition definition) {
+        var actor = definition.vars().get("actor");
+        if (actor != null) return actor.toString();
+        return config == null || config.defaults() == null
+            ? DefaultsConfig.DEFAULT_ACTOR
+            : config.defaults().resolvedActor();
     }
 }
